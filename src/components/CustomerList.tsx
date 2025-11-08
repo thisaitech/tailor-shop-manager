@@ -6,19 +6,39 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { MagnifyingGlass, UserCircle, Plus } from '@phosphor-icons/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash } from '@phosphor-icons/react';
 import { CustomerForm } from './CustomerForm';
 
 interface CustomerListProps {
   customers: Customer[];
   onAddCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onUpdateCustomer?: (id: string, customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onDeleteCustomer?: (id: string) => void;
   onSelectCustomer?: (customer: Customer) => void;
 }
 
-export function CustomerList({ customers, onAddCustomer, onSelectCustomer }: CustomerListProps) {
+export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer, onSelectCustomer }: CustomerListProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
+  const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
 
   const filteredCustomers = customers.filter(
     (c) =>
@@ -34,6 +54,37 @@ export function CustomerList({ customers, onAddCustomer, onSelectCustomer }: Cus
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const handleEdit = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingCustomer(customer);
+    setShowForm(true);
+  };
+
+  const handleDelete = (customerId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteCustomerId(customerId);
+  };
+
+  const confirmDelete = () => {
+    if (deleteCustomerId && onDeleteCustomer) {
+      onDeleteCustomer(deleteCustomerId);
+      setDeleteCustomerId(null);
+    }
+  };
+
+  const handleFormClose = () => {
+    setShowForm(false);
+    setEditingCustomer(undefined);
+  };
+
+  const handleSave = (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (editingCustomer && onUpdateCustomer) {
+      onUpdateCustomer(editingCustomer.id, customerData);
+    } else {
+      onAddCustomer(customerData);
+    }
   };
 
   return (
@@ -100,6 +151,26 @@ export function CustomerList({ customers, onAddCustomer, onSelectCustomer }: Cus
                     </Badge>
                   </div>
                 </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <DotsThree size={20} weight="bold" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={(e) => handleEdit(customer, e)}>
+                      <PencilSimple size={16} className="mr-2" />
+                      {t('edit')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e) => handleDelete(customer.id, e)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash size={16} className="mr-2" />
+                      {t('delete')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </Card>
           ))}
@@ -108,9 +179,27 @@ export function CustomerList({ customers, onAddCustomer, onSelectCustomer }: Cus
 
       <CustomerForm
         open={showForm}
-        onOpenChange={setShowForm}
-        onSave={onAddCustomer}
+        onOpenChange={handleFormClose}
+        onSave={handleSave}
+        customer={editingCustomer}
       />
+
+      <AlertDialog open={deleteCustomerId !== null} onOpenChange={() => setDeleteCustomerId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteCustomer')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('deleteCustomerConfirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {t('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

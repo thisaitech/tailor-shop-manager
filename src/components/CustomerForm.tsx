@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,13 +29,23 @@ interface CustomerFormProps {
 
 export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerFormProps) {
   const { t } = useLanguage();
-  const [name, setName] = useState(customer?.name || '');
-  const [phone, setPhone] = useState(customer?.phone || '');
-  const [place, setPlace] = useState(customer?.place || '');
-  const [gender, setGender] = useState<Gender>(customer?.gender || 'male');
-  const [measurements, setMeasurements] = useState<Measurements>(
-    customer?.measurements || {}
-  );
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [place, setPlace] = useState('');
+  const [gender, setGender] = useState<Gender>('male');
+  const [measurements, setMeasurements] = useState<Measurements>({});
+
+  useEffect(() => {
+    if (customer) {
+      setName(customer.name);
+      setPhone(customer.phone);
+      setPlace(customer.place);
+      setGender(customer.gender);
+      setMeasurements(customer.measurements);
+    } else {
+      resetForm();
+    }
+  }, [customer, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

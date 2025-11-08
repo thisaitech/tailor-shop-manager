@@ -40,6 +40,22 @@ function AppContent() {
     toast.success('Customer added successfully');
   };
 
+  const handleUpdateCustomer = (id: string, customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
+    setCustomers((prev) =>
+      (prev || []).map((customer) =>
+        customer.id === id
+          ? { ...customerData, id, createdAt: customer.createdAt, updatedAt: Date.now() }
+          : customer
+      )
+    );
+    toast.success('Customer updated successfully');
+  };
+
+  const handleDeleteCustomer = (id: string) => {
+    setCustomers((prev) => (prev || []).filter((customer) => customer.id !== id));
+    toast.success('Customer deleted successfully');
+  };
+
   const handleAddOrder = (orderData: {
     customerId: string;
     customerName: string;
@@ -161,6 +177,8 @@ function AppContent() {
                 <CustomerList
                   customers={(customers || []).slice(0, 6)}
                   onAddCustomer={handleAddCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onDeleteCustomer={handleDeleteCustomer}
                 />
               </div>
               <div>
@@ -190,6 +208,8 @@ function AppContent() {
             <CustomerList
               customers={customers || []}
               onAddCustomer={handleAddCustomer}
+              onUpdateCustomer={handleUpdateCustomer}
+              onDeleteCustomer={handleDeleteCustomer}
             />
           </TabsContent>
 

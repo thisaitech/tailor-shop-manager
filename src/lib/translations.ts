@@ -67,6 +67,9 @@ export const translations = {
     cancel: 'Cancel',
     update: 'Update',
     delete: 'Delete',
+    edit: 'Edit',
+    deleteCustomer: 'Delete Customer',
+    deleteCustomerConfirm: 'Are you sure you want to delete this customer? This action cannot be undone.',
     
     enterPhoneOrOrderId: 'Enter Phone Number or Order ID',
     trackYourOrder: 'Track Your Order',
@@ -203,6 +206,9 @@ export const translations = {
     cancel: 'ரத்து செய்',
     update: 'புதுப்பிக்கவும்',
     delete: 'நீக்கு',
+    edit: 'திருத்து',
+    deleteCustomer: 'வாடிக்கையாளரை நீக்கு',
+    deleteCustomerConfirm: 'இந்த வாடிக்கையாளரை நீக்க விரும்புகிறீர்களா? இந்த செயலை மாற்ற முடியாது.',
     
     enterPhoneOrOrderId: 'தொலைபேசி எண் அல்லது ஆர்டர் எண்ணை உள்ளிடவும்',
     trackYourOrder: 'உங்கள் ஆர்டரை கண்காணிக்கவும்',
