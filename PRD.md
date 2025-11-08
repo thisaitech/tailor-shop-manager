@@ -54,6 +54,13 @@ A premium digital platform that transforms traditional tailor shop operations in
 - **Progression**: Click language icon → Select English/Tamil → Interface updates → Preference saved
 - **Success criteria**: All UI elements, labels, buttons translate instantly, preference persists across sessions
 
+### Inventory Management
+- **Functionality**: Track fabrics, threads, buttons, zippers, and accessories with quantity, supplier, color, price; receive low-stock alerts; manage stock in/out transactions
+- **Purpose**: Prevent material shortages, track costs, and manage supplier relationships
+- **Trigger**: Staff navigates to Inventory tab
+- **Progression**: View inventory → Add new item or Update stock → Stock In/Out dialog → Enter quantity & reason → Save → Transaction recorded
+- **Success criteria**: Items show accurate quantities, low-stock items highlighted with alerts, transaction history tracked with timestamps
+
 ## Edge Case Handling
 
 - **Empty States**: Show helpful prompts with "Add Customer" or "Create Order" when lists are empty
@@ -63,6 +70,8 @@ A premium digital platform that transforms traditional tailor shop operations in
 - **Network Offline**: Show clear message, queue actions for retry when connection restored
 - **Invalid Phone/Order ID**: Display friendly "No orders found" with suggestions to verify input
 - **Tailor Overload**: Dashboard shows warning when tailor has >10 active orders
+- **Out of Stock Materials**: Prevent negative inventory, show clear alert when attempting to use unavailable materials
+- **Duplicate Item Names**: Warn when adding inventory item with similar name to existing item
 
 ## Design Direction
 
@@ -107,13 +116,13 @@ Animations should feel purposeful and refined—quick enough to maintain efficie
 ## Component Selection
 
 - **Components**: 
-  - Dialog (order creation, customer forms)
-  - Card (dashboard metrics, customer/order list items with hover states)
-  - Tabs (customer measurements, order details sections)
-  - Select (tailor assignment, status updates, language toggle)
-  - Input (customer details, search, measurements with clear focus states)
+  - Dialog (order creation, customer forms, inventory management)
+  - Card (dashboard metrics, customer/order list items with hover states, inventory items)
+  - Tabs (customer measurements, order details sections, inventory stock in/out)
+  - Select (tailor assignment, status updates, language toggle, category filters)
+  - Input (customer details, search, measurements with clear focus states, inventory quantities)
   - Button (primary actions with filled style, secondary with outline, destructive for cancel)
-  - Badge (status indicators with color coding: gray=pending, blue=in-progress, green=ready, slate=delivered)
+  - Badge (status indicators with color coding: gray=pending, blue=in-progress, green=ready, slate=delivered; stock levels: red=out of stock, amber=low stock, green=in stock)
   - Table (order lists with sortable columns, row hover)
   - Avatar (tailor/customer initials with soft colors)
   - Popover (quick actions menu, notifications)
@@ -124,6 +133,8 @@ Animations should feel purposeful and refined—quick enough to maintain efficie
   - Measurement Grid component (structured input layout for clothing measurements)
   - Language Switcher (custom toggle with flag icons)
   - Tailor Workload Indicator (custom progress bar showing assigned orders)
+  - Inventory Stock Level Indicator (visual progress bar with color-coded thresholds)
+  - Transaction Timeline (chronological list with in/out indicators)
   - Quick Action Fab (floating action button for mobile - add order/customer)
 
 - **States**: 
@@ -132,7 +143,7 @@ Animations should feel purposeful and refined—quick enough to maintain efficie
   - Cards: default (border + subtle shadow), hover (shadow-lg + slight translate-y), selected (border-primary + background tint)
 
 - **Icon Selection**: 
-  - @phosphor-icons: User (customers), Scissors (orders), UserCircle (tailors), ClockCounterClockwise (status), Bell (notifications), MagnifyingGlass (search), Plus (add actions), CaretDown (dropdowns), Check (completed), Warning (overdue), Translate (language)
+  - @phosphor-icons: User (customers), Scissors (orders), UserCircle (tailors), ClockCounterClockwise (status), Bell (notifications), MagnifyingGlass (search), Plus (add actions), CaretDown (dropdowns), Check (completed), Warning (overdue), Translate (language), Package (inventory), ArrowCircleDown (stock in), ArrowCircleUp (stock out), WarningCircle (low stock)
 
 - **Spacing**: 
   - Page padding: p-6 (desktop) / p-4 (mobile)
@@ -142,9 +153,10 @@ Animations should feel purposeful and refined—quick enough to maintain efficie
   - Consistent 4px baseline grid (0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24)
 
 - **Mobile**: 
-  - Navigation: Bottom tab bar on mobile (Dashboard, Orders, Customers, Profile) vs. sidebar on desktop
+  - Navigation: Bottom tab bar on mobile (Dashboard, Orders, Customers, Inventory, Track) vs. sidebar on desktop
   - Dashboard: Stack metric cards vertically on mobile, 2x2 grid on tablet, 4-column on desktop
   - Forms: Full-screen modal on mobile with sticky footer buttons, centered dialog on desktop
   - Tables: Transform to stacked card list on mobile with key info visible, expandable for details
   - Search: Sticky header with persistent search bar, slides up on scroll down, reappears on scroll up
+  - Inventory: 2-column grid on desktop, single column on mobile with transaction history below
   - Quick Actions: Floating action button (FAB) bottom-right on mobile for primary add actions

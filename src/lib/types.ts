@@ -85,4 +85,34 @@ export interface Tailor {
   name: string;
 }
 
+export type MaterialCategory = 'fabric' | 'thread' | 'button' | 'zipper' | 'accessory' | 'other';
+
+export type MaterialUnit = 'meter' | 'piece' | 'roll' | 'spool' | 'pack' | 'dozen';
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: MaterialCategory;
+  quantity: number;
+  unit: MaterialUnit;
+  minQuantity: number;
+  supplier?: string;
+  color?: string;
+  price?: number;
+  lastRestocked?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  itemId: string;
+  itemName: string;
+  type: 'in' | 'out';
+  quantity: number;
+  reason: string;
+  orderId?: string;
+  createdAt: number;
+}
+
 export type Language = 'en' | 'ta';
