@@ -1,0 +1,184 @@
+import { Language } from './types';
+
+export const translations = {
+  en: {
+    appName: 'Tailor Shop',
+    dashboard: 'Dashboard',
+    customers: 'Customers',
+    orders: 'Orders',
+    track: 'Track Order',
+    
+    totalCustomers: 'Total Customers',
+    activeOrders: 'Active Orders',
+    readyForDelivery: 'Ready for Delivery',
+    completedOrders: 'Completed Orders',
+    
+    addCustomer: 'Add Customer',
+    newOrder: 'New Order',
+    searchCustomers: 'Search customers...',
+    searchOrders: 'Search orders...',
+    
+    name: 'Name',
+    phone: 'Phone',
+    place: 'Place',
+    gender: 'Gender',
+    male: 'Male',
+    female: 'Female',
+    measurements: 'Measurements',
+    
+    pant: 'Pant',
+    shirt: 'Shirt',
+    coat: 'Coat',
+    blazer: 'Blazer',
+    jocket: 'Jocket',
+    sudhar: 'Sudhar',
+    kurta: 'Kurta',
+    
+    length: 'Length',
+    waist: 'Waist',
+    hip: 'Hip',
+    thigh: 'Thigh',
+    bottom: 'Bottom',
+    shoulder: 'Shoulder',
+    chest: 'Chest',
+    sleeve: 'Sleeve',
+    neck: 'Neck',
+    
+    customer: 'Customer',
+    selectCustomer: 'Select Customer',
+    fabricDetails: 'Fabric Details',
+    designNotes: 'Design Notes',
+    assignTailor: 'Assign Tailor',
+    deliveryDate: 'Delivery Date',
+    
+    status: 'Status',
+    pending: 'Pending',
+    inProgress: 'In Progress',
+    ready: 'Ready',
+    delivered: 'Delivered',
+    
+    orderId: 'Order ID',
+    created: 'Created',
+    delivery: 'Delivery',
+    tailor: 'Tailor',
+    
+    save: 'Save',
+    cancel: 'Cancel',
+    update: 'Update',
+    delete: 'Delete',
+    
+    enterPhoneOrOrderId: 'Enter Phone Number or Order ID',
+    trackYourOrder: 'Track Your Order',
+    noOrdersFound: 'No orders found',
+    checkDetails: 'Please check your phone number or order ID',
+    
+    overdue: 'Overdue',
+    dueToday: 'Due Today',
+    
+    customerDetails: 'Customer Details',
+    orderDetails: 'Order Details',
+    
+    createCustomer: 'Create Customer',
+    editCustomer: 'Edit Customer',
+    createOrder: 'Create Order',
+    updateStatus: 'Update Status',
+    
+    viewDetails: 'View Details',
+    noCustomers: 'No customers yet',
+    noOrders: 'No orders yet',
+    startByAdding: 'Start by adding a',
+    or: 'or',
+  },
+  ta: {
+    appName: 'தையல் கடை',
+    dashboard: 'முகப்பு',
+    customers: 'வாடிக்கையாளர்கள்',
+    orders: 'ஆர்டர்கள்',
+    track: 'ஆர்டரை கண்காணிக்க',
+    
+    totalCustomers: 'மொத்த வாடிக்கையாளர்கள்',
+    activeOrders: 'செயலில் உள்ள ஆர்டர்கள்',
+    readyForDelivery: 'டெலிவரிக்கு தயார்',
+    completedOrders: 'முடிந்த ஆர்டர்கள்',
+    
+    addCustomer: 'வாடிக்கையாளர் சேர்க்க',
+    newOrder: 'புதிய ஆர்டர்',
+    searchCustomers: 'வாடிக்கையாளர்களை தேடுங்கள்...',
+    searchOrders: 'ஆர்டர்களை தேடுங்கள்...',
+    
+    name: 'பெயர்',
+    phone: 'தொலைபேசி',
+    place: 'இடம்',
+    gender: 'பாலினம்',
+    male: 'ஆண்',
+    female: 'பெண்',
+    measurements: 'அளவுகள்',
+    
+    pant: 'பேண்ட்',
+    shirt: 'சட்டை',
+    coat: 'கோட்',
+    blazer: 'பிளேசர்',
+    jocket: 'ஜாக்கெட்',
+    sudhar: 'சுதார்',
+    kurta: 'குர்தா',
+    
+    length: 'நீளம்',
+    waist: 'இடுப்பு',
+    hip: 'இடுப்பு பகுதி',
+    thigh: 'தொடை',
+    bottom: 'கீழ்',
+    shoulder: 'தோள்பட்டை',
+    chest: 'மார்பு',
+    sleeve: 'கை',
+    neck: 'கழுத்து',
+    
+    customer: 'வாடிக்கையாளர்',
+    selectCustomer: 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்',
+    fabricDetails: 'துணி விவரங்கள்',
+    designNotes: 'டிசைன் குறிப்புகள்',
+    assignTailor: 'தையல்காரரை ஒதுக்கவும்',
+    deliveryDate: 'டெலிவரி தேதி',
+    
+    status: 'நிலை',
+    pending: 'நிலுவையில்',
+    inProgress: 'செயல்பாட்டில்',
+    ready: 'தயார்',
+    delivered: 'வழங்கப்பட்டது',
+    
+    orderId: 'ஆர்டர் எண்',
+    created: 'உருவாக்கப்பட்டது',
+    delivery: 'டெலிவரி',
+    tailor: 'தையல்காரர்',
+    
+    save: 'சேமி',
+    cancel: 'ரத்து செய்',
+    update: 'புதுப்பிக்கவும்',
+    delete: 'நீக்கு',
+    
+    enterPhoneOrOrderId: 'தொலைபேசி எண் அல்லது ஆர்டர் எண்ணை உள்ளிடவும்',
+    trackYourOrder: 'உங்கள் ஆர்டரை கண்காணிக்கவும்',
+    noOrdersFound: 'ஆர்டர்கள் எதுவும் இல்லை',
+    checkDetails: 'உங்கள் தொலைபேசி எண் அல்லது ஆர்டர் எண்ணை சரிபார்க்கவும்',
+    
+    overdue: 'தாமதம்',
+    dueToday: 'இன்று',
+    
+    customerDetails: 'வாடிக்கையாளர் விவரங்கள்',
+    orderDetails: 'ஆர்டர் விவரங்கள்',
+    
+    createCustomer: 'வாடிக்கையாளரை உருவாக்கு',
+    editCustomer: 'வாடிக்கையாளரைத் திருத்து',
+    createOrder: 'ஆர்டரை உருவாக்கு',
+    updateStatus: 'நிலையை புதுப்பிக்கவும்',
+    
+    viewDetails: 'விவரங்களைக் காண்க',
+    noCustomers: 'இன்னும் வாடிக்கையாளர்கள் இல்லை',
+    noOrders: 'இன்னும் ஆர்டர்கள் இல்லை',
+    startByAdding: 'சேர்ப்பதன் மூலம் தொடங்குங்கள்',
+    or: 'அல்லது',
+  },
+};
+
+export const getTranslation = (lang: Language, key: keyof typeof translations.en): string => {
+  return translations[lang][key] || translations.en[key];
+};
