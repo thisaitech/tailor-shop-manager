@@ -103,6 +103,12 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                       <p className="text-sm text-muted-foreground">
                         {t('orderId')}: {order.id.slice(0, 8)}
                       </p>
+                      <a 
+                        href={`tel:${order.customerPhone}`}
+                        className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors inline-block mt-1"
+                      >
+                        {t('phone')}: {order.customerPhone}
+                      </a>
                     </div>
                     <Badge className={getStatusColor(order.status)}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}

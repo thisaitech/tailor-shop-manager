@@ -139,7 +139,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                   <h3 className="font-semibold text-foreground truncate">
                     {customer.name}
                   </h3>
-                  <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                  <a 
+                    href={`tel:${customer.phone}`}
+                    className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {customer.phone}
+                  </a>
                   {customer.place && (
                     <p className="text-sm text-muted-foreground truncate">
                       {customer.place}

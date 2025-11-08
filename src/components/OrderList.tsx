@@ -130,9 +130,13 @@ export function OrderList({
                       <p className="text-sm text-muted-foreground">
                         {t('orderId')}: {order.id.slice(0, 8)}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <a 
+                        href={`tel:${order.customerPhone}`}
+                        className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {t('phone')}: {order.customerPhone}
-                      </p>
+                      </a>
                     </div>
                   </div>
 
