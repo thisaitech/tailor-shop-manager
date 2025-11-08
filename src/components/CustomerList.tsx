@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash } from '@phosphor-icons/react';
+import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash, Phone } from '@phosphor-icons/react';
 import { CustomerForm } from './CustomerForm';
 
 interface CustomerListProps {
@@ -139,13 +139,23 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                   <h3 className="font-semibold text-foreground truncate">
                     {customer.name}
                   </h3>
-                  <a 
-                    href={`tel:${customer.phone}`}
-                    className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {customer.phone}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a 
+                      href={`tel:${customer.phone}`}
+                      className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {customer.phone}
+                    </a>
+                    <a 
+                      href={`tel:${customer.phone}`}
+                      className="text-primary hover:text-primary/80 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Call customer"
+                    >
+                      <Phone size={18} weight="fill" />
+                    </a>
+                  </div>
                   {customer.place && (
                     <p className="text-sm text-muted-foreground truncate">
                       {customer.place}
@@ -164,6 +174,15 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <a 
+                        href={`tel:${customer.phone}`}
+                        className="flex items-center cursor-pointer"
+                      >
+                        <Phone size={16} className="mr-2" />
+                        {t('call')}
+                      </a>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={(e) => handleEdit(customer, e)}>
                       <PencilSimple size={16} className="mr-2" />
                       {t('edit')}
