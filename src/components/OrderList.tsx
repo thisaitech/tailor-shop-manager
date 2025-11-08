@@ -12,10 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MagnifyingGlass, Scissors, Plus, Warning } from '@phosphor-icons/react';
+import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { format, isPast, isToday } from 'date-fns';
 import { OrderForm } from './OrderForm';
 import { Customer, Tailor } from '@/lib/types';
+import { sendWhatsAppMessage } from '@/lib/utils';
 
 interface OrderListProps {
   orders: Order[];
@@ -69,6 +70,16 @@ export function OrderList({
 
   const isOverdue = (order: Order) => {
     return order.status !== 'delivered' && isPast(order.deliveryDate);
+  };
+
+  const getOrderStatusMessage = (order: Order) => {
+    const statusMessages = {
+      pending: `Your order ${order.id.slice(0, 8)} is pending. Expected delivery: ${format(order.deliveryDate, 'MMM dd, yyyy')}`,
+      'in-progress': `Your order ${order.id.slice(0, 8)} is being stitched by ${order.assignedTailor}. Expected delivery: ${format(order.deliveryDate, 'MMM dd, yyyy')}`,
+      ready: `Good news! Your order ${order.id.slice(0, 8)} is ready for pickup. Please collect at your earliest convenience.`,
+      delivered: `Thank you! Your order ${order.id.slice(0, 8)} has been delivered. We hope you love it!`,
+    };
+    return statusMessages[order.status];
   };
 
   return (
@@ -130,13 +141,35 @@ export function OrderList({
                       <p className="text-sm text-muted-foreground">
                         {t('orderId')}: {order.id.slice(0, 8)}
                       </p>
-                      <a 
-                        href={`tel:${order.customerPhone}`}
-                        className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {t('phone')}: {order.customerPhone}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={`tel:${order.customerPhone}`}
+                          className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {t('phone')}: {order.customerPhone}
+                        </a>
+                        <div className="flex items-center gap-1">
+                          <a 
+                            href={`tel:${order.customerPhone}`}
+                            className="text-primary hover:text-primary/80 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                            title={t('call')}
+                          >
+                            <Phone size={16} weight="fill" />
+                          </a>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
+                            }}
+                            className="text-green-600 hover:text-green-700 transition-colors"
+                            title={t('whatsapp')}
+                          >
+                            <WhatsappLogo size={16} weight="fill" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 

@@ -5,8 +5,9 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Package, MagnifyingGlass } from '@phosphor-icons/react';
+import { Package, MagnifyingGlass, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { format } from 'date-fns';
+import { sendWhatsAppMessage } from '@/lib/utils';
 
 interface OrderTrackingProps {
   orders: Order[];
@@ -61,6 +62,16 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
     }
   };
 
+  const getOrderStatusMessage = (order: Order) => {
+    const statusMessages = {
+      pending: `Your order ${order.id.slice(0, 8)} is pending. Expected delivery: ${format(order.deliveryDate, 'MMM dd, yyyy')}`,
+      'in-progress': `Your order ${order.id.slice(0, 8)} is being stitched by ${order.assignedTailor}. Expected delivery: ${format(order.deliveryDate, 'MMM dd, yyyy')}`,
+      ready: `Good news! Your order ${order.id.slice(0, 8)} is ready for pickup. Please collect at your earliest convenience.`,
+      delivered: `Thank you! Your order ${order.id.slice(0, 8)} has been delivered. We hope you love it!`,
+    };
+    return statusMessages[order.status];
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="text-center mb-8">
@@ -103,12 +114,32 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                       <p className="text-sm text-muted-foreground">
                         {t('orderId')}: {order.id.slice(0, 8)}
                       </p>
-                      <a 
-                        href={`tel:${order.customerPhone}`}
-                        className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors inline-block mt-1"
-                      >
-                        {t('phone')}: {order.customerPhone}
-                      </a>
+                      <div className="flex items-center gap-2 mt-1">
+                        <a 
+                          href={`tel:${order.customerPhone}`}
+                          className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                        >
+                          {t('phone')}: {order.customerPhone}
+                        </a>
+                        <div className="flex items-center gap-1">
+                          <a 
+                            href={`tel:${order.customerPhone}`}
+                            className="text-primary hover:text-primary/80 transition-colors"
+                            title={t('call')}
+                          >
+                            <Phone size={16} weight="fill" />
+                          </a>
+                          <button
+                            onClick={() => {
+                              sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
+                            }}
+                            className="text-green-600 hover:text-green-700 transition-colors"
+                            title={t('whatsapp')}
+                          >
+                            <WhatsappLogo size={16} weight="fill" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                     <Badge className={getStatusColor(order.status)}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}

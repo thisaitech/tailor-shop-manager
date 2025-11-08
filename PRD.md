@@ -61,6 +61,13 @@ A premium digital platform that transforms traditional tailor shop operations in
 - **Progression**: View inventory → Add new item or Update stock → Stock In/Out dialog → Enter quantity & reason → Save → Transaction recorded
 - **Success criteria**: Items show accurate quantities, low-stock items highlighted with alerts, transaction history tracked with timestamps
 
+### WhatsApp Customer Communication
+- **Functionality**: Send WhatsApp messages to customers directly from the app with order status updates, quick greetings, and custom messages
+- **Purpose**: Enable instant, convenient communication with customers via their preferred messaging platform
+- **Trigger**: Staff clicks WhatsApp icon next to customer phone number in Customer List, Order List, or Order Tracking
+- **Progression**: Click WhatsApp icon → WhatsApp opens with pre-filled message → Staff can edit message → Send via WhatsApp
+- **Success criteria**: WhatsApp web/app opens with correctly formatted phone number and context-appropriate message template based on order status or customer interaction
+
 ## Edge Case Handling
 
 - **Empty States**: Show helpful prompts with "Add Customer" or "Create Order" when lists are empty
@@ -143,7 +150,7 @@ Animations should feel purposeful and refined—quick enough to maintain efficie
   - Cards: default (border + subtle shadow), hover (shadow-lg + slight translate-y), selected (border-primary + background tint)
 
 - **Icon Selection**: 
-  - @phosphor-icons: User (customers), Scissors (orders), UserCircle (tailors), ClockCounterClockwise (status), Bell (notifications), MagnifyingGlass (search), Plus (add actions), CaretDown (dropdowns), Check (completed), Warning (overdue), Translate (language), Package (inventory), ArrowCircleDown (stock in), ArrowCircleUp (stock out), WarningCircle (low stock)
+  - @phosphor-icons: User (customers), Scissors (orders), UserCircle (tailors), ClockCounterClockwise (status), Bell (notifications), MagnifyingGlass (search), Plus (add actions), CaretDown (dropdowns), Check (completed), Warning (overdue), Translate (language), Package (inventory), ArrowCircleDown (stock in), ArrowCircleUp (stock out), WarningCircle (low stock), Phone (call), WhatsappLogo (WhatsApp messaging)
 
 - **Spacing**: 
   - Page padding: p-6 (desktop) / p-4 (mobile)

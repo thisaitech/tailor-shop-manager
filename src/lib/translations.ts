@@ -69,6 +69,7 @@ export const translations = {
     delete: 'Delete',
     edit: 'Edit',
     call: 'Call',
+    whatsapp: 'WhatsApp',
     deleteCustomer: 'Delete Customer',
     deleteCustomerConfirm: 'Are you sure you want to delete this customer? This action cannot be undone.',
     
@@ -209,6 +210,7 @@ export const translations = {
     delete: 'நீக்கு',
     edit: 'திருத்து',
     call: 'அழைக்க',
+    whatsapp: 'வாட்ஸ்அப்',
     deleteCustomer: 'வாடிக்கையாளரை நீக்கு',
     deleteCustomerConfirm: 'இந்த வாடிக்கையாளரை நீக்க விரும்புகிறீர்களா? இந்த செயலை மாற்ற முடியாது.',
     

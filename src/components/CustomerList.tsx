@@ -22,8 +22,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash, Phone } from '@phosphor-icons/react';
+import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { CustomerForm } from './CustomerForm';
+import { sendWhatsAppMessage } from '@/lib/utils';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -147,14 +148,26 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     >
                       {customer.phone}
                     </a>
-                    <a 
-                      href={`tel:${customer.phone}`}
-                      className="text-primary hover:text-primary/80 transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                      title="Call customer"
-                    >
-                      <Phone size={18} weight="fill" />
-                    </a>
+                    <div className="flex items-center gap-1">
+                      <a 
+                        href={`tel:${customer.phone}`}
+                        className="text-primary hover:text-primary/80 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                        title={t('call')}
+                      >
+                        <Phone size={16} weight="fill" />
+                      </a>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
+                        }}
+                        className="text-green-600 hover:text-green-700 transition-colors"
+                        title={t('whatsapp')}
+                      >
+                        <WhatsappLogo size={16} weight="fill" />
+                      </button>
+                    </div>
                   </div>
                   {customer.place && (
                     <p className="text-sm text-muted-foreground truncate">
@@ -182,6 +195,16 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         <Phone size={16} className="mr-2" />
                         {t('call')}
                       </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <WhatsappLogo size={16} className="mr-2" />
+                      {t('whatsapp')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={(e) => handleEdit(customer, e)}>
                       <PencilSimple size={16} className="mr-2" />
