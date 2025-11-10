@@ -132,24 +132,20 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
               onClick={() => onSelectCustomer?.(customer)}
             >
               <div className="flex items-start gap-3">
-                <Avatar className="h-11 w-11 sm:h-10 sm:w-10">
+                <Avatar className="h-11 w-11 sm:h-10 sm:w-10 flex-shrink-0">
                   <AvatarFallback className="bg-primary text-primary-foreground text-sm sm:text-sm font-bold">
                     {getInitials(customer.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-base sm:text-base text-foreground truncate">
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <h3 className="font-bold text-base sm:text-base text-foreground mb-1">
                     {customer.name}
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <a 
-                      href={`tel:${customer.phone}`}
-                      className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors truncate font-medium"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-sm sm:text-sm text-muted-foreground font-medium break-all">
                       {customer.phone}
-                    </a>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    </span>
+                    <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
                       <a 
                         href={`tel:${customer.phone}`}
                         className="text-primary hover:text-primary/80 transition-colors p-1 touch-manipulation"
@@ -171,11 +167,11 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     </div>
                   </div>
                   {customer.place && (
-                    <p className="text-sm sm:text-sm text-muted-foreground truncate mt-1 font-medium">
+                    <p className="text-sm sm:text-sm text-muted-foreground mb-2 font-medium">
                       {customer.place}
                     </p>
                   )}
-                  <div className="mt-2">
+                  <div>
                     <Badge variant="outline" className="text-sm sm:text-xs font-semibold">
                       {t(customer.gender)}
                     </Badge>
