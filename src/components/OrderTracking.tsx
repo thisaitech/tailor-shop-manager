@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package, MagnifyingGlass, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { PhotoGallery } from './PhotoGallery';
@@ -20,6 +21,7 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState<Order[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in-progress' | 'ready' | 'delivered'>('all');
 
   useEffect(() => {
     if (initialFilter !== 'all') {
@@ -47,14 +49,38 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
   const handleSearch = () => {
     if (!searchValue.trim()) return;
 
-    const results = orders.filter(
+    let results = orders.filter(
       (order) =>
         order.customerPhone.includes(searchValue.trim()) ||
         order.id.toLowerCase().includes(searchValue.toLowerCase().trim())
     );
 
+    if (statusFilter !== 'all') {
+      results = results.filter((order) => order.status === statusFilter);
+    }
+
     setSearchResults(results);
     setHasSearched(true);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value as 'all' | 'pending' | 'in-progress' | 'ready' | 'delivered');
+    
+    if (hasSearched) {
+      let results = searchValue.trim()
+        ? orders.filter(
+            (order) =>
+              order.customerPhone.includes(searchValue.trim()) ||
+              order.id.toLowerCase().includes(searchValue.toLowerCase().trim())
+          )
+        : searchResults;
+
+      if (value !== 'all') {
+        results = results.filter((order) => order.status === value);
+      }
+
+      setSearchResults(results);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -105,18 +131,35 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
       </div>
 
       <Card className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <Input
-            placeholder={t('enterPhoneOrOrderId')}
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="h-10 sm:h-11"
-          />
-          <Button onClick={handleSearch} className="h-10 sm:h-11 w-full sm:w-auto text-xs sm:text-sm">
-            <MagnifyingGlass size={18} className="mr-1.5" />
-            {t('track')}
-          </Button>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Input
+              placeholder={t('enterPhoneOrOrderId')}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="h-10 sm:h-11"
+            />
+            <Button onClick={handleSearch} className="h-10 sm:h-11 w-full sm:w-auto text-xs sm:text-sm">
+              <MagnifyingGlass size={18} className="mr-1.5" />
+              {t('track')}
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{t('filterByStatus')}:</span>
+            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+              <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('allStatuses')}</SelectItem>
+                <SelectItem value="pending">{t('pending')}</SelectItem>
+                <SelectItem value="in-progress">{t('inProgress')}</SelectItem>
+                <SelectItem value="ready">{t('ready')}</SelectItem>
+                <SelectItem value="delivered">{t('delivered')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </Card>
 

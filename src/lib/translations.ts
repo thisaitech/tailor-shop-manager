@@ -143,6 +143,9 @@ export const translations = {
     noItems: 'No inventory items yet',
     recentTransactions: 'Recent Transactions',
     noTransactions: 'No transactions yet',
+    
+    filterByStatus: 'Filter by Status',
+    allStatuses: 'All Statuses',
   },
   ta: {
     appName: 'தையல் கடை',
@@ -286,6 +289,9 @@ export const translations = {
     noItems: 'இன்னும் சரக்கு பொருட்கள் இல்லை',
     recentTransactions: 'சமீபத்திய பரிவர்த்தனைகள்',
     noTransactions: 'இன்னும் பரிவர்த்தனைகள் இல்லை',
+    
+    filterByStatus: 'நிலையின் அடிப்படையில் வடிகட்டவும்',
+    allStatuses: 'அனைத்து நிலைகள்',
   },
 };
 
