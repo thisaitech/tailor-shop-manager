@@ -320,20 +320,3 @@ export function OrderList({
     </div>
   );
 }
-
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      <OrderForm
-        open={showForm}
-        onOpenChange={setShowForm}
-        onSave={onAddOrder}
-        customers={customers}
-        tailors={tailors}
-      />
-    </div>
-  );
-}
