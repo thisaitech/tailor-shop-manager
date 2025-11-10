@@ -47,17 +47,22 @@ export function OrderList({
 }: OrderListProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
   const [showForm, setShowForm] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
-  const filteredOrders = orders.filter(
-    (o) =>
+  const filteredOrders = orders.filter((o) => {
+    const matchesSearch =
       o.customerName.toLowerCase().includes(search.toLowerCase()) ||
       o.customerPhone.includes(search) ||
       o.id.toLowerCase().includes(search.toLowerCase()) ||
-      o.assignedTailor.toLowerCase().includes(search.toLowerCase())
-  );
+      o.assignedTailor.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
@@ -101,23 +106,68 @@ export function OrderList({
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <div className="relative flex-1">
-          <MagnifyingGlass
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            size={20}
-          />
-          <Input
-            placeholder={t('searchOrders')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-10 touch-manipulation"
-          />
+      <div className="flex flex-col gap-2 sm:gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="relative flex-1">
+            <MagnifyingGlass
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={20}
+            />
+            <Input
+              placeholder={t('searchOrders')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 h-10 touch-manipulation"
+            />
+          </div>
+          <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap">
+            <Plus size={18} className="mr-1.5" weight="bold" />
+            {t('newOrder')}
+          </Button>
         </div>
-        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap">
-          <Plus size={18} className="mr-1.5" weight="bold" />
-          {t('newOrder')}
-        </Button>
+        
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <Button
+            variant={statusFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('all')}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation"
+          >
+            {t('all')} ({orders.length})
+          </Button>
+          <Button
+            variant={statusFilter === 'pending' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('pending')}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation"
+          >
+            {t('pending')} ({orders.filter(o => o.status === 'pending').length})
+          </Button>
+          <Button
+            variant={statusFilter === 'in-progress' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('in-progress')}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation"
+          >
+            {t('inProgress')} ({orders.filter(o => o.status === 'in-progress').length})
+          </Button>
+          <Button
+            variant={statusFilter === 'ready' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('ready')}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation"
+          >
+            {t('ready')} ({orders.filter(o => o.status === 'ready').length})
+          </Button>
+          <Button
+            variant={statusFilter === 'delivered' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('delivered')}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation"
+          >
+            {t('delivered')} ({orders.filter(o => o.status === 'delivered').length})
+          </Button>
+        </div>
       </div>
 
       {filteredOrders.length === 0 ? (
