@@ -83,80 +83,81 @@ export function OrderList({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
           <MagnifyingGlass
             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            size={20}
+            size={18}
           />
           <Input
             placeholder={t('searchOrders')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="pl-9 h-9 sm:h-10 text-sm"
           />
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus size={20} className="mr-2" />
-          {t('newOrder')}
+        <Button onClick={() => setShowForm(true)} className="h-9 sm:h-10 text-sm">
+          <Plus size={18} className="mr-1.5" />
+          <span className="hidden sm:inline">{t('newOrder')}</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 
       {filteredOrders.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Scissors size={64} className="mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground mb-4">
+        <Card className="p-8 sm:p-12 text-center">
+          <Scissors size={48} className="sm:size-16 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+          <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-4">
             {search ? t('noOrders') : t('noOrders')}
           </p>
           {!search && (
-            <Button onClick={() => setShowForm(true)}>
-              <Plus size={20} className="mr-2" />
+            <Button onClick={() => setShowForm(true)} className="text-sm">
+              <Plus size={18} className="mr-1.5" />
               {t('newOrder')}
             </Button>
           )}
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {filteredOrders.map((order) => (
             <Card
               key={order.id}
-              className={`p-4 hover:shadow-lg transition-all duration-200 cursor-pointer ${
+              className={`p-3 sm:p-4 hover:shadow-lg transition-all duration-200 cursor-pointer ${
                 isOverdue(order) ? 'border-destructive' : ''
               }`}
               onClick={() => setSelectedOrder(order)}
             >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:gap-4">
                 <div className="flex-1 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1">
+                        <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">
                           {order.customerName}
                         </h3>
                         {isOverdue(order) && (
-                          <Warning size={20} className="text-destructive" weight="fill" />
+                          <Warning size={16} className="sm:size-5 text-destructive flex-shrink-0" weight="fill" />
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {t('orderId')}: {order.id.slice(0, 8)}
                       </p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5">
                         <a 
                           href={`tel:${order.customerPhone}`}
-                          className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                          className="text-xs sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors truncate"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {t('phone')}: {order.customerPhone}
+                          {order.customerPhone}
                         </a>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                           <a 
                             href={`tel:${order.customerPhone}`}
                             className="text-primary hover:text-primary/80 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                             title={t('call')}
                           >
-                            <Phone size={16} weight="fill" />
+                            <Phone size={14} className="sm:size-4" weight="fill" />
                           </a>
                           <button
                             onClick={(e) => {
@@ -166,15 +167,15 @@ export function OrderList({
                             className="text-green-600 hover:text-green-700 transition-colors"
                             title={t('whatsapp')}
                           >
-                            <WhatsappLogo size={16} weight="fill" />
+                            <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    <Badge variant="outline">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 text-xs sm:text-sm">
+                    <Badge variant="outline" className="text-xs">
                       {t('tailor')}: {order.assignedTailor}
                     </Badge>
                     <Badge
@@ -185,6 +186,7 @@ export function OrderList({
                           ? 'default'
                           : 'outline'
                       }
+                      className="text-xs"
                     >
                       {isOverdue(order)
                         ? t('overdue')
@@ -195,7 +197,7 @@ export function OrderList({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center">
                   <Select
                     value={order.status}
                     onValueChange={(value) => {
@@ -203,7 +205,7 @@ export function OrderList({
                     }}
                   >
                     <SelectTrigger
-                      className="w-[180px]"
+                      className="w-full sm:w-[180px] h-9 text-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <SelectValue />
@@ -251,7 +253,7 @@ export function OrderList({
               </div>
 
               {(order.fabricDetails || order.designNotes) && (
-                <div className="mt-3 pt-3 border-t text-sm text-muted-foreground space-y-1">
+                <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t text-xs sm:text-sm text-muted-foreground space-y-1">
                   {order.fabricDetails && (
                     <p>
                       <span className="font-medium">{t('fabricDetails')}:</span>{' '}

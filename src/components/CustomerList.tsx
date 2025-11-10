@@ -89,73 +89,74 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <div className="relative flex-1">
           <MagnifyingGlass
             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            size={20}
+            size={18}
           />
           <Input
             placeholder={t('searchCustomers')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="pl-9 h-9 sm:h-10 text-sm"
           />
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus size={20} className="mr-2" />
-          {t('addCustomer')}
+        <Button onClick={() => setShowForm(true)} className="h-9 sm:h-10 text-sm">
+          <Plus size={18} className="mr-1.5" />
+          <span className="hidden sm:inline">{t('addCustomer')}</span>
+          <span className="sm:hidden">Add</span>
         </Button>
       </div>
 
       {filteredCustomers.length === 0 ? (
-        <Card className="p-12 text-center">
-          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground mb-4">
+        <Card className="p-8 sm:p-12 text-center">
+          <UserCircle size={48} className="sm:size-16 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+          <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-4">
             {search ? t('noCustomers') : t('noCustomers')}
           </p>
           {!search && (
-            <Button onClick={() => setShowForm(true)}>
-              <Plus size={20} className="mr-2" />
+            <Button onClick={() => setShowForm(true)} className="text-sm">
+              <Plus size={18} className="mr-1.5" />
               {t('addCustomer')}
             </Button>
           )}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {filteredCustomers.map((customer) => (
             <Card
               key={customer.id}
-              className="p-4 hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-1"
+              className="p-3 sm:p-4 hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
               onClick={() => onSelectCustomer?.(customer)}
             >
-              <div className="flex items-start gap-3">
-                <Avatar>
-                  <AvatarFallback className="bg-primary text-primary-foreground">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs sm:text-sm">
                     {getInitials(customer.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground truncate">
+                  <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">
                     {customer.name}
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <a 
                       href={`tel:${customer.phone}`}
-                      className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                      className="text-xs sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors truncate"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
                     </a>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                       <a 
                         href={`tel:${customer.phone}`}
                         className="text-primary hover:text-primary/80 transition-colors"
                         onClick={(e) => e.stopPropagation()}
                         title={t('call')}
                       >
-                        <Phone size={16} weight="fill" />
+                        <Phone size={14} className="sm:size-4" weight="fill" />
                       </a>
                       <button
                         onClick={(e) => {
@@ -165,32 +166,32 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         className="text-green-600 hover:text-green-700 transition-colors"
                         title={t('whatsapp')}
                       >
-                        <WhatsappLogo size={16} weight="fill" />
+                        <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
                       </button>
                     </div>
                   </div>
                   {customer.place && (
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate mt-0.5">
                       {customer.place}
                     </p>
                   )}
-                  <div className="mt-2">
-                    <Badge variant="outline">
+                  <div className="mt-1.5 sm:mt-2">
+                    <Badge variant="outline" className="text-xs">
                       {t(customer.gender)}
                     </Badge>
                   </div>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <DotsThree size={20} weight="bold" />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 flex-shrink-0">
+                      <DotsThree size={18} className="sm:size-5" weight="bold" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <a 
                         href={`tel:${customer.phone}`}
-                        className="flex items-center cursor-pointer"
+                        className="flex items-center cursor-pointer text-sm"
                       >
                         <Phone size={16} className="mr-2" />
                         {t('call')}
@@ -201,18 +202,18 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         e.stopPropagation();
                         sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
                       }}
-                      className="cursor-pointer"
+                      className="cursor-pointer text-sm"
                     >
                       <WhatsappLogo size={16} className="mr-2" />
                       {t('whatsapp')}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => handleEdit(customer, e)}>
+                    <DropdownMenuItem onClick={(e) => handleEdit(customer, e)} className="text-sm">
                       <PencilSimple size={16} className="mr-2" />
                       {t('edit')}
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={(e) => handleDelete(customer.id, e)}
-                      className="text-destructive focus:text-destructive"
+                      className="text-destructive focus:text-destructive text-sm"
                     >
                       <Trash size={16} className="mr-2" />
                       {t('delete')}

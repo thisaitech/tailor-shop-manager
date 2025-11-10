@@ -50,21 +50,21 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {stats.map((stat, index) => (
         <Card
           key={index}
-          className="p-6 hover:shadow-lg transition-shadow duration-200"
+          className="p-3 sm:p-6 hover:shadow-lg transition-shadow duration-200"
         >
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-1">
+          <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-2 sm:gap-0">
+            <div className="w-full">
+              <p className="text-[10px] sm:text-sm font-medium text-muted-foreground mb-0.5 sm:mb-1">
                 {stat.label}
               </p>
-              <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+              <p className="text-xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
             </div>
-            <div className={`${stat.bgColor} ${stat.color} p-3 rounded-lg`}>
-              <stat.icon size={24} weight="duotone" />
+            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg self-end sm:self-auto`}>
+              <stat.icon size={20} className="sm:size-6" weight="duotone" />
             </div>
           </div>
         </Card>

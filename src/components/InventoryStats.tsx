@@ -47,19 +47,19 @@ export function InventoryStats({ items }: InventoryStatsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {stats.map((stat) => (
         <Card key={stat.title}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
+            <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">
               {stat.title}
             </CardTitle>
-            <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={stat.color} size={20} weight="duotone" />
+            <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
+              <stat.icon className={`${stat.color} size-4 sm:size-5`} weight="duotone" />
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stat.value}</div>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{stat.value}</div>
           </CardContent>
         </Card>
       ))}

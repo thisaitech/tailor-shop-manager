@@ -73,53 +73,54 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">{t('trackYourOrder')}</h1>
-        <p className="text-muted-foreground">{t('enterPhoneOrOrderId')}</p>
+    <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+      <div className="text-center mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{t('trackYourOrder')}</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">{t('enterPhoneOrOrderId')}</p>
       </div>
 
-      <Card className="p-6">
-        <div className="flex gap-3">
+      <Card className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Input
             placeholder={t('enterPhoneOrOrderId')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            className="h-10 sm:h-11"
           />
-          <Button onClick={handleSearch}>
-            <MagnifyingGlass size={20} className="mr-2" />
+          <Button onClick={handleSearch} className="h-10 sm:h-11 w-full sm:w-auto">
+            <MagnifyingGlass size={18} className="mr-1.5" />
             {t('track')}
           </Button>
         </div>
       </Card>
 
       {hasSearched && (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {searchResults.length === 0 ? (
-            <Card className="p-12 text-center">
-              <Package size={64} className="mx-auto text-muted-foreground mb-4" />
-              <p className="text-lg font-medium mb-2">{t('noOrdersFound')}</p>
-              <p className="text-muted-foreground">{t('checkDetails')}</p>
+            <Card className="p-8 sm:p-12 text-center">
+              <Package size={48} className="sm:size-16 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+              <p className="text-base sm:text-lg font-medium mb-2">{t('noOrdersFound')}</p>
+              <p className="text-sm sm:text-base text-muted-foreground">{t('checkDetails')}</p>
             </Card>
           ) : (
             searchResults.map((order) => (
-              <Card key={order.id} className="p-6">
-                <div className="space-y-6">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h2 className="text-xl font-semibold mb-1">
+              <Card key={order.id} className="p-4 sm:p-6">
+                <div className="space-y-4 sm:space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
+                    <div className="flex-1">
+                      <h2 className="text-lg sm:text-xl font-semibold mb-1">
                         {order.customerName}
                       </h2>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {t('orderId')}: {order.id.slice(0, 8)}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
                         <a 
                           href={`tel:${order.customerPhone}`}
-                          className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
+                          className="text-xs sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
                         >
-                          {t('phone')}: {order.customerPhone}
+                          {order.customerPhone}
                         </a>
                         <div className="flex items-center gap-1">
                           <a 
@@ -127,7 +128,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                             className="text-primary hover:text-primary/80 transition-colors"
                             title={t('call')}
                           >
-                            <Phone size={16} weight="fill" />
+                            <Phone size={14} className="sm:size-4" weight="fill" />
                           </a>
                           <button
                             onClick={() => {
@@ -136,17 +137,17 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                             className="text-green-600 hover:text-green-700 transition-colors"
                             title={t('whatsapp')}
                           >
-                            <WhatsappLogo size={16} weight="fill" />
+                            <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
                           </button>
                         </div>
                       </div>
                     </div>
-                    <Badge className={getStatusColor(order.status)}>
+                    <Badge className={`${getStatusColor(order.status)} flex-shrink-0`}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
                   </div>
 
-                  <div className="relative">
+                  <div className="relative px-2 sm:px-0">
                     <div className="flex justify-between mb-2">
                       {[
                         { key: 'pending', label: t('pending') },
@@ -159,7 +160,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                           className="flex flex-col items-center flex-1"
                         >
                           <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
                               getStatusStep(order.status) >= index
                                 ? 'bg-primary text-primary-foreground'
                                 : 'bg-muted text-muted-foreground'
@@ -168,7 +169,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                             {index + 1}
                           </div>
                           <p
-                            className={`mt-2 text-xs text-center ${
+                            className={`mt-1 sm:mt-2 text-[10px] sm:text-xs text-center max-w-[60px] sm:max-w-none ${
                               getStatusStep(order.status) >= index
                                 ? 'text-foreground font-medium'
                                 : 'text-muted-foreground'
@@ -179,7 +180,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         </div>
                       ))}
                     </div>
-                    <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted -z-10">
+                    <div className="absolute top-4 sm:top-5 left-0 right-0 h-0.5 bg-muted -z-10 mx-4 sm:mx-5">
                       <div
                         className="h-full bg-primary transition-all duration-500"
                         style={{
@@ -189,35 +190,35 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t">
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                         {t('tailor')}
                       </p>
-                      <p className="font-medium">{order.assignedTailor}</p>
+                      <p className="font-medium text-sm sm:text-base">{order.assignedTailor}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                         {t('deliveryDate')}
                       </p>
-                      <p className="font-medium">
+                      <p className="font-medium text-sm sm:text-base">
                         {format(order.deliveryDate, 'MMM dd, yyyy')}
                       </p>
                     </div>
                     {order.fabricDetails && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                           {t('fabricDetails')}
                         </p>
-                        <p className="font-medium">{order.fabricDetails}</p>
+                        <p className="font-medium text-sm sm:text-base">{order.fabricDetails}</p>
                       </div>
                     )}
                     {order.designNotes && (
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                           {t('designNotes')}
                         </p>
-                        <p className="font-medium">{order.designNotes}</p>
+                        <p className="font-medium text-sm sm:text-base">{order.designNotes}</p>
                       </div>
                     )}
                   </div>

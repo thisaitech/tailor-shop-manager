@@ -36,20 +36,20 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center justify-between">
         <div className="relative flex-1 w-full sm:max-w-sm">
-          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <Input
             placeholder={t('searchInventory')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-9 h-9 sm:h-10 text-sm"
           />
         </div>
-        <div className="flex gap-3 w-full sm:w-auto">
+        <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full sm:w-40">
+            <SelectTrigger className="w-full sm:w-40 h-9 sm:h-10 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -68,38 +68,38 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
 
       {filteredItems.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Package size={64} className="text-muted-foreground mb-4" weight="duotone" />
-            <p className="text-lg font-medium text-muted-foreground mb-2">{t('noItems')}</p>
+          <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12">
+            <Package size={48} className="sm:size-16 text-muted-foreground mb-3 sm:mb-4" weight="duotone" />
+            <p className="text-base sm:text-lg font-medium text-muted-foreground mb-2">{t('noItems')}</p>
             <InventoryForm onAddItem={onAddItem} />
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
           {filteredItems.map((item) => {
             const status = getStockStatus(item);
             const isLowStock = item.quantity <= item.minQuantity;
             
             return (
               <Card key={item.id} className={isLowStock && item.quantity > 0 ? 'border-amber-500/50' : ''}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {item.name}
+                <CardHeader className="pb-2 sm:pb-3 p-3 sm:p-6 sm:pb-3">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-base sm:text-lg flex items-center gap-1.5 sm:gap-2">
+                        <span className="truncate">{item.name}</span>
                         {isLowStock && item.quantity > 0 && (
-                          <WarningCircle className="text-amber-500" size={20} weight="fill" />
+                          <WarningCircle className="text-amber-500 flex-shrink-0 size-[18px] sm:size-5" weight="fill" />
                         )}
                       </CardTitle>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="secondary">{t(item.category)}</Badge>
-                        <Badge variant={status.variant}>{status.label}</Badge>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
+                        <Badge variant="secondary" className="text-xs">{t(item.category)}</Badge>
+                        <Badge variant={status.variant} className="text-xs">{status.label}</Badge>
                       </div>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                <CardContent className="space-y-2 sm:space-y-3 p-3 sm:p-6">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                     <div>
                       <p className="text-muted-foreground">{t('quantity')}</p>
                       <p className="font-semibold">{item.quantity} {t(item.unit)}</p>
@@ -139,7 +139,7 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
                       </div>
                     )}
                   </div>
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end pt-1 sm:pt-2">
                     <StockUpdateDialog item={item} onStockUpdate={onStockUpdate} />
                   </div>
                 </CardContent>
