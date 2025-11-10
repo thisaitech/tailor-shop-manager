@@ -150,14 +150,14 @@ export function OrderForm({
             <PhotoUpload
               label={t('fabricPhotos')}
               photos={fabricPhotos}
-              onChange={setFabricPhotos}
+              onPhotosChange={setFabricPhotos}
               maxPhotos={5}
             />
             
             <PhotoUpload
               label={t('designPhotos')}
               photos={designPhotos}
-              onChange={setDesignPhotos}
+              onPhotosChange={setDesignPhotos}
               maxPhotos={5}
             />
           </div>

@@ -1,16 +1,17 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, X, Image as ImageIcon } from '@phosphor-icons/react';
-import { Label } from '@/components/ui/label';
+import { Camera, X } from '@phosphor-icons/react';
+import { useLanguage } from '@/hooks/use-language';
 
 interface PhotoUploadProps {
-  label: string;
   photos: string[];
-  onChange: (photos: string[]) => void;
+  onPhotosChange: (photos: string[]) => void;
   maxPhotos?: number;
+  label: string;
 }
 
-export function PhotoUpload({ label, photos, onChange, maxPhotos = 5 }: PhotoUploadProps) {
+export function PhotoUpload({ photos, onPhotosChange, maxPhotos = 5, label }: PhotoUploadProps) {
+  const { t } = useLanguage();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,70 +39,62 @@ export function PhotoUpload({ label, photos, onChange, maxPhotos = 5 }: PhotoUpl
       }
     }
 
-    onChange([...photos, ...newPhotos]);
+    onPhotosChange([...photos, ...newPhotos]);
     setUploading(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const removePhoto = (index: number) => {
-    onChange(photos.filter((_, i) => i !== index));
+  const handleRemovePhoto = (index: number) => {
+    onPhotosChange(photos.filter((_, i) => i !== index));
   };
 
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
+    <div className="space-y-3">
+      <label className="text-sm font-medium">{label}</label>
       
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-3">
         {photos.map((photo, index) => (
-          <div key={index} className="relative aspect-square group">
-            <img
-              src={photo}
-              alt={`Photo ${index + 1}`}
-              className="w-full h-full object-cover rounded-lg border"
-            />
-            <button
+          <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+            <img src={photo} alt={`Photo ${index + 1}`} className="w-full h-full object-cover" />
+            <Button
               type="button"
-              onClick={() => removePhoto(index)}
-              className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              size="icon"
+              variant="destructive"
+              className="absolute top-1 right-1 h-6 w-6 rounded-full"
+              onClick={() => handleRemovePhoto(index)}
             >
               <X size={14} weight="bold" />
-            </button>
+            </Button>
           </div>
         ))}
-        
+
         {photos.length < maxPhotos && (
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1.5 hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <label className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 bg-muted/30 hover:bg-muted/50">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelect}
+              disabled={uploading}
+            />
             {uploading ? (
-              <div className="text-xs text-muted-foreground">Loading...</div>
+              <div className="text-sm text-muted-foreground">Uploading...</div>
             ) : (
               <>
-                <Camera size={20} className="text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Add</span>
+                <Camera size={24} className="text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Add Photo</span>
               </>
             )}
-          </button>
+          </label>
         )}
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleFileSelect}
-        className="hidden"
-        capture="environment"
-      />
-
       <p className="text-xs text-muted-foreground">
-        {photos.length}/{maxPhotos} photos • Tap to add from camera or gallery
+        {photos.length}/{maxPhotos} photos
       </p>
     </div>
   );

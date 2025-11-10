@@ -133,31 +133,46 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         </button>
                       </div>
                     </div>
-                    <Badge className={getStatusColor(order.status)}>
+                    <Badge className={`${getStatusColor(order.status)} hidden sm:inline-flex`}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
                   </div>
 
-                  <div className="relative">
-                    <div className="flex justify-between mb-2">
-                      {[
-                        { key: 'pending', label: t('pending') },
-                        { key: 'in-progress', label: t('inProgress') },
-                        { key: 'ready', label: t('ready') },
-                        { key: 'delivered', label: t('delivered') },
-                      ].map((step, index) => (
-                        <div
-                          key={step.key}
-                          className="flex flex-col items-center gap-1 sm:gap-2 z-10"
-                        >
+                  <div className="space-y-4 sm:space-y-6">
+                    <Badge className={`${getStatusColor(order.status)} sm:hidden w-fit`}>
+                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
+                    </Badge>
+
+                    <div className="relative">
+                      <div className="flex justify-between mb-2">
+                        {[
+                          { key: 'pending', label: t('pending') },
+                          { key: 'in-progress', label: t('inProgress') },
+                          { key: 'ready', label: t('ready') },
+                          { key: 'delivered', label: t('delivered') },
+                        ].map((step, index) => (
                           <div
-                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
-                              getStatusStep(order.status) >= index
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                            }`}
+                            key={step.key}
+                            className="flex flex-col items-center gap-1 sm:gap-2 z-10"
                           >
-                            {index + 1}
+                            <div
+                              className={`w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-xs sm:text-base ${
+                                getStatusStep(order.status) >= index
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {index + 1}
+                            </div>
+                            <p
+                              className={`text-[9px] sm:text-xs text-center max-w-[50px] sm:max-w-none ${
+                                getStatusStep(order.status) >= index
+                                  ? 'text-foreground font-medium'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {step.label}
+                            </p>
                           </div>
                           <p
                             className={`text-[10px] sm:text-xs text-center max-w-[70px] sm:max-w-none leading-tight ${
@@ -171,53 +186,45 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         </div>
                       ))}
                     </div>
-                    <div className="absolute top-4 sm:top-5 left-0 right-0 h-0.5 bg-muted -z-10 mx-4 sm:mx-5">
-                      <div
-                        className="h-full bg-primary transition-all duration-500"
-                        style={{
-                          width: `${(getStatusStep(order.status) / 3) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t">
-                    <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                        {t('tailor')}
-                      </p>
-                      <p className="font-medium text-sm sm:text-base">{order.assignedTailor}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-3 sm:pt-4 border-t">
+                      <div>
+                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
+                          {t('tailor')}
+                        </p>
+                        <p className="font-medium text-xs sm:text-base truncate">{order.assignedTailor}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
+                          {t('deliveryDate')}
+                        </p>
+                        <p className="font-medium text-xs sm:text-base">
+                          {format(order.deliveryDate, 'MMM dd, yyyy')}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                        {t('deliveryDate')}
-                      </p>
-                      <p className="font-medium text-sm sm:text-base">
-                        {format(order.deliveryDate, 'MMM dd, yyyy')}
-                      </p>
-                    </div>
-                  </div>
 
-                  {(order.fabricPhotos?.length || order.designPhotos?.length) && (
-                    <div className="pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
-                      {order.fabricPhotos && order.fabricPhotos.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs sm:text-sm font-medium text-foreground">
-                            {t('fabricPhotos')} ({order.fabricPhotos.length})
-                          </p>
-                          <PhotoGallery photos={order.fabricPhotos} />
-                        </div>
-                      )}
-                      {order.designPhotos && order.designPhotos.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs sm:text-sm font-medium text-foreground">
-                            {t('designPhotos')} ({order.designPhotos.length})
-                          </p>
-                          <PhotoGallery photos={order.designPhotos} />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {(order.fabricPhotos?.length || order.designPhotos?.length) && (
+                      <div className="pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
+                        {order.fabricPhotos && order.fabricPhotos.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] sm:text-sm font-medium text-foreground">
+                              {t('fabricPhotos')} ({order.fabricPhotos.length})
+                            </p>
+                            <PhotoGallery photos={order.fabricPhotos} />
+                          </div>
+                        )}
+                        {order.designPhotos && order.designPhotos.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] sm:text-sm font-medium text-foreground">
+                              {t('designPhotos')} ({order.designPhotos.length})
+                            </p>
+                            <PhotoGallery photos={order.designPhotos} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))

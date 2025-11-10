@@ -188,11 +188,11 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
-                    </a>
+                    </span>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <a 
                         href={`tel:${customer.phone}`}
-                        className="text-primary hover:text-primary/80 transition-colors p-1 touch-manipulation"
+                        className="text-primary hover:text-primary/80 transition-colors p-0.5 touch-manipulation"
                         onClick={(e) => e.stopPropagation()}
                         title={t('call')}
                       >
@@ -203,7 +203,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                           e.stopPropagation();
                           sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
                         }}
-                        className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
+                        className="text-green-600 hover:text-green-700 transition-colors p-0.5 touch-manipulation"
                         title={t('whatsapp')}
                       >
                         <WhatsappLogo size={16} weight="fill" />
