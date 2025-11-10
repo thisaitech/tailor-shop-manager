@@ -96,46 +96,40 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
       </Card>
 
       {hasSearched && (
-        <div className="space-y-3 sm:space-y-4">
           {searchResults.length === 0 ? (
-            <Card className="p-8 sm:p-12 text-center">
+          {searchResults.length === 0 ? (
               <Package size={48} className="sm:size-16 mx-auto text-muted-foreground mb-3 sm:mb-4" />
               <p className="text-base sm:text-lg font-medium mb-2">{t('noOrdersFound')}</p>
               <p className="text-sm sm:text-base text-muted-foreground">{t('checkDetails')}</p>
             </Card>
-          ) : (
+            </Card>
             searchResults.map((order) => (
               <Card key={order.id} className="p-4 sm:p-6">
-                <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
                     <div className="flex-1">
                       <h2 className="text-lg sm:text-xl font-semibold mb-1">
                         {order.customerName}
                       </h2>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        {order.customerName}
                         {t('orderId')}: {order.id.slice(0, 8)}
-                      </p>
                       <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
-                        <a 
+                        {t('orderId')}: {order.id.slice(0, 8)}
                           href={`tel:${order.customerPhone}`}
-                          className="text-xs sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
                         >
-                          {order.customerPhone}
+                        <a 
                         </a>
-                        <div className="flex items-center gap-1">
                           <a 
-                            href={`tel:${order.customerPhone}`}
+                        >
                             className="text-primary hover:text-primary/80 transition-colors"
-                            title={t('call')}
+                        </a>
                           >
                             <Phone size={14} className="sm:size-4" weight="fill" />
                           </a>
                           <button
                             onClick={() => {
                               sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
-                            }}
                             className="text-green-600 hover:text-green-700 transition-colors"
-                            title={t('whatsapp')}
+                          </a>
                           >
                             <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
                           </button>
@@ -143,21 +137,18 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                       </div>
                     </div>
                     <Badge className={`${getStatusColor(order.status)} flex-shrink-0`}>
-                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
-                  </div>
+                          </button>
 
                   <div className="relative px-2 sm:px-0">
                     <div className="flex justify-between mb-2">
-                      {[
                         { key: 'pending', label: t('pending') },
-                        { key: 'in-progress', label: t('inProgress') },
+                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                         { key: 'ready', label: t('ready') },
                         { key: 'delivered', label: t('delivered') },
                       ].map((step, index) => (
-                        <div
                           key={step.key}
-                          className="flex flex-col items-center flex-1"
+                    <div className="flex justify-between mb-2">
                         >
                           <div
                             className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
@@ -169,9 +160,8 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                             {index + 1}
                           </div>
                           <p
-                            className={`mt-1 sm:mt-2 text-[10px] sm:text-xs text-center max-w-[60px] sm:max-w-none ${
                               getStatusStep(order.status) >= index
-                                ? 'text-foreground font-medium'
+                              getStatusStep(order.status) >= index
                                 : 'text-muted-foreground'
                             }`}
                           >
@@ -179,9 +169,8 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                           </p>
                         </div>
                       ))}
-                    </div>
                     <div className="absolute top-4 sm:top-5 left-0 right-0 h-0.5 bg-muted -z-10 mx-4 sm:mx-5">
-                      <div
+                              getStatusStep(order.status) >= index
                         className="h-full bg-primary transition-all duration-500"
                         style={{
                           width: `${(getStatusStep(order.status) / 3) * 100}%`,
@@ -191,9 +180,8 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t">
-                    <div>
                       <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                        {t('tailor')}
+                      <div
                       </p>
                       <p className="font-medium text-sm sm:text-base">{order.assignedTailor}</p>
                     </div>
@@ -202,19 +190,16 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         {t('deliveryDate')}
                       </p>
                       <p className="font-medium text-sm sm:text-base">
-                        {format(order.deliveryDate, 'MMM dd, yyyy')}
                       </p>
-                    </div>
+                    <div>
                     {order.fabricDetails && (
-                      <div>
+                        {t('tailor')}
                         <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                          {t('fabricDetails')}
                         </p>
-                        <p className="font-medium text-sm sm:text-base">{order.fabricDetails}</p>
+                    </div>
                       </div>
-                    )}
                     {order.designNotes && (
-                      <div>
+                        {t('deliveryDate')}
                         <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                           {t('designNotes')}
                         </p>
