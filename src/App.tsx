@@ -159,24 +159,12 @@ function AppContent() {
 
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/60 gap-1">
+          <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/60 gap-1">
             <TabsTrigger 
               value="dashboard" 
               className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
             >
               {t('dashboard')}
-            </TabsTrigger>
-            <TabsTrigger 
-              value="orders" 
-              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
-            >
-              {t('orders')}
-            </TabsTrigger>
-            <TabsTrigger 
-              value="customers" 
-              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
-            >
-              {t('customers')}
             </TabsTrigger>
             <TabsTrigger 
               value="inventory" 
@@ -202,7 +190,7 @@ function AppContent() {
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">{t('customers')}</h2>
                 <CustomerList
-                  customers={(customers || []).slice(0, 6)}
+                  customers={customers || []}
                   onAddCustomer={handleAddCustomer}
                   onUpdateCustomer={handleUpdateCustomer}
                   onDeleteCustomer={handleDeleteCustomer}
@@ -211,7 +199,7 @@ function AppContent() {
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">{t('orders')}</h2>
                 <OrderList
-                  orders={(orders || []).slice(0, 6)}
+                  orders={orders || []}
                   customers={customers || []}
                   tailors={tailors || []}
                   onAddOrder={handleAddOrder}
@@ -219,25 +207,6 @@ function AppContent() {
                 />
               </div>
             </div>
-          </TabsContent>
-
-          <TabsContent value="orders">
-            <OrderList
-              orders={orders || []}
-              customers={customers || []}
-              tailors={tailors || []}
-              onAddOrder={handleAddOrder}
-              onUpdateStatus={handleUpdateOrderStatus}
-            />
-          </TabsContent>
-
-          <TabsContent value="customers">
-            <CustomerList
-              customers={customers || []}
-              onAddCustomer={handleAddCustomer}
-              onUpdateCustomer={handleUpdateCustomer}
-              onDeleteCustomer={handleDeleteCustomer}
-            />
           </TabsContent>
 
           <TabsContent value="inventory" className="space-y-6">
