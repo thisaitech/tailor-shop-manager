@@ -186,9 +186,9 @@ function AppContent() {
               orders={orders || []}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-3 md:gap-6">
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold">{t('customers')}</h2>
+                <h2 className="text-base md:text-xl font-semibold">{t('customers')}</h2>
                 <CustomerList
                   customers={customers || []}
                   onAddCustomer={handleAddCustomer}
@@ -197,7 +197,7 @@ function AppContent() {
                 />
               </div>
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold">{t('orders')}</h2>
+                <h2 className="text-base md:text-xl font-semibold">{t('orders')}</h2>
                 <OrderList
                   orders={orders || []}
                   customers={customers || []}
