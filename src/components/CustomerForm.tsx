@@ -123,23 +123,12 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
             
             <div className="space-y-2">
               <Label htmlFor="place">{t('place')}</Label>
-              <Select value={place} onValueChange={setPlace}>
-                <SelectTrigger id="place">
-                  <SelectValue placeholder="Select place" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Tirunelveli">Tirunelveli</SelectItem>
-                  <SelectItem value="Thisayanvilai">Thisayanvilai</SelectItem>
-                  <SelectItem value="Uvari">Uvari</SelectItem>
-                  <SelectItem value="Nanguneri">Nanguneri</SelectItem>
-                  <SelectItem value="Thoothukudi">Thoothukudi</SelectItem>
-                  <SelectItem value="Ambasamudram">Ambasamudram</SelectItem>
-                  <SelectItem value="Palayamkottai">Palayamkottai</SelectItem>
-                  <SelectItem value="Sankarankovil">Sankarankovil</SelectItem>
-                  <SelectItem value="Srivaikuntam">Srivaikuntam</SelectItem>
-                  <SelectItem value="Kayalpattinam">Kayalpattinam</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="place"
+                value={place}
+                onChange={(e) => setPlace(e.target.value)}
+                placeholder="e.g., T. Nagar"
+              />
             </div>
             
             <div className="space-y-2">
