@@ -137,13 +137,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-base text-foreground break-words leading-tight">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <h3 className="font-bold text-base text-foreground break-words leading-tight flex-1">
                       {customer.name}
                     </h3>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 -mr-2 touch-manipulation">
                           <DotsThree size={20} weight="bold" />
                         </Button>
                       </DropdownMenuTrigger>

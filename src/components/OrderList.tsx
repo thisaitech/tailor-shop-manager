@@ -133,8 +133,8 @@ export function OrderList({
                 <div className="flex-1 space-y-2 sm:space-y-2">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-bold text-base text-foreground break-words">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-base text-foreground break-words leading-tight flex-1">
                           {order.customerName}
                         </h3>
                         {isOverdue(order) && (
