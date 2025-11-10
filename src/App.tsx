@@ -27,6 +27,8 @@ function AppContent() {
     { id: '3', name: 'Murugan' },
     { id: '4', name: 'Selvi' },
   ]);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed'>('all');
 
   const handleAddCustomer = (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newCustomer: Customer = {
@@ -138,6 +140,11 @@ function AppContent() {
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 
+  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed') => {
+    setOrderFilter(filter);
+    setActiveTab('track');
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
@@ -158,7 +165,7 @@ function AppContent() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="dashboard" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/60 gap-1">
             <TabsTrigger 
               value="dashboard" 
@@ -184,6 +191,7 @@ function AppContent() {
             <DashboardStats
               totalCustomers={customers?.length || 0}
               orders={orders || []}
+              onStatClick={handleStatClick}
             />
 
             <div className="grid grid-cols-2 gap-3 md:gap-6">
@@ -226,7 +234,7 @@ function AppContent() {
           </TabsContent>
 
           <TabsContent value="track">
-            <OrderTracking orders={orders || []} />
+            <OrderTracking orders={orders || []} initialFilter={orderFilter} />
           </TabsContent>
         </Tabs>
       </main>

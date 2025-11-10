@@ -6,9 +6,10 @@ import { Order, OrderStatus } from '@/lib/types';
 interface DashboardStatsProps {
   totalCustomers: number;
   orders: Order[];
+  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed') => void;
 }
 
-export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) {
+export function DashboardStats({ totalCustomers, orders, onStatClick }: DashboardStatsProps) {
   const { t } = useLanguage();
 
   const activeOrders = orders.filter(
@@ -25,6 +26,7 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
+      filter: 'all' as const,
     },
     {
       label: t('activeOrders'),
@@ -32,6 +34,7 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
       icon: Scissors,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
+      filter: 'active' as const,
     },
     {
       label: t('readyForDelivery'),
@@ -39,6 +42,7 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
       icon: Package,
       color: 'text-accent',
       bgColor: 'bg-accent/10',
+      filter: 'ready' as const,
     },
     {
       label: t('completedOrders'),
@@ -46,6 +50,7 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
+      filter: 'completed' as const,
     },
   ];
 
@@ -54,17 +59,20 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
       {stats.map((stat, index) => (
         <Card
           key={index}
-          className="p-3 sm:p-6 hover:shadow-lg transition-shadow duration-200"
+          className="p-3 sm:p-6 hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95"
+          onClick={() => onStatClick?.(stat.filter)}
         >
-          <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-2 sm:gap-0">
-            <div className="w-full min-w-0 flex-1">
-              <p className="text-[10px] sm:text-sm font-medium text-muted-foreground mb-1 line-clamp-2 leading-tight">
+          <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
+            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+              <stat.icon size={20} className="sm:size-7" weight="duotone" />
+            </div>
+            <div className="w-full min-w-0">
+              <p className="text-3xl sm:text-5xl font-bold text-foreground mb-1">
+                {stat.value}
+              </p>
+              <p className="text-[9px] sm:text-xs font-medium text-muted-foreground line-clamp-2 leading-tight px-1">
                 {stat.label}
               </p>
-              <p className="text-xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
-            </div>
-            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg self-end sm:self-auto flex-shrink-0`}>
-              <stat.icon size={18} className="sm:size-6" weight="duotone" />
             </div>
           </div>
         </Card>

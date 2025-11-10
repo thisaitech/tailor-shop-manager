@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { Order } from '@/lib/types';
 import { Card } from '@/components/ui/card';
@@ -12,13 +12,37 @@ import { sendWhatsAppMessage } from '@/lib/utils';
 
 interface OrderTrackingProps {
   orders: Order[];
+  initialFilter?: 'all' | 'active' | 'ready' | 'completed';
 }
 
-export function OrderTracking({ orders }: OrderTrackingProps) {
+export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingProps) {
   const { t } = useLanguage();
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState<Order[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    if (initialFilter !== 'all') {
+      let filteredOrders: Order[] = [];
+      
+      switch (initialFilter) {
+        case 'active':
+          filteredOrders = orders.filter(
+            (o) => o.status === 'pending' || o.status === 'in-progress'
+          );
+          break;
+        case 'ready':
+          filteredOrders = orders.filter((o) => o.status === 'ready');
+          break;
+        case 'completed':
+          filteredOrders = orders.filter((o) => o.status === 'delivered');
+          break;
+      }
+      
+      setSearchResults(filteredOrders);
+      setHasSearched(true);
+    }
+  }, [initialFilter, orders]);
 
   const handleSearch = () => {
     if (!searchValue.trim()) return;
