@@ -97,24 +97,23 @@ export function OrderList({
             placeholder={t('searchOrders')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-11 sm:h-10 text-base sm:text-sm touch-manipulation"
+            className="pl-10 h-10 touch-manipulation"
           />
         </div>
-        <Button onClick={() => setShowForm(true)} className="h-11 sm:h-10 text-base sm:text-sm font-semibold touch-manipulation px-5">
+        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-5">
           <Plus size={20} className="mr-2" weight="bold" />
-          <span className="hidden sm:inline">{t('newOrder')}</span>
-          <span className="sm:hidden">New Order</span>
+          {t('newOrder')}
         </Button>
       </div>
 
       {filteredOrders.length === 0 ? (
         <Card className="p-8 sm:p-12 text-center">
-          <Scissors size={56} className="sm:size-16 mx-auto text-muted-foreground mb-4" weight="duotone" />
-          <p className="text-base sm:text-base text-muted-foreground mb-4 font-medium">
+          <Scissors size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
+          <p className="text-base text-muted-foreground mb-4 font-medium">
             {search ? t('noOrders') : t('noOrders')}
           </p>
           {!search && (
-            <Button onClick={() => setShowForm(true)} className="text-base sm:text-sm h-11 sm:h-10 touch-manipulation">
+            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation">
               <Plus size={20} className="mr-2" weight="bold" />
               {t('newOrder')}
             </Button>
@@ -132,23 +131,23 @@ export function OrderList({
             >
               <div className="flex flex-col gap-3 sm:gap-4">
                 <div className="flex-1 space-y-2 sm:space-y-2">
-                  <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="font-bold text-base sm:text-base text-foreground break-words">
+                        <h3 className="font-bold text-base text-foreground break-words">
                           {order.customerName}
                         </h3>
                         {isOverdue(order) && (
-                          <Warning size={18} className="sm:size-5 text-destructive flex-shrink-0" weight="fill" />
+                          <Warning size={20} className="text-destructive flex-shrink-0" weight="fill" />
                         )}
                       </div>
-                      <p className="text-sm sm:text-sm text-muted-foreground font-medium break-words">
+                      <p className="text-sm text-muted-foreground font-medium break-words">
                         {t('orderId')}: {order.id.slice(0, 10)}
                       </p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <a 
                           href={`tel:${order.customerPhone}`}
-                          className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
+                          className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {order.customerPhone}
@@ -160,7 +159,7 @@ export function OrderList({
                             onClick={(e) => e.stopPropagation()}
                             title={t('call')}
                           >
-                            <Phone size={16} className="sm:size-4" weight="fill" />
+                            <Phone size={16} weight="fill" />
                           </a>
                           <button
                             onClick={(e) => {
@@ -170,15 +169,15 @@ export function OrderList({
                             className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
                             title={t('whatsapp')}
                           >
-                            <WhatsappLogo size={16} className="sm:size-4" weight="fill" />
+                            <WhatsappLogo size={16} weight="fill" />
                           </button>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                    <Badge variant="outline" className="text-sm sm:text-xs font-semibold">
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    <Badge variant="outline" className="text-xs font-semibold">
                       {t('tailor')}: {order.assignedTailor}
                     </Badge>
                     <Badge
@@ -189,7 +188,7 @@ export function OrderList({
                           ? 'default'
                           : 'outline'
                       }
-                      className="text-sm sm:text-xs font-semibold"
+                      className="text-xs font-semibold"
                     >
                       {isOverdue(order)
                         ? t('overdue')
@@ -208,42 +207,42 @@ export function OrderList({
                     }}
                   >
                     <SelectTrigger
-                      className="w-full sm:w-[180px] h-11 sm:h-9 text-base sm:text-sm font-semibold touch-manipulation"
+                      className="w-full sm:w-[180px] h-10 font-semibold touch-manipulation"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pending" className="text-base sm:text-sm">
+                      <SelectItem value="pending">
                         <span className="flex items-center gap-2">
                           <span
-                            className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor('pending')}`}
+                            className={`w-2 h-2 rounded-full ${getStatusColor('pending')}`}
                           />
                           {t('pending')}
                         </span>
                       </SelectItem>
-                      <SelectItem value="in-progress" className="text-base sm:text-sm">
+                      <SelectItem value="in-progress">
                         <span className="flex items-center gap-2">
                           <span
-                            className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor(
+                            className={`w-2 h-2 rounded-full ${getStatusColor(
                               'in-progress'
                             )}`}
                           />
                           {t('inProgress')}
                         </span>
                       </SelectItem>
-                      <SelectItem value="ready" className="text-base sm:text-sm">
+                      <SelectItem value="ready">
                         <span className="flex items-center gap-2">
                           <span
-                            className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor('ready')}`}
+                            className={`w-2 h-2 rounded-full ${getStatusColor('ready')}`}
                           />
                           {t('ready')}
                         </span>
                       </SelectItem>
-                      <SelectItem value="delivered" className="text-base sm:text-sm">
+                      <SelectItem value="delivered">
                         <span className="flex items-center gap-2">
                           <span
-                            className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor(
+                            className={`w-2 h-2 rounded-full ${getStatusColor(
                               'delivered'
                             )}`}
                           />
@@ -256,10 +255,10 @@ export function OrderList({
               </div>
 
               {(order.fabricPhotos?.length || order.designPhotos?.length) && (
-                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
+                <div className="mt-4 pt-4 border-t space-y-4">
                   {order.fabricPhotos && order.fabricPhotos.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm sm:text-base font-semibold text-foreground">
+                      <p className="text-sm font-semibold text-foreground">
                         {t('fabricPhotos')} ({order.fabricPhotos.length})
                       </p>
                       <PhotoGallery photos={order.fabricPhotos} minimized={true} />
@@ -267,7 +266,7 @@ export function OrderList({
                   )}
                   {order.designPhotos && order.designPhotos.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm sm:text-base font-semibold text-foreground">
+                      <p className="text-sm font-semibold text-foreground">
                         {t('designPhotos')} ({order.designPhotos.length})
                       </p>
                       <PhotoGallery photos={order.designPhotos} minimized={true} />

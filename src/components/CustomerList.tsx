@@ -100,24 +100,23 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             placeholder={t('searchCustomers')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-11 sm:h-10 text-base sm:text-sm touch-manipulation"
+            className="pl-10 h-10 touch-manipulation"
           />
         </div>
-        <Button onClick={() => setShowForm(true)} className="h-11 sm:h-10 text-base sm:text-sm font-semibold touch-manipulation px-5">
+        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-5">
           <Plus size={20} className="mr-2" weight="bold" />
-          <span className="hidden sm:inline">{t('addCustomer')}</span>
-          <span className="sm:hidden">Add Customer</span>
+          {t('addCustomer')}
         </Button>
       </div>
 
       {filteredCustomers.length === 0 ? (
         <Card className="p-8 sm:p-12 text-center">
-          <UserCircle size={56} className="sm:size-16 mx-auto text-muted-foreground mb-4" weight="duotone" />
-          <p className="text-base sm:text-base text-muted-foreground mb-4 font-medium">
+          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
+          <p className="text-base text-muted-foreground mb-4 font-medium">
             {search ? t('noCustomers') : t('noCustomers')}
           </p>
           {!search && (
-            <Button onClick={() => setShowForm(true)} className="text-base sm:text-sm h-11 sm:h-10 touch-manipulation">
+            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation">
               <Plus size={20} className="mr-2" weight="bold" />
               {t('addCustomer')}
             </Button>
@@ -132,19 +131,19 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
               onClick={() => onSelectCustomer?.(customer)}
             >
               <div className="flex items-start gap-3">
-                <Avatar className="h-11 w-11 sm:h-10 sm:w-10">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm sm:text-sm font-bold">
+                <Avatar className="h-12 w-12">
+                  <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                     {getInitials(customer.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-base sm:text-base text-foreground break-words">
+                  <h3 className="font-bold text-base text-foreground break-words">
                     {customer.name}
                   </h3>
                   <div className="flex items-center gap-2 flex-wrap">
                     <a 
                       href={`tel:${customer.phone}`}
-                      className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
+                      className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
@@ -156,7 +155,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         onClick={(e) => e.stopPropagation()}
                         title={t('call')}
                       >
-                        <Phone size={16} className="sm:size-4" weight="fill" />
+                        <Phone size={16} weight="fill" />
                       </a>
                       <button
                         onClick={(e) => {
@@ -166,32 +165,32 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
                         title={t('whatsapp')}
                       >
-                        <WhatsappLogo size={16} className="sm:size-4" weight="fill" />
+                        <WhatsappLogo size={16} weight="fill" />
                       </button>
                     </div>
                   </div>
                   {customer.place && (
-                    <p className="text-sm sm:text-sm text-muted-foreground mt-1 font-medium break-words">
+                    <p className="text-sm text-muted-foreground mt-1 font-medium break-words">
                       {customer.place}
                     </p>
                   )}
                   <div className="mt-2">
-                    <Badge variant="outline" className="text-sm sm:text-xs font-semibold">
+                    <Badge variant="outline" className="text-xs font-semibold">
                       {t(customer.gender)}
                     </Badge>
                   </div>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-8 sm:w-8 flex-shrink-0 touch-manipulation">
-                      <DotsThree size={20} className="sm:size-5" weight="bold" />
+                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                      <DotsThree size={20} weight="bold" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <a 
                         href={`tel:${customer.phone}`}
-                        className="flex items-center cursor-pointer text-base sm:text-sm font-medium"
+                        className="flex items-center cursor-pointer font-medium"
                       >
                         <Phone size={18} className="mr-2" weight="bold" />
                         {t('call')}
@@ -202,18 +201,18 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         e.stopPropagation();
                         sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
                       }}
-                      className="cursor-pointer text-base sm:text-sm font-medium"
+                      className="cursor-pointer font-medium"
                     >
                       <WhatsappLogo size={18} className="mr-2" weight="bold" />
                       {t('whatsapp')}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => handleEdit(customer, e)} className="text-base sm:text-sm font-medium">
+                    <DropdownMenuItem onClick={(e) => handleEdit(customer, e)} className="font-medium">
                       <PencilSimple size={18} className="mr-2" weight="bold" />
                       {t('edit')}
                     </DropdownMenuItem>
                     <DropdownMenuItem 
                       onClick={(e) => handleDelete(customer.id, e)}
-                      className="text-destructive focus:text-destructive text-base sm:text-sm font-medium"
+                      className="text-destructive focus:text-destructive font-medium"
                     >
                       <Trash size={18} className="mr-2" weight="bold" />
                       {t('delete')}

@@ -141,15 +141,15 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="bg-primary p-2 sm:p-2.5 rounded-lg">
-                <Scissors size={24} className="sm:size-7 text-primary-foreground" weight="duotone" />
+            <div className="flex items-center gap-3">
+              <div className="bg-primary p-2.5 rounded-lg">
+                <Scissors size={28} className="text-primary-foreground" weight="duotone" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-foreground">{t('appName')}</h1>
-                <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Management System</p>
+                <h1 className="text-2xl font-bold text-foreground">{t('appName')}</h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">Management System</p>
               </div>
             </div>
             <LanguageSwitcher />
@@ -157,40 +157,35 @@ function AppContent() {
         </div>
       </header>
 
-      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <Tabs defaultValue="dashboard" className="space-y-4 sm:space-y-6">
+      <main className="container mx-auto px-4 py-6">
+        <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/60">
-            <TabsTrigger value="dashboard" className="text-xs sm:text-sm py-2 sm:py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <span className="hidden sm:inline">{t('dashboard')}</span>
-              <span className="sm:hidden">Dash</span>
+            <TabsTrigger value="dashboard" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              {t('dashboard')}
             </TabsTrigger>
-            <TabsTrigger value="orders" className="text-xs sm:text-sm py-2 sm:py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <span className="hidden sm:inline">{t('orders')}</span>
-              <span className="sm:hidden">Order</span>
+            <TabsTrigger value="orders" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              {t('orders')}
             </TabsTrigger>
-            <TabsTrigger value="customers" className="text-xs sm:text-sm py-2 sm:py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <span className="hidden sm:inline">{t('customers')}</span>
-              <span className="sm:hidden">Cust</span>
+            <TabsTrigger value="customers" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              {t('customers')}
             </TabsTrigger>
-            <TabsTrigger value="inventory" className="text-xs sm:text-sm py-2 sm:py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <span className="hidden sm:inline">{t('inventory')}</span>
-              <span className="sm:hidden">Stock</span>
+            <TabsTrigger value="inventory" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              {t('inventory')}
             </TabsTrigger>
-            <TabsTrigger value="track" className="text-xs sm:text-sm py-2 sm:py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
-              <span className="hidden sm:inline">{t('track')}</span>
-              <span className="sm:hidden">Track</span>
+            <TabsTrigger value="track" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              {t('track')}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
+          <TabsContent value="dashboard" className="space-y-6">
             <DashboardStats
               totalCustomers={customers?.length || 0}
               orders={orders || []}
             />
 
-            <div className="grid grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 gap-6">
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('customers')}</h2>
+                <h2 className="text-xl font-semibold mb-4">{t('customers')}</h2>
                 <CustomerList
                   customers={(customers || []).slice(0, 6)}
                   onAddCustomer={handleAddCustomer}
@@ -199,7 +194,7 @@ function AppContent() {
                 />
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4">{t('orders')}</h2>
+                <h2 className="text-xl font-semibold mb-4">{t('orders')}</h2>
                 <OrderList
                   orders={(orders || []).slice(0, 6)}
                   customers={customers || []}
@@ -230,9 +225,9 @@ function AppContent() {
             />
           </TabsContent>
 
-          <TabsContent value="inventory" className="space-y-4 sm:space-y-6">
+          <TabsContent value="inventory" className="space-y-6">
             <InventoryStats items={inventory || []} />
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <InventoryList
                   items={inventory || []}
