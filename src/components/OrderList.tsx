@@ -15,6 +15,7 @@ import {
 import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { format, isPast, isToday } from 'date-fns';
 import { OrderForm } from './OrderForm';
+import { PhotoGallery } from './PhotoGallery';
 import { Customer, Tailor } from '@/lib/types';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
@@ -29,6 +30,8 @@ interface OrderListProps {
     measurements: any;
     fabricDetails: string;
     designNotes: string;
+    fabricPhotos?: string[];
+    designPhotos?: string[];
     assignedTailor: string;
     deliveryDate: number;
   }) => void;
@@ -252,19 +255,23 @@ export function OrderList({
                 </div>
               </div>
 
-              {(order.fabricDetails || order.designNotes) && (
-                <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t text-xs sm:text-sm text-muted-foreground space-y-1">
-                  {order.fabricDetails && (
-                    <p>
-                      <span className="font-medium">{t('fabricDetails')}:</span>{' '}
-                      {order.fabricDetails}
-                    </p>
+              {(order.fabricPhotos?.length || order.designPhotos?.length) && (
+                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t space-y-3">
+                  {order.fabricPhotos && order.fabricPhotos.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs sm:text-sm font-medium text-foreground">
+                        {t('fabricPhotos')} ({order.fabricPhotos.length})
+                      </p>
+                      <PhotoGallery photos={order.fabricPhotos} />
+                    </div>
                   )}
-                  {order.designNotes && (
-                    <p>
-                      <span className="font-medium">{t('designNotes')}:</span>{' '}
-                      {order.designNotes}
-                    </p>
+                  {order.designPhotos && order.designPhotos.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs sm:text-sm font-medium text-foreground">
+                        {t('designPhotos')} ({order.designPhotos.length})
+                      </p>
+                      <PhotoGallery photos={order.designPhotos} />
+                    </div>
                   )}
                 </div>
               )}

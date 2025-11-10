@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -18,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Customer, Measurements, Tailor } from '@/lib/types';
+import { PhotoUpload } from '@/components/PhotoUpload';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -31,6 +31,8 @@ interface OrderFormProps {
     measurements: Measurements;
     fabricDetails: string;
     designNotes: string;
+    fabricPhotos?: string[];
+    designPhotos?: string[];
     assignedTailor: string;
     deliveryDate: number;
   }) => void;
@@ -49,6 +51,8 @@ export function OrderForm({
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [fabricDetails, setFabricDetails] = useState('');
   const [designNotes, setDesignNotes] = useState('');
+  const [fabricPhotos, setFabricPhotos] = useState<string[]>([]);
+  const [designPhotos, setDesignPhotos] = useState<string[]>([]);
   const [assignedTailor, setAssignedTailor] = useState('');
   const [deliveryDate, setDeliveryDate] = useState(
     format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
@@ -74,6 +78,8 @@ export function OrderForm({
       measurements: customer.measurements,
       fabricDetails: fabricDetails.trim(),
       designNotes: designNotes.trim(),
+      fabricPhotos: fabricPhotos.length > 0 ? fabricPhotos : undefined,
+      designPhotos: designPhotos.length > 0 ? designPhotos : undefined,
       assignedTailor,
       deliveryDate: new Date(deliveryDate).getTime(),
     });
@@ -86,6 +92,8 @@ export function OrderForm({
     setSelectedCustomerId('');
     setFabricDetails('');
     setDesignNotes('');
+    setFabricPhotos([]);
+    setDesignPhotos([]);
     setAssignedTailor('');
     setDeliveryDate(format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
   };
@@ -138,23 +146,19 @@ export function OrderForm({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="fabricDetails">{t('fabricDetails')}</Label>
-            <Textarea
-              id="fabricDetails"
-              value={fabricDetails}
-              onChange={(e) => setFabricDetails(e.target.value)}
-              rows={3}
+          <div className="space-y-4">
+            <PhotoUpload
+              label={t('fabricPhotos')}
+              photos={fabricPhotos}
+              onChange={setFabricPhotos}
+              maxPhotos={5}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="designNotes">{t('designNotes')}</Label>
-            <Textarea
-              id="designNotes"
-              value={designNotes}
-              onChange={(e) => setDesignNotes(e.target.value)}
-              rows={3}
+            
+            <PhotoUpload
+              label={t('designPhotos')}
+              photos={designPhotos}
+              onChange={setDesignPhotos}
+              maxPhotos={5}
             />
           </div>
 

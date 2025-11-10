@@ -49,6 +49,8 @@ export const translations = {
     selectCustomer: 'Select Customer',
     fabricDetails: 'Fabric Details',
     designNotes: 'Design Notes',
+    fabricPhotos: 'Fabric Photos',
+    designPhotos: 'Design Photos',
     assignTailor: 'Assign Tailor',
     deliveryDate: 'Delivery Date',
     
@@ -190,6 +192,8 @@ export const translations = {
     selectCustomer: 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்',
     fabricDetails: 'துணி விவரங்கள்',
     designNotes: 'டிசைன் குறிப்புகள்',
+    fabricPhotos: 'துணி புகைப்படங்கள்',
+    designPhotos: 'டிசைன் புகைப்படங்கள்',
     assignTailor: 'தையல்காரரை ஒதுக்கவும்',
     deliveryDate: 'டெலிவரி தேதி',
     

@@ -73,6 +73,8 @@ export interface Order {
   measurements: Measurements;
   fabricDetails: string;
   designNotes: string;
+  fabricPhotos?: string[];
+  designPhotos?: string[];
   assignedTailor: string;
   status: OrderStatus;
   deliveryDate: number;

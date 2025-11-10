@@ -63,6 +63,8 @@ function AppContent() {
     measurements: any;
     fabricDetails: string;
     designNotes: string;
+    fabricPhotos?: string[];
+    designPhotos?: string[];
     assignedTailor: string;
     deliveryDate: number;
   }) => {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Package, MagnifyingGlass, Phone, WhatsappLogo } from '@phosphor-icons/react';
 import { format } from 'date-fns';
+import { PhotoGallery } from './PhotoGallery';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
 interface OrderTrackingProps {
@@ -195,23 +196,28 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         {format(order.deliveryDate, 'MMM dd, yyyy')}
                       </p>
                     </div>
-                    {order.fabricDetails && (
-                      <div>
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                          {t('fabricDetails')}
-                        </p>
-                        <p className="font-medium text-sm sm:text-base">{order.fabricDetails}</p>
-                      </div>
-                    )}
-                    {order.designNotes && (
-                      <div>
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                          {t('designNotes')}
-                        </p>
-                        <p className="font-medium text-sm sm:text-base">{order.designNotes}</p>
-                      </div>
-                    )}
                   </div>
+
+                  {(order.fabricPhotos?.length || order.designPhotos?.length) && (
+                    <div className="pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
+                      {order.fabricPhotos && order.fabricPhotos.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs sm:text-sm font-medium text-foreground">
+                            {t('fabricPhotos')} ({order.fabricPhotos.length})
+                          </p>
+                          <PhotoGallery photos={order.fabricPhotos} />
+                        </div>
+                      )}
+                      {order.designPhotos && order.designPhotos.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs sm:text-sm font-medium text-foreground">
+                            {t('designPhotos')} ({order.designPhotos.length})
+                          </p>
+                          <PhotoGallery photos={order.designPhotos} />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Card>
             ))
