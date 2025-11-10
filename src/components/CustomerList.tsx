@@ -138,13 +138,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-base sm:text-base text-foreground truncate">
+                  <h3 className="font-bold text-base sm:text-base text-foreground break-words">
                     {customer.name}
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <a 
                       href={`tel:${customer.phone}`}
-                      className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors truncate font-medium"
+                      className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
@@ -171,7 +171,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     </div>
                   </div>
                   {customer.place && (
-                    <p className="text-sm sm:text-sm text-muted-foreground truncate mt-1 font-medium">
+                    <p className="text-sm sm:text-sm text-muted-foreground mt-1 font-medium break-words">
                       {customer.place}
                     </p>
                   )}

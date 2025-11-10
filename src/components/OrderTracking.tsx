@@ -110,16 +110,16 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                 <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
                     <div className="flex-1">
-                      <h2 className="text-lg sm:text-xl font-semibold mb-1">
+                      <h2 className="text-lg sm:text-xl font-semibold mb-1 break-words">
                         {order.customerName}
                       </h2>
-                      <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
-                        <p className="text-xs sm:text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
+                        <p className="text-xs sm:text-sm text-muted-foreground break-all">
                           {order.customerPhone}
                         </p>
                         <a 
                           href={`tel:${order.customerPhone}`}
-                          className="text-primary hover:text-primary/80 transition-colors"
+                          className="text-primary hover:text-primary/80 transition-colors flex-shrink-0"
                         >
                           <Phone size={14} className="sm:size-4" weight="fill" />
                         </a>
@@ -127,7 +127,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                           onClick={() => {
                             sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
                           }}
-                          className="text-green-600 hover:text-green-700 transition-colors"
+                          className="text-green-600 hover:text-green-700 transition-colors flex-shrink-0"
                         >
                           <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
                         </button>
@@ -160,7 +160,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                             {index + 1}
                           </div>
                           <p
-                            className={`text-[10px] sm:text-xs text-center max-w-[60px] sm:max-w-none ${
+                            className={`text-[10px] sm:text-xs text-center max-w-[70px] sm:max-w-none leading-tight ${
                               getStatusStep(order.status) >= index
                                 ? 'text-foreground font-medium'
                                 : 'text-muted-foreground'

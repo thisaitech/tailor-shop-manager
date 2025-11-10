@@ -134,21 +134,21 @@ export function OrderList({
                 <div className="flex-1 space-y-2 sm:space-y-2">
                   <div className="flex items-start gap-2 sm:gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-base sm:text-base text-foreground truncate">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="font-bold text-base sm:text-base text-foreground break-words">
                           {order.customerName}
                         </h3>
                         {isOverdue(order) && (
                           <Warning size={18} className="sm:size-5 text-destructive flex-shrink-0" weight="fill" />
                         )}
                       </div>
-                      <p className="text-sm sm:text-sm text-muted-foreground font-medium">
-                        {t('orderId')}: {order.id.slice(0, 8)}
+                      <p className="text-sm sm:text-sm text-muted-foreground font-medium break-words">
+                        {t('orderId')}: {order.id.slice(0, 10)}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <a 
                           href={`tel:${order.customerPhone}`}
-                          className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors truncate font-medium"
+                          className="text-sm sm:text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {order.customerPhone}
