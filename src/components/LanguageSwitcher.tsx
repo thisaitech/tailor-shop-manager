@@ -10,10 +10,11 @@ export function LanguageSwitcher() {
       variant="outline"
       size="sm"
       onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
-      className="gap-2"
+      className="gap-2 font-semibold touch-manipulation"
     >
-      <Translate size={18} />
-      {lang === 'en' ? 'தமிழ்' : 'English'}
+      <Translate size={18} weight="bold" />
+      <span className="hidden sm:inline">{lang === 'en' ? 'தமிழ்' : 'English'}</span>
+      <span className="sm:hidden">{lang === 'en' ? 'த' : 'EN'}</span>
     </Button>
   );
 }

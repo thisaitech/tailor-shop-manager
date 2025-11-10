@@ -159,20 +159,35 @@ function AppContent() {
 
       <main className="container mx-auto px-4 py-6">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/60">
-            <TabsTrigger value="dashboard" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+          <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-muted/60 gap-1">
+            <TabsTrigger 
+              value="dashboard" 
+              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+            >
               {t('dashboard')}
             </TabsTrigger>
-            <TabsTrigger value="orders" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsTrigger 
+              value="orders" 
+              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+            >
               {t('orders')}
             </TabsTrigger>
-            <TabsTrigger value="customers" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsTrigger 
+              value="customers" 
+              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+            >
               {t('customers')}
             </TabsTrigger>
-            <TabsTrigger value="inventory" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsTrigger 
+              value="inventory" 
+              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+            >
               {t('inventory')}
             </TabsTrigger>
-            <TabsTrigger value="track" className="py-2.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            <TabsTrigger 
+              value="track" 
+              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+            >
               {t('track')}
             </TabsTrigger>
           </TabsList>
@@ -183,9 +198,9 @@ function AppContent() {
               orders={orders || []}
             />
 
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <h2 className="text-xl font-semibold mb-4">{t('customers')}</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold">{t('customers')}</h2>
                 <CustomerList
                   customers={(customers || []).slice(0, 6)}
                   onAddCustomer={handleAddCustomer}
@@ -193,8 +208,8 @@ function AppContent() {
                   onDeleteCustomer={handleDeleteCustomer}
                 />
               </div>
-              <div>
-                <h2 className="text-xl font-semibold mb-4">{t('orders')}</h2>
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold">{t('orders')}</h2>
                 <OrderList
                   orders={(orders || []).slice(0, 6)}
                   customers={customers || []}

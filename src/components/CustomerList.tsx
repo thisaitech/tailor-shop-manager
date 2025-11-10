@@ -123,11 +123,11 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
           )}
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4">
           {filteredCustomers.map((customer) => (
             <Card
               key={customer.id}
-              className="p-4 sm:p-4 hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 w-full"
+              className="p-4 hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 w-full"
               onClick={() => onSelectCustomer?.(customer)}
             >
               <div className="flex items-start gap-3 w-full">
