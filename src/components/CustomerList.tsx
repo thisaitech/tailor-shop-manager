@@ -37,16 +37,23 @@ interface CustomerListProps {
 export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer, onSelectCustomer }: CustomerListProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
+  const [alphabetFilter, setAlphabetFilter] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
 
-  const filteredCustomers = customers.filter(
-    (c) =>
+  const filteredCustomers = customers.filter((c) => {
+    const matchesSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search) ||
-      c.place.toLowerCase().includes(search.toLowerCase())
-  );
+      c.place.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesAlphabet = 
+      alphabetFilter === 'all' || 
+      c.name.charAt(0).toLowerCase() === alphabetFilter.toLowerCase();
+    
+    return matchesSearch && matchesAlphabet;
+  });
 
   const getInitials = (name: string) => {
     return name
@@ -88,25 +95,59 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
     }
   };
 
+  const alphabetLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  
+  const getCustomerCountForLetter = (letter: string) => {
+    return customers.filter(c => c.name.charAt(0).toLowerCase() === letter.toLowerCase()).length;
+  };
+
   return (
     <div className="space-y-3 sm:space-y-4">
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <div className="relative flex-1">
-          <MagnifyingGlass
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            size={20}
-          />
-          <Input
-            placeholder={t('searchCustomers')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-10 touch-manipulation"
-          />
+      <div className="flex flex-col gap-2 sm:gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="relative flex-1">
+            <MagnifyingGlass
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={20}
+            />
+            <Input
+              placeholder={t('searchCustomers')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 h-10 touch-manipulation"
+            />
+          </div>
+          <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap">
+            <Plus size={18} className="mr-1.5" weight="bold" />
+            {t('addCustomer')}
+          </Button>
         </div>
-        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap">
-          <Plus size={18} className="mr-1.5" weight="bold" />
-          {t('addCustomer')}
-        </Button>
+        
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          <Button
+            variant={alphabetFilter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setAlphabetFilter('all')}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+          >
+            {t('all')} ({customers.length})
+          </Button>
+          {alphabetLetters.map((letter) => {
+            const count = getCustomerCountForLetter(letter);
+            if (count === 0) return null;
+            return (
+              <Button
+                key={letter}
+                variant={alphabetFilter === letter ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setAlphabetFilter(letter)}
+                className="text-xs font-semibold touch-manipulation h-8 px-2.5 min-w-[2.5rem]"
+              >
+                {letter} ({count})
+              </Button>
+            );
+          })}
+        </div>
       </div>
 
       {filteredCustomers.length === 0 ? (
