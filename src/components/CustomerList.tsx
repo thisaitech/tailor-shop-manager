@@ -131,8 +131,8 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
               onClick={() => onSelectCustomer?.(customer)}
             >
               <div className="flex items-start gap-3 w-full">
-                <Avatar className="h-12 w-12 flex-shrink-0">
-                  <AvatarFallback className="bg-primary text-primary-foreground font-bold text-sm">
+                <Avatar className="h-10 w-10 flex-shrink-0">
+                  <AvatarFallback className="bg-primary text-primary-foreground font-bold text-xs">
                     {getInitials(customer.name)}
                   </AvatarFallback>
                 </Avatar>
