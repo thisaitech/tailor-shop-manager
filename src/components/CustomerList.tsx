@@ -188,7 +188,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
-                    </span>
+                    </a>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <a 
                         href={`tel:${customer.phone}`}

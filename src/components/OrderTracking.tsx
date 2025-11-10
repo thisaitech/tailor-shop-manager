@@ -174,17 +174,8 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                               {step.label}
                             </p>
                           </div>
-                          <p
-                            className={`text-[10px] sm:text-xs text-center max-w-[70px] sm:max-w-none leading-tight ${
-                              getStatusStep(order.status) >= index
-                                ? 'text-foreground font-medium'
-                                : 'text-muted-foreground'
-                            }`}
-                          >
-                            {step.label}
-                          </p>
-                        </div>
                       ))}
+                    </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-3 sm:pt-4 border-t">
