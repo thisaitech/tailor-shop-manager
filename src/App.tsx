@@ -12,6 +12,7 @@ import { InventoryStats } from '@/components/InventoryStats';
 import { InventoryList } from '@/components/InventoryList';
 import { TransactionHistory } from '@/components/TransactionHistory';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { InstallPrompt } from '@/components/InstallPrompt';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
@@ -239,6 +240,7 @@ function AppContent() {
         </Tabs>
       </main>
 
+      <InstallPrompt />
       <Toaster />
     </div>
   );

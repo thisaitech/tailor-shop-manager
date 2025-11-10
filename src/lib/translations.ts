@@ -146,6 +146,10 @@ export const translations = {
     
     filterByStatus: 'Filter by Status',
     allStatuses: 'All Statuses',
+    
+    installApp: 'Install App',
+    installAppDescription: 'Install this app on your device for quick access and offline use.',
+    install: 'Install Now',
   },
   ta: {
     appName: 'தையல் கடை',
@@ -292,6 +296,10 @@ export const translations = {
     
     filterByStatus: 'நிலையின் அடிப்படையில் வடிகட்டவும்',
     allStatuses: 'அனைத்து நிலைகள்',
+    
+    installApp: 'செயலியை நிறுவவும்',
+    installAppDescription: 'விரைவான அணுகல் மற்றும் ஆஃப்லைன் பயன்பாட்டிற்காக உங்கள் சாதனத்தில் இந்த செயலியை நிறுவவும்.',
+    install: 'இப்போது நிறுவவும்',
   },
 };
 
