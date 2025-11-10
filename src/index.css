@@ -15,7 +15,7 @@
 
   @media (max-width: 768px) {
     html {
-      font-size: 14px;
+      font-size: 16px;
     }
   }
 }
@@ -23,6 +23,7 @@
 @layer utilities {
   .touch-manipulation {
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   
   .safe-area-inset {
