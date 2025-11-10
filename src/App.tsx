@@ -188,9 +188,9 @@ function AppContent() {
               orders={orders || []}
             />
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-6">
-              <div>
-                <h2 className="text-sm sm:text-xl font-semibold mb-2 sm:mb-4">{t('customers')}</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <div className="space-y-3 sm:space-y-4">
+                <h2 className="text-base sm:text-xl font-semibold">{t('customers')}</h2>
                 <CustomerList
                   customers={(customers || []).slice(0, 6)}
                   onAddCustomer={handleAddCustomer}
@@ -198,8 +198,8 @@ function AppContent() {
                   onDeleteCustomer={handleDeleteCustomer}
                 />
               </div>
-              <div>
-                <h2 className="text-sm sm:text-xl font-semibold mb-2 sm:mb-4">{t('orders')}</h2>
+              <div className="space-y-3 sm:space-y-4">
+                <h2 className="text-base sm:text-xl font-semibold">{t('orders')}</h2>
                 <OrderList
                   orders={(orders || []).slice(0, 6)}
                   customers={customers || []}
