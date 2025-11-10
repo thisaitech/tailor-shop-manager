@@ -113,111 +113,109 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         {order.customerName}
                       </h2>
                       <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          {t('orderId')}: {order.id.slice(0, 8)}
                         </p>
                         <a 
                           href={`tel:${order.customerPhone}`}
-                          className="text-primary hover:text-primary/80 transition-colors"
+                        <a text-primary/80 transition-colors"
                         >
                           <Phone size={14} className="sm:size-4" weight="fill" />
-                        </a>
+                        >
                         <button
-                          onClick={() => {
+                        </a>
                             sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
                           }}
                           className="text-green-600 hover:text-green-700 transition-colors"
-                        >
+                          }}
                           <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
                         </button>
                       </div>
+                        </button>
+                      </div>
                     </div>
-                    <Badge className={`${getStatusColor(order.status)} flex-shrink-0`}>
-                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
+                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
+
                   </div>
 
-                  <div className="relative px-2 sm:px-0">
+                      {[
                     <div className="flex justify-between mb-2">
                       {[
-                        { key: 'pending', label: t('pending') },
-                        { key: 'in-progress', label: t('inProgress') },
                         { key: 'ready', label: t('ready') },
-                        { key: 'delivered', label: t('delivered') },
+                        { key: 'in-progress', label: t('inProgress') },
                       ].map((step, index) => (
+                        { key: 'delivered', label: t('delivered') },
+                          key={step.key}
                         <div
                           key={step.key}
                           className="flex flex-col items-center gap-1 sm:gap-2 z-10"
-                        >
-                          <div
                             className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
                               getStatusStep(order.status) >= index
-                                ? 'bg-primary text-primary-foreground'
+                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
                                 : 'bg-muted text-muted-foreground'
-                            }`}
+                                ? 'bg-primary text-primary-foreground'
                           >
                             {index + 1}
                           </div>
                           <p
                             className={`text-[10px] sm:text-xs text-center max-w-[60px] sm:max-w-none ${
                               getStatusStep(order.status) >= index
-                                ? 'text-foreground font-medium'
+                            className={`text-[10px] sm:text-xs text-center max-w-[60px] sm:max-w-none ${
                                 : 'text-muted-foreground'
-                            }`}
+                                ? 'text-foreground font-medium'
                           >
                             {step.label}
                           </p>
-                        </div>
+                            {step.label}
                       ))}
-                    </div>
+                        </div>
                     <div className="absolute top-4 sm:top-5 left-0 right-0 h-0.5 bg-muted -z-10 mx-4 sm:mx-5">
-                      <div
+                    </div>
                         className="h-full bg-primary transition-all duration-500"
-                        style={{
+                      <div
                           width: `${(getStatusStep(order.status) / 3) * 100}%`,
                         }}
                       />
                     </div>
-                  </div>
+                      />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t">
+                  </div> sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t">
                     <div>
                       <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                        {t('tailor')}
+                    <div>
                       </p>
-                      <p className="font-medium text-sm sm:text-base">{order.assignedTailor}</p>
+                        {t('tailor')}-base">{order.assignedTailor}</p>
                     </div>
                     <div>
                       <p className="text-xs sm:text-sm text-muted-foreground mb-1">
                         {t('deliveryDate')}
                       </p>
+                        {t('deliveryDate')}">
+                        {format(order.deliveryDate, 'MMM dd, yyyy')}
                       <p className="font-medium text-sm sm:text-base">
                         {format(order.deliveryDate, 'MMM dd, yyyy')}
-                      </p>
-                    </div>
                     {order.fabricDetails && (
-                      <div>
+                    </div>
                         <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                          {t('fabricDetails')}
+                      <div>
                         </p>
-                        <p className="font-medium text-sm sm:text-base">{order.fabricDetails}</p>
+                          {t('fabricDetails')}
                       </div>
+                        <p className="font-medium text-sm sm:text-base">{order.fabricDetails}</p>
+                    {order.designNotes && (
                     )}
                     {order.designNotes && (
                       <div>
                         <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                          {t('designNotes')}
-                        </p>
                         <p className="font-medium text-sm sm:text-base">{order.designNotes}</p>
-                      </div>
+                        </p>
                     )}
-                  </div>
+                      </div>
                 </div>
-              </Card>
+                  </div>
             ))
-          )}
+              </Card>
         </div>
-      )}
+          )}
     </div>
   );
 }
