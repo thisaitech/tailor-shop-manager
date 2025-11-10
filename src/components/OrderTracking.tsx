@@ -107,117 +107,125 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
           ) : (
             searchResults.map((order) => (
               <Card key={order.id} className="p-4 sm:p-6">
-                <div className="space-y-4 sm:space-y-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
-                    <div className="flex-1">
-                      <h2 className="text-lg sm:text-xl font-semibold mb-1">
+                <div className="grid grid-cols-[auto_1fr] sm:grid-cols-1 gap-4 sm:gap-6">
+                  <div className="sm:flex sm:flex-row sm:justify-between sm:items-start sm:gap-0">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-sm sm:text-xl font-semibold mb-1 truncate">
                         {order.customerName}
                       </h2>
-                      <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
-                        <p className="text-xs sm:text-sm text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
+                        <p className="text-[10px] sm:text-sm text-muted-foreground truncate">
                           {order.customerPhone}
                         </p>
-                        <a 
-                          href={`tel:${order.customerPhone}`}
-                          className="text-primary hover:text-primary/80 transition-colors"
-                        >
-                          <Phone size={14} className="sm:size-4" weight="fill" />
-                        </a>
-                        <button
-                          onClick={() => {
-                            sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
-                          }}
-                          className="text-green-600 hover:text-green-700 transition-colors"
-                        >
-                          <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <a 
+                            href={`tel:${order.customerPhone}`}
+                            className="text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <Phone size={14} className="sm:size-4" weight="fill" />
+                          </a>
+                          <button
+                            onClick={() => {
+                              sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
+                            }}
+                            className="text-green-600 hover:text-green-700 transition-colors"
+                          >
+                            <WhatsappLogo size={14} className="sm:size-4" weight="fill" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <Badge className={getStatusColor(order.status)}>
+                    <Badge className={`${getStatusColor(order.status)} hidden sm:inline-flex`}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
                   </div>
 
-                  <div className="relative">
-                    <div className="flex justify-between mb-2">
-                      {[
-                        { key: 'pending', label: t('pending') },
-                        { key: 'in-progress', label: t('inProgress') },
-                        { key: 'ready', label: t('ready') },
-                        { key: 'delivered', label: t('delivered') },
-                      ].map((step, index) => (
-                        <div
-                          key={step.key}
-                          className="flex flex-col items-center gap-1 sm:gap-2 z-10"
-                        >
+                  <div className="space-y-4 sm:space-y-6">
+                    <Badge className={`${getStatusColor(order.status)} sm:hidden w-fit`}>
+                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
+                    </Badge>
+
+                    <div className="relative">
+                      <div className="flex justify-between mb-2">
+                        {[
+                          { key: 'pending', label: t('pending') },
+                          { key: 'in-progress', label: t('inProgress') },
+                          { key: 'ready', label: t('ready') },
+                          { key: 'delivered', label: t('delivered') },
+                        ].map((step, index) => (
                           <div
-                            className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base ${
-                              getStatusStep(order.status) >= index
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                            }`}
+                            key={step.key}
+                            className="flex flex-col items-center gap-1 sm:gap-2 z-10"
                           >
-                            {index + 1}
+                            <div
+                              className={`w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-xs sm:text-base ${
+                                getStatusStep(order.status) >= index
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                            >
+                              {index + 1}
+                            </div>
+                            <p
+                              className={`text-[9px] sm:text-xs text-center max-w-[50px] sm:max-w-none ${
+                                getStatusStep(order.status) >= index
+                                  ? 'text-foreground font-medium'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {step.label}
+                            </p>
                           </div>
-                          <p
-                            className={`text-[10px] sm:text-xs text-center max-w-[60px] sm:max-w-none ${
-                              getStatusStep(order.status) >= index
-                                ? 'text-foreground font-medium'
-                                : 'text-muted-foreground'
-                            }`}
-                          >
-                            {step.label}
-                          </p>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                      <div className="absolute top-3.5 sm:top-5 left-0 right-0 h-0.5 bg-muted -z-10 mx-3.5 sm:mx-5">
+                        <div
+                          className="h-full bg-primary transition-all duration-500"
+                          style={{
+                            width: `${(getStatusStep(order.status) / 3) * 100}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="absolute top-4 sm:top-5 left-0 right-0 h-0.5 bg-muted -z-10 mx-4 sm:mx-5">
-                      <div
-                        className="h-full bg-primary transition-all duration-500"
-                        style={{
-                          width: `${(getStatusStep(order.status) / 3) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-3 sm:pt-4 border-t">
-                    <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                        {t('tailor')}
-                      </p>
-                      <p className="font-medium text-sm sm:text-base">{order.assignedTailor}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-3 sm:pt-4 border-t">
+                      <div>
+                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
+                          {t('tailor')}
+                        </p>
+                        <p className="font-medium text-xs sm:text-base truncate">{order.assignedTailor}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
+                          {t('deliveryDate')}
+                        </p>
+                        <p className="font-medium text-xs sm:text-base">
+                          {format(order.deliveryDate, 'MMM dd, yyyy')}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                        {t('deliveryDate')}
-                      </p>
-                      <p className="font-medium text-sm sm:text-base">
-                        {format(order.deliveryDate, 'MMM dd, yyyy')}
-                      </p>
-                    </div>
-                  </div>
 
-                  {(order.fabricPhotos?.length || order.designPhotos?.length) && (
-                    <div className="pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
-                      {order.fabricPhotos && order.fabricPhotos.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs sm:text-sm font-medium text-foreground">
-                            {t('fabricPhotos')} ({order.fabricPhotos.length})
-                          </p>
-                          <PhotoGallery photos={order.fabricPhotos} />
-                        </div>
-                      )}
-                      {order.designPhotos && order.designPhotos.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-xs sm:text-sm font-medium text-foreground">
-                            {t('designPhotos')} ({order.designPhotos.length})
-                          </p>
-                          <PhotoGallery photos={order.designPhotos} />
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    {(order.fabricPhotos?.length || order.designPhotos?.length) && (
+                      <div className="pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
+                        {order.fabricPhotos && order.fabricPhotos.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] sm:text-sm font-medium text-foreground">
+                              {t('fabricPhotos')} ({order.fabricPhotos.length})
+                            </p>
+                            <PhotoGallery photos={order.fabricPhotos} />
+                          </div>
+                        )}
+                        {order.designPhotos && order.designPhotos.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[10px] sm:text-sm font-medium text-foreground">
+                              {t('designPhotos')} ({order.designPhotos.length})
+                            </p>
+                            <PhotoGallery photos={order.designPhotos} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </Card>
             ))
