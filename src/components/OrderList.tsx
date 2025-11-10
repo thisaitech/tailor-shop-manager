@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo } from '@phosphor-icons/react';
+import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo, CaretDown, CaretUp } from '@phosphor-icons/react';
 import { format, isPast, isToday } from 'date-fns';
 import { OrderForm } from './OrderForm';
 import { PhotoGallery } from './PhotoGallery';
@@ -49,6 +49,7 @@ export function OrderList({
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   const filteredOrders = orders.filter(
     (o) =>
@@ -73,6 +74,19 @@ export function OrderList({
 
   const isOverdue = (order: Order) => {
     return order.status !== 'delivered' && isPast(order.deliveryDate);
+  };
+
+  const toggleExpanded = (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedOrders((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
   };
 
   const getOrderStatusMessage = (order: Order) => {
@@ -121,161 +135,178 @@ export function OrderList({
         </Card>
       ) : (
         <div className="space-y-2 sm:space-y-3">
-          {filteredOrders.map((order) => (
-            <Card
-              key={order.id}
-              className={`p-4 sm:p-4 hover:shadow-lg transition-all duration-200 cursor-pointer ${
-                isOverdue(order) ? 'border-destructive border-2' : ''
-              }`}
-              onClick={() => setSelectedOrder(order)}
-            >
-              <div className="flex flex-col gap-3 sm:gap-4">
-                <div className="flex-1 space-y-2 sm:space-y-2">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-base text-foreground break-words leading-tight flex-1">
-                          {order.customerName}
-                        </h3>
-                        {isOverdue(order) && (
-                          <Warning size={20} className="text-destructive flex-shrink-0" weight="fill" />
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground font-medium break-words">
-                        {t('orderId')}: {order.id.slice(0, 10)}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <a 
-                          href={`tel:${order.customerPhone}`}
-                          className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {order.customerPhone}
-                        </a>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+          {filteredOrders.map((order) => {
+            const isExpanded = expandedOrders.has(order.id);
+            return (
+              <Card
+                key={order.id}
+                className={`p-4 sm:p-4 hover:shadow-lg transition-all duration-200 ${
+                  isOverdue(order) ? 'border-destructive border-2' : ''
+                }`}
+              >
+                <div className="flex flex-col gap-3 sm:gap-4">
+                  <div className="flex-1 space-y-2 sm:space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-base text-foreground break-words leading-tight flex-1">
+                            {order.customerName}
+                          </h3>
+                          {isOverdue(order) && (
+                            <Warning size={20} className="text-destructive flex-shrink-0" weight="fill" />
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground font-medium break-words">
+                          {t('orderId')}: {order.id.slice(0, 10)}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <a 
                             href={`tel:${order.customerPhone}`}
-                            className="text-primary hover:text-primary/80 transition-colors p-1 touch-manipulation"
+                            className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
                             onClick={(e) => e.stopPropagation()}
-                            title={t('call')}
                           >
-                            <Phone size={16} weight="fill" />
+                            {order.customerPhone}
                           </a>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
-                            }}
-                            className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
-                            title={t('whatsapp')}
-                          >
-                            <WhatsappLogo size={16} weight="fill" />
-                          </button>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <a 
+                              href={`tel:${order.customerPhone}`}
+                              className="text-primary hover:text-primary/80 transition-colors p-1 touch-manipulation"
+                              onClick={(e) => e.stopPropagation()}
+                              title={t('call')}
+                            >
+                              <Phone size={16} weight="fill" />
+                            </a>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                sendWhatsAppMessage(order.customerPhone, getOrderStatusMessage(order));
+                              }}
+                              className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
+                              title={t('whatsapp')}
+                            >
+                              <WhatsappLogo size={16} weight="fill" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    <Badge variant="outline" className="text-xs font-semibold">
-                      {t('tailor')}: {order.assignedTailor}
-                    </Badge>
-                    <Badge
-                      variant={
-                        isOverdue(order)
-                          ? 'destructive'
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      <Badge variant="outline" className="text-xs font-semibold">
+                        {t('tailor')}: {order.assignedTailor}
+                      </Badge>
+                      <Badge
+                        variant={
+                          isOverdue(order)
+                            ? 'destructive'
+                            : isToday(order.deliveryDate)
+                            ? 'default'
+                            : 'outline'
+                        }
+                        className="text-xs font-semibold"
+                      >
+                        {isOverdue(order)
+                          ? t('overdue')
                           : isToday(order.deliveryDate)
-                          ? 'default'
-                          : 'outline'
-                      }
-                      className="text-xs font-semibold"
+                          ? t('dueToday')
+                          : format(order.deliveryDate, 'MMM dd, yyyy')}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={order.status}
+                      onValueChange={(value) => {
+                        onUpdateStatus(order.id, value as OrderStatus);
+                      }}
                     >
-                      {isOverdue(order)
-                        ? t('overdue')
-                        : isToday(order.deliveryDate)
-                        ? t('dueToday')
-                        : format(order.deliveryDate, 'MMM dd, yyyy')}
-                    </Badge>
+                      <SelectTrigger
+                        className="w-full sm:flex-1 h-10 font-semibold touch-manipulation"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${getStatusColor('pending')}`}
+                            />
+                            {t('pending')}
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="in-progress">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${getStatusColor(
+                                'in-progress'
+                              )}`}
+                            />
+                            {t('inProgress')}
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="ready">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${getStatusColor('ready')}`}
+                            />
+                            {t('ready')}
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="delivered">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full ${getStatusColor(
+                                'delivered'
+                              )}`}
+                            />
+                            {t('delivered')}
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {(order.fabricPhotos?.length || order.designPhotos?.length) ? (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 flex-shrink-0 touch-manipulation"
+                        onClick={(e) => toggleExpanded(order.id, e)}
+                      >
+                        {isExpanded ? (
+                          <CaretUp size={20} weight="bold" />
+                        ) : (
+                          <CaretDown size={20} weight="bold" />
+                        )}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="flex items-center">
-                  <Select
-                    value={order.status}
-                    onValueChange={(value) => {
-                      onUpdateStatus(order.id, value as OrderStatus);
-                    }}
-                  >
-                    <SelectTrigger
-                      className="w-full sm:w-[180px] h-10 font-semibold touch-manipulation"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${getStatusColor('pending')}`}
-                          />
-                          {t('pending')}
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="in-progress">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${getStatusColor(
-                              'in-progress'
-                            )}`}
-                          />
-                          {t('inProgress')}
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="ready">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${getStatusColor('ready')}`}
-                          />
-                          {t('ready')}
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="delivered">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${getStatusColor(
-                              'delivered'
-                            )}`}
-                          />
-                          {t('delivered')}
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {(order.fabricPhotos?.length || order.designPhotos?.length) && (
-                <div className="mt-4 pt-4 border-t space-y-4">
-                  {order.fabricPhotos && order.fabricPhotos.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        {t('fabricPhotos')} ({order.fabricPhotos.length})
-                      </p>
-                      <PhotoGallery photos={order.fabricPhotos} minimized={true} />
-                    </div>
-                  )}
-                  {order.designPhotos && order.designPhotos.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        {t('designPhotos')} ({order.designPhotos.length})
-                      </p>
-                      <PhotoGallery photos={order.designPhotos} minimized={true} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </Card>
-          ))}
+                {isExpanded && (order.fabricPhotos?.length || order.designPhotos?.length) && (
+                  <div className="mt-4 pt-4 border-t space-y-4">
+                    {order.fabricPhotos && order.fabricPhotos.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-foreground">
+                          {t('fabricPhotos')} ({order.fabricPhotos.length})
+                        </p>
+                        <PhotoGallery photos={order.fabricPhotos} minimized={true} />
+                      </div>
+                    )}
+                    {order.designPhotos && order.designPhotos.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-foreground">
+                          {t('designPhotos')} ({order.designPhotos.length})
+                        </p>
+                        <PhotoGallery photos={order.designPhotos} minimized={true} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
