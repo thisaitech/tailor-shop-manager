@@ -127,23 +127,64 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
           {filteredCustomers.map((customer) => (
             <Card
               key={customer.id}
-              className="p-4 sm:p-4 hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+              className="p-4 sm:p-4 hover:shadow-lg transition-all duration-200 cursor-pointer hover:-translate-y-0.5 w-full"
               onClick={() => onSelectCustomer?.(customer)}
             >
-              <div className="flex items-start gap-3">
-                <Avatar className="h-12 w-12">
+              <div className="flex items-start gap-3 w-full">
+                <Avatar className="h-12 w-12 flex-shrink-0">
                   <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                     {getInitials(customer.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-base text-foreground break-words">
-                    {customer.name}
-                  </h3>
-                  <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-bold text-base text-foreground whitespace-normal overflow-wrap-anywhere">
+                      {customer.name}
+                    </h3>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                          <DotsThree size={20} weight="bold" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <a 
+                            href={`tel:${customer.phone}`}
+                            className="flex items-center cursor-pointer font-medium"
+                          >
+                            <Phone size={18} className="mr-2" weight="bold" />
+                            {t('call')}
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
+                          }}
+                          className="cursor-pointer font-medium"
+                        >
+                          <WhatsappLogo size={18} className="mr-2" weight="bold" />
+                          {t('whatsapp')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleEdit(customer, e)} className="font-medium">
+                          <PencilSimple size={18} className="mr-2" weight="bold" />
+                          {t('edit')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => handleDelete(customer.id, e)}
+                          className="text-destructive focus:text-destructive font-medium"
+                        >
+                          <Trash size={18} className="mr-2" weight="bold" />
+                          {t('delete')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
                     <a 
                       href={`tel:${customer.phone}`}
-                      className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
+                      className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
@@ -170,7 +211,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     </div>
                   </div>
                   {customer.place && (
-                    <p className="text-sm text-muted-foreground mt-1 font-medium break-words">
+                    <p className="text-sm text-muted-foreground mt-1 font-medium">
                       {customer.place}
                     </p>
                   )}
@@ -180,45 +221,6 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     </Badge>
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
-                      <DotsThree size={20} weight="bold" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <a 
-                        href={`tel:${customer.phone}`}
-                        className="flex items-center cursor-pointer font-medium"
-                      >
-                        <Phone size={18} className="mr-2" weight="bold" />
-                        {t('call')}
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
-                      }}
-                      className="cursor-pointer font-medium"
-                    >
-                      <WhatsappLogo size={18} className="mr-2" weight="bold" />
-                      {t('whatsapp')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => handleEdit(customer, e)} className="font-medium">
-                      <PencilSimple size={18} className="mr-2" weight="bold" />
-                      {t('edit')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={(e) => handleDelete(customer.id, e)}
-                      className="text-destructive focus:text-destructive font-medium"
-                    >
-                      <Trash size={18} className="mr-2" weight="bold" />
-                      {t('delete')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </Card>
           ))}
