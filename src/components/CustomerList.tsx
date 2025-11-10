@@ -132,13 +132,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             >
               <div className="flex items-start gap-3 w-full">
                 <Avatar className="h-12 w-12 flex-shrink-0">
-                  <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                  <AvatarFallback className="bg-primary text-primary-foreground font-bold text-sm">
                     {getInitials(customer.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 min-w-0 overflow-hidden">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-base text-foreground whitespace-normal overflow-wrap-anywhere">
+                    <h3 className="font-bold text-base text-foreground break-words leading-tight">
                       {customer.name}
                     </h3>
                     <DropdownMenu>
