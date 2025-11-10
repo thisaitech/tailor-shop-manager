@@ -114,8 +114,8 @@ export function OrderList({
             className="pl-10 h-10 touch-manipulation"
           />
         </div>
-        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-5">
-          <Plus size={20} className="mr-2" weight="bold" />
+        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap">
+          <Plus size={18} className="mr-1.5" weight="bold" />
           {t('newOrder')}
         </Button>
       </div>
@@ -127,8 +127,8 @@ export function OrderList({
             {search ? t('noOrders') : t('noOrders')}
           </p>
           {!search && (
-            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation">
-              <Plus size={20} className="mr-2" weight="bold" />
+            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation text-xs sm:text-sm">
+              <Plus size={18} className="mr-1.5" weight="bold" />
               {t('newOrder')}
             </Button>
           )}
@@ -145,24 +145,24 @@ export function OrderList({
                 }`}
               >
                 <div className="flex flex-col gap-3 sm:gap-4">
-                  <div className="flex-1 space-y-2 sm:space-y-2">
+                  <div className="flex-1 space-y-2 sm:space-y-2 min-w-0">
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-base text-foreground break-words leading-tight flex-1">
+                          <h3 className="font-bold text-sm text-foreground break-words leading-tight flex-1 line-clamp-1">
                             {order.customerName}
                           </h3>
                           {isOverdue(order) && (
-                            <Warning size={20} className="text-destructive flex-shrink-0" weight="fill" />
+                            <Warning size={18} className="text-destructive flex-shrink-0" weight="fill" />
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground font-medium break-words">
+                        <p className="text-xs text-muted-foreground font-medium break-words">
                           {t('orderId')}: {order.id.slice(0, 10)}
                         </p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <a 
                             href={`tel:${order.customerPhone}`}
-                            className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
+                            className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors font-medium break-all"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {order.customerPhone}
@@ -174,7 +174,7 @@ export function OrderList({
                               onClick={(e) => e.stopPropagation()}
                               title={t('call')}
                             >
-                              <Phone size={16} weight="fill" />
+                              <Phone size={14} weight="fill" />
                             </a>
                             <button
                               onClick={(e) => {
@@ -184,7 +184,7 @@ export function OrderList({
                               className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
                               title={t('whatsapp')}
                             >
-                              <WhatsappLogo size={16} weight="fill" />
+                              <WhatsappLogo size={14} weight="fill" />
                             </button>
                           </div>
                         </div>
@@ -192,7 +192,7 @@ export function OrderList({
                     </div>
 
                     <div className="flex flex-wrap gap-2 text-sm">
-                      <Badge variant="outline" className="text-xs font-semibold">
+                      <Badge variant="outline" className="text-[10px] font-semibold line-clamp-1">
                         {t('tailor')}: {order.assignedTailor}
                       </Badge>
                       <Badge
@@ -203,7 +203,7 @@ export function OrderList({
                             ? 'default'
                             : 'outline'
                         }
-                        className="text-xs font-semibold"
+                        className="text-[10px] font-semibold"
                       >
                         {isOverdue(order)
                           ? t('overdue')

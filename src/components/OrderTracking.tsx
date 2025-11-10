@@ -76,8 +76,8 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
   return (
     <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
       <div className="text-center mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">{t('trackYourOrder')}</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">{t('enterPhoneOrOrderId')}</p>
+        <h1 className="text-xl sm:text-3xl font-bold mb-2 line-clamp-2">{t('trackYourOrder')}</h1>
+        <p className="text-xs sm:text-base text-muted-foreground line-clamp-2">{t('enterPhoneOrOrderId')}</p>
       </div>
 
       <Card className="p-4 sm:p-6">
@@ -89,7 +89,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             className="h-10 sm:h-11"
           />
-          <Button onClick={handleSearch} className="h-10 sm:h-11 w-full sm:w-auto">
+          <Button onClick={handleSearch} className="h-10 sm:h-11 w-full sm:w-auto text-xs sm:text-sm">
             <MagnifyingGlass size={18} className="mr-1.5" />
             {t('track')}
           </Button>
@@ -109,8 +109,8 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
               <Card key={order.id} className="p-4 sm:p-6">
                 <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
-                    <div className="flex-1">
-                      <h2 className="text-lg sm:text-xl font-semibold mb-1 break-words">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-base sm:text-xl font-semibold mb-1 break-words line-clamp-2">
                         {order.customerName}
                       </h2>
                       <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
@@ -133,13 +133,13 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         </button>
                       </div>
                     </div>
-                    <Badge className={`${getStatusColor(order.status)} hidden sm:inline-flex`}>
+                    <Badge className={`${getStatusColor(order.status)} hidden sm:inline-flex text-xs`}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
                   </div>
 
                   <div className="space-y-4 sm:space-y-6">
-                    <Badge className={`${getStatusColor(order.status)} sm:hidden w-fit`}>
+                    <Badge className={`${getStatusColor(order.status)} sm:hidden w-fit text-xs`}>
                       {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
                     </Badge>
 
@@ -153,7 +153,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                         ].map((step, index) => (
                           <div
                             key={step.key}
-                            className="flex flex-col items-center gap-1 sm:gap-2 z-10"
+                            className="flex flex-col items-center gap-1 sm:gap-2 z-10 flex-1"
                           >
                             <div
                               className={`w-7 h-7 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-xs sm:text-base ${
@@ -165,7 +165,7 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                               {index + 1}
                             </div>
                             <p
-                              className={`text-[9px] sm:text-xs text-center max-w-[50px] sm:max-w-none ${
+                              className={`text-[8px] sm:text-xs text-center leading-tight line-clamp-2 w-full ${
                                 getStatusStep(order.status) >= index
                                   ? 'text-foreground font-medium'
                                   : 'text-muted-foreground'
@@ -179,14 +179,14 @@ export function OrderTracking({ orders }: OrderTrackingProps) {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-3 sm:pt-4 border-t">
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
                           {t('tailor')}
                         </p>
                         <p className="font-medium text-xs sm:text-base truncate">{order.assignedTailor}</p>
                       </div>
-                      <div>
-                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
+                      <div className="min-w-0">
+                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1 line-clamp-1">
                           {t('deliveryDate')}
                         </p>
                         <p className="font-medium text-xs sm:text-base">

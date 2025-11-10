@@ -162,19 +162,19 @@ function AppContent() {
           <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/60 gap-1">
             <TabsTrigger 
               value="dashboard" 
-              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+              className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
             >
               {t('dashboard')}
             </TabsTrigger>
             <TabsTrigger 
               value="inventory" 
-              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+              className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
             >
               {t('inventory')}
             </TabsTrigger>
             <TabsTrigger 
               value="track" 
-              className="py-2.5 px-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap"
+              className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
             >
               {t('track')}
             </TabsTrigger>
@@ -188,7 +188,7 @@ function AppContent() {
 
             <div className="grid grid-cols-2 gap-3 md:gap-6">
               <div className="space-y-4">
-                <h2 className="text-base md:text-xl font-semibold">{t('customers')}</h2>
+                <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('customers')}</h2>
                 <CustomerList
                   customers={customers || []}
                   onAddCustomer={handleAddCustomer}
@@ -197,7 +197,7 @@ function AppContent() {
                 />
               </div>
               <div className="space-y-4">
-                <h2 className="text-base md:text-xl font-semibold">{t('orders')}</h2>
+                <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
                 <OrderList
                   orders={orders || []}
                   customers={customers || []}

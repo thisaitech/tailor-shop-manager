@@ -103,8 +103,8 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             className="pl-10 h-10 touch-manipulation"
           />
         </div>
-        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-5">
-          <Plus size={20} className="mr-2" weight="bold" />
+        <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap">
+          <Plus size={18} className="mr-1.5" weight="bold" />
           {t('addCustomer')}
         </Button>
       </div>
@@ -116,8 +116,8 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             {search ? t('noCustomers') : t('noCustomers')}
           </p>
           {!search && (
-            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation">
-              <Plus size={20} className="mr-2" weight="bold" />
+            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation text-xs sm:text-sm">
+              <Plus size={18} className="mr-1.5" weight="bold" />
               {t('addCustomer')}
             </Button>
           )}
@@ -178,14 +178,14 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <div className="w-full space-y-2">
-                  <h3 className="font-bold text-base text-foreground break-words leading-tight">
+                <div className="w-full space-y-2 min-w-0">
+                  <h3 className="font-bold text-sm text-foreground break-words leading-tight line-clamp-2">
                     {customer.name}
                   </h3>
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
                     <a 
                       href={`tel:${customer.phone}`}
-                      className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors font-medium"
+                      className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors font-medium"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {customer.phone}
@@ -197,7 +197,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         onClick={(e) => e.stopPropagation()}
                         title={t('call')}
                       >
-                        <Phone size={16} weight="fill" />
+                        <Phone size={14} weight="fill" />
                       </a>
                       <button
                         onClick={(e) => {
@@ -207,17 +207,17 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                         className="text-green-600 hover:text-green-700 transition-colors p-0.5 touch-manipulation"
                         title={t('whatsapp')}
                       >
-                        <WhatsappLogo size={16} weight="fill" />
+                        <WhatsappLogo size={14} weight="fill" />
                       </button>
                     </div>
                   </div>
                   {customer.place && (
-                    <p className="text-sm text-muted-foreground font-medium">
+                    <p className="text-xs text-muted-foreground font-medium line-clamp-1">
                       {customer.place}
                     </p>
                   )}
                   <div className="flex justify-center">
-                    <Badge variant="outline" className="text-xs font-semibold">
+                    <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5">
                       {t(customer.gender)}
                     </Badge>
                   </div>

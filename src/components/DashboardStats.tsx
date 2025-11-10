@@ -57,14 +57,14 @@ export function DashboardStats({ totalCustomers, orders }: DashboardStatsProps) 
           className="p-3 sm:p-6 hover:shadow-lg transition-shadow duration-200"
         >
           <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-2 sm:gap-0">
-            <div className="w-full">
-              <p className="text-sm font-medium text-muted-foreground mb-1">
+            <div className="w-full min-w-0 flex-1">
+              <p className="text-[10px] sm:text-sm font-medium text-muted-foreground mb-1 line-clamp-2 leading-tight">
                 {stat.label}
               </p>
-              <p className="text-2xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
+              <p className="text-xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
             </div>
-            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg self-end sm:self-auto`}>
-              <stat.icon size={20} className="sm:size-6" weight="duotone" />
+            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg self-end sm:self-auto flex-shrink-0`}>
+              <stat.icon size={18} className="sm:size-6" weight="duotone" />
             </div>
           </div>
         </Card>

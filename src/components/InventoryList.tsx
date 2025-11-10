@@ -85,56 +85,56 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-base flex items-center gap-2">
+                      <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                         <span className="truncate">{item.name}</span>
                         {isLowStock && item.quantity > 0 && (
-                          <WarningCircle className="text-amber-500 flex-shrink-0 size-5" weight="fill" />
+                          <WarningCircle className="text-amber-500 flex-shrink-0 size-4 sm:size-5" weight="fill" />
                         )}
                       </CardTitle>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="secondary" className="text-xs">{t(item.category)}</Badge>
-                        <Badge variant={status.variant} className="text-xs">{status.label}</Badge>
+                        <Badge variant="secondary" className="text-[10px] sm:text-xs">{t(item.category)}</Badge>
+                        <Badge variant={status.variant} className="text-[10px] sm:text-xs">{status.label}</Badge>
                       </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">{t('quantity')}</p>
-                      <p className="font-semibold">{item.quantity} {t(item.unit)}</p>
+                  <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+                    <div className="min-w-0">
+                      <p className="text-muted-foreground line-clamp-1">{t('quantity')}</p>
+                      <p className="font-semibold line-clamp-1">{item.quantity} {t(item.unit)}</p>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">{t('minQuantity')}</p>
-                      <p className="font-semibold">{item.minQuantity} {t(item.unit)}</p>
+                    <div className="min-w-0">
+                      <p className="text-muted-foreground line-clamp-1">{t('minQuantity')}</p>
+                      <p className="font-semibold line-clamp-1">{item.minQuantity} {t(item.unit)}</p>
                     </div>
                     {item.price && item.price > 0 && (
                       <>
-                        <div>
-                          <p className="text-muted-foreground">{t('price')}</p>
+                        <div className="min-w-0">
+                          <p className="text-muted-foreground line-clamp-1">{t('price')}</p>
                           <p className="font-semibold">₹{item.price}</p>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground">{t('totalValue')}</p>
+                        <div className="min-w-0">
+                          <p className="text-muted-foreground line-clamp-1">{t('totalValue')}</p>
                           <p className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</p>
                         </div>
                       </>
                     )}
                     {item.color && (
-                      <div>
-                        <p className="text-muted-foreground">{t('color')}</p>
-                        <p className="font-semibold">{item.color}</p>
+                      <div className="min-w-0">
+                        <p className="text-muted-foreground line-clamp-1">{t('color')}</p>
+                        <p className="font-semibold truncate">{item.color}</p>
                       </div>
                     )}
                     {item.supplier && (
-                      <div>
-                        <p className="text-muted-foreground">{t('supplier')}</p>
-                        <p className="font-semibold">{item.supplier}</p>
+                      <div className="min-w-0">
+                        <p className="text-muted-foreground line-clamp-1">{t('supplier')}</p>
+                        <p className="font-semibold truncate">{item.supplier}</p>
                       </div>
                     )}
                     {item.lastRestocked && (
-                      <div className="col-span-2">
-                        <p className="text-muted-foreground">{t('lastRestocked')}</p>
+                      <div className="col-span-2 min-w-0">
+                        <p className="text-muted-foreground line-clamp-1">{t('lastRestocked')}</p>
                         <p className="font-semibold">{format(item.lastRestocked, 'PPP')}</p>
                       </div>
                     )}

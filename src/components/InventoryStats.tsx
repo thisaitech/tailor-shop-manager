@@ -51,15 +51,15 @@ export function InventoryStats({ items }: InventoryStatsProps) {
       {stats.map((stat) => (
         <Card key={stat.title}>
           <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-[9px] sm:text-sm font-medium text-muted-foreground line-clamp-2 leading-tight flex-1 min-w-0">
               {stat.title}
             </CardTitle>
-            <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor}`}>
+            <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor} flex-shrink-0`}>
               <stat.icon className={`${stat.color} size-4 sm:size-5`} weight="duotone" />
             </div>
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{stat.value}</div>
+            <div className="text-base sm:text-2xl font-bold break-all">{stat.value}</div>
           </CardContent>
         </Card>
       ))}
