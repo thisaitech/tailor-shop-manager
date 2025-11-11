@@ -32,3 +32,19 @@ pids
 .devcontainer/
 
 .spark-workbench-id
+
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+
+# Capacitor
+android/
+ios/
+*.apk
+*.ipa
+
+# Build artifacts
+build/
+.capacitor/

@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { X, DownloadSimple, DeviceMobile } from '@phosphor-icons/react';
 import { useLanguage } from '@/hooks/use-language';
-import { useKV } from '@github/spark/hooks';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -14,7 +13,9 @@ export function InstallPrompt() {
   const { t } = useLanguage();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [dismissed, setDismissed] = useKV<boolean>('install-prompt-dismissed', false);
+  const [dismissed, setDismissed] = useState(() => {
+    return localStorage.getItem('install-prompt-dismissed') === 'true';
+  });
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -49,6 +50,7 @@ export function InstallPrompt() {
   const handleDismiss = () => {
     setShowPrompt(false);
     setDismissed(true);
+    localStorage.setItem('install-prompt-dismissed', 'true');
   };
 
   if (!showPrompt) return null;

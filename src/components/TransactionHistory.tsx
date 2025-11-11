@@ -58,6 +58,11 @@ export function TransactionHistory({ transactions, limit = 10 }: TransactionHist
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm sm:text-base truncate">{transaction.itemName}</p>
                     <p className="text-xs sm:text-sm text-muted-foreground truncate">{transaction.reason}</p>
+                    {transaction.tailorName && (
+                      <p className="text-xs text-primary font-medium mt-0.5">
+                        Tailor: {transaction.tailorName}
+                      </p>
+                    )}
                   </div>
                   <Badge variant={transaction.type === 'in' ? 'default' : 'outline'} className="text-xs flex-shrink-0">
                     {transaction.type === 'in' ? '+' : '-'}{transaction.quantity}
@@ -69,7 +74,7 @@ export function TransactionHistory({ transactions, limit = 10 }: TransactionHist
                   </p>
                   {transaction.orderId && (
                     <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                      {transaction.orderId}
+                      {transaction.orderId.slice(0, 10)}...
                     </Badge>
                   )}
                 </div>

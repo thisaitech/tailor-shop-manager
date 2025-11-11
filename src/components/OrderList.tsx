@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { Order, OrderStatus } from '@/lib/types';
+import { Order, OrderStatus, InventoryItem } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ interface OrderListProps {
   orders: Order[];
   customers: Customer[];
   tailors: Tailor[];
+  inventory: InventoryItem[];
   onAddOrder: (order: {
     customerId: string;
     customerName: string;
@@ -33,6 +34,7 @@ interface OrderListProps {
     fabricPhotos?: string[];
     designPhotos?: string[];
     assignedTailor: string;
+    materialsUsed?: any[];
     deliveryDate: number;
   }) => void;
   onUpdateStatus: (orderId: string, status: OrderStatus) => void;
@@ -42,6 +44,7 @@ export function OrderList({
   orders,
   customers,
   tailors,
+  inventory,
   onAddOrder,
   onUpdateStatus,
 }: OrderListProps) {
@@ -366,6 +369,7 @@ export function OrderList({
         onSave={onAddOrder}
         customers={customers}
         tailors={tailors}
+        inventory={inventory}
       />
     </div>
   );

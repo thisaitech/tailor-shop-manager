@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useKV } from '@github/spark/hooks';
 import { LanguageProvider, useLanguage } from '@/hooks/use-language';
 import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransaction } from '@/lib/types';
+import { useFirestore } from '@/lib/firestore-hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Scissors } from '@phosphor-icons/react';
 import { DashboardStats } from '@/components/DashboardStats';
@@ -18,11 +18,11 @@ import { toast } from 'sonner';
 
 function AppContent() {
   const { t } = useLanguage();
-  const [customers, setCustomers] = useKV<Customer[]>('customers', []);
-  const [orders, setOrders] = useKV<Order[]>('orders', []);
-  const [inventory, setInventory] = useKV<InventoryItem[]>('inventory', []);
-  const [transactions, setTransactions] = useKV<InventoryTransaction[]>('transactions', []);
-  const [tailors] = useKV<Tailor[]>('tailors', [
+  const [customers, setCustomers] = useFirestore<Customer[]>('customers', []);
+  const [orders, setOrders] = useFirestore<Order[]>('orders', []);
+  const [inventory, setInventory] = useFirestore<InventoryItem[]>('inventory', []);
+  const [transactions, setTransactions] = useFirestore<InventoryTransaction[]>('transactions', []);
+  const [tailors] = useFirestore<Tailor[]>('tailors', [
     { id: '1', name: 'Kumar' },
     { id: '2', name: 'Ravi' },
     { id: '3', name: 'Murugan' },
@@ -69,6 +69,7 @@ function AppContent() {
     fabricPhotos?: string[];
     designPhotos?: string[];
     assignedTailor: string;
+    materialsUsed?: any[];
     deliveryDate: number;
   }) => {
     const newOrder: Order = {
@@ -80,6 +81,36 @@ function AppContent() {
     };
 
     setOrders((prev) => [...(prev || []), newOrder]);
+
+    // Update inventory and create transactions for materials used
+    if (orderData.materialsUsed && orderData.materialsUsed.length > 0) {
+      orderData.materialsUsed.forEach((material: any) => {
+        // Reduce inventory
+        setInventory((prev) =>
+          (prev || []).map((item) =>
+            item.id === material.itemId
+              ? { ...item, quantity: item.quantity - material.quantity, updatedAt: Date.now() }
+              : item
+          )
+        );
+
+        // Create transaction
+        const transaction = {
+          id: `TXN${Date.now()}_${material.itemId}`,
+          itemId: material.itemId,
+          itemName: material.itemName,
+          type: 'out' as const,
+          quantity: material.quantity,
+          reason: `Used for order ${newOrder.id.slice(0, 10)}`,
+          orderId: newOrder.id,
+          tailorName: orderData.assignedTailor,
+          createdAt: Date.now(),
+        };
+
+        setTransactions((prev) => [...(prev || []), transaction]);
+      });
+    }
+
     toast.success('Order created successfully');
   };
 
@@ -211,6 +242,7 @@ function AppContent() {
                   orders={orders || []}
                   customers={customers || []}
                   tailors={tailors || []}
+                  inventory={inventory || []}
                   onAddOrder={handleAddOrder}
                   onUpdateStatus={handleUpdateOrderStatus}
                 />

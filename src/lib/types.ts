@@ -76,10 +76,18 @@ export interface Order {
   fabricPhotos?: string[];
   designPhotos?: string[];
   assignedTailor: string;
+  materialsUsed?: MaterialUsed[];
   status: OrderStatus;
   deliveryDate: number;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface MaterialUsed {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unit: MaterialUnit;
 }
 
 export interface Tailor {
@@ -114,6 +122,7 @@ export interface InventoryTransaction {
   quantity: number;
   reason: string;
   orderId?: string;
+  tailorName?: string;
   createdAt: number;
 }
 

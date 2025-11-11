@@ -146,6 +146,12 @@ export const translations = {
     
     filterByStatus: 'Filter by Status',
     allStatuses: 'All Statuses',
+    filterByTailor: 'Filter by Tailor',
+    allTailors: 'All Tailors',
+    
+    materialsUsed: 'Materials Used',
+    selectMaterial: 'Select Material',
+    noInventoryAvailable: 'No inventory available',
     
     installApp: 'Install App',
     installAppDescription: 'Install this app on your device for quick access and offline use.',
@@ -296,6 +302,12 @@ export const translations = {
     
     filterByStatus: 'நிலையின் அடிப்படையில் வடிகட்டவும்',
     allStatuses: 'அனைத்து நிலைகள்',
+    filterByTailor: 'தையல்காரரின் அடிப்படையில் வடிகட்டவும்',
+    allTailors: 'அனைத்து தையல்காரர்கள்',
+    
+    materialsUsed: 'பயன்படுத்திய பொருட்கள்',
+    selectMaterial: 'பொருளை தேர்ந்தெடுக்கவும்',
+    noInventoryAvailable: 'சரக்கு கிடைக்கவில்லை',
     
     installApp: 'செயலியை நிறுவவும்',
     installAppDescription: 'விரைவான அணுகல் மற்றும் ஆஃப்லைன் பயன்பாட்டிற்காக உங்கள் சாதனத்தில் இந்த செயலியை நிறுவவும்.',

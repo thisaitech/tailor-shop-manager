@@ -92,14 +92,15 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {customer ? t('editCustomer') : t('createCustomer')}
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="space-y-6 overflow-y-auto pr-2 flex-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">{t('name')} *</Label>
@@ -309,8 +310,9 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               </TabsContent>
             </Tabs>
           </div>
+          </div>
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 pt-4 border-t mt-4 flex-shrink-0">
             <Button
               type="button"
               variant="outline"

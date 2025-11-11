@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to authenticated users
+    // For production, you should add proper authentication
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    
+    // Customers collection
+    match /customers/{customerId} {
+      allow read, write: if true;
+    }
+    
+    // Orders collection
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+    
+    // Inventory collection
+    match /inventory/{itemId} {
+      allow read, write: if true;
+    }
+    
+    // Transactions collection
+    match /transactions/{transactionId} {
+      allow read, write: if true;
+    }
+    
+    // Tailors collection
+    match /tailors/{tailorId} {
+      allow read, write: if true;
+    }
+  }
+}

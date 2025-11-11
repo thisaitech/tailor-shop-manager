@@ -19,69 +19,44 @@ interface OrderTrackingProps {
 export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingProps) {
   const { t } = useLanguage();
   const [searchValue, setSearchValue] = useState('');
-  const [searchResults, setSearchResults] = useState<Order[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in-progress' | 'ready' | 'delivered'>('all');
+  const [tailorFilter, setTailorFilter] = useState<string>('all');
+
+  // Get unique tailors from orders
+  const uniqueTailors = Array.from(new Set(orders.map(order => order.assignedTailor))).sort();
+
+  // Apply filters automatically whenever filters or search change
+  const filteredOrders = orders.filter(order => {
+    // Search filter (phone or order ID)
+    const matchesSearch = !searchValue.trim() || 
+      order.customerPhone.includes(searchValue.trim()) ||
+      order.id.toLowerCase().includes(searchValue.toLowerCase().trim()) ||
+      order.customerName.toLowerCase().includes(searchValue.toLowerCase().trim());
+
+    // Status filter
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+
+    // Tailor filter
+    const matchesTailor = tailorFilter === 'all' || order.assignedTailor === tailorFilter;
+
+    return matchesSearch && matchesStatus && matchesTailor;
+  });
 
   useEffect(() => {
     if (initialFilter !== 'all') {
-      let filteredOrders: Order[] = [];
-      
       switch (initialFilter) {
         case 'active':
-          filteredOrders = orders.filter(
-            (o) => o.status === 'pending' || o.status === 'in-progress'
-          );
+          setStatusFilter('in-progress');
           break;
         case 'ready':
-          filteredOrders = orders.filter((o) => o.status === 'ready');
+          setStatusFilter('ready');
           break;
         case 'completed':
-          filteredOrders = orders.filter((o) => o.status === 'delivered');
+          setStatusFilter('delivered');
           break;
       }
-      
-      setSearchResults(filteredOrders);
-      setHasSearched(true);
     }
-  }, [initialFilter, orders]);
-
-  const handleSearch = () => {
-    if (!searchValue.trim()) return;
-
-    let results = orders.filter(
-      (order) =>
-        order.customerPhone.includes(searchValue.trim()) ||
-        order.id.toLowerCase().includes(searchValue.toLowerCase().trim())
-    );
-
-    if (statusFilter !== 'all') {
-      results = results.filter((order) => order.status === statusFilter);
-    }
-
-    setSearchResults(results);
-    setHasSearched(true);
-  };
-
-  const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value as 'all' | 'pending' | 'in-progress' | 'ready' | 'delivered');
-    
-    if (hasSearched) {
-      let results = searchValue.trim()
-        ? orders.filter(
-            (order) =>
-              order.customerPhone.includes(searchValue.trim()) ||
-              order.id.toLowerCase().includes(searchValue.toLowerCase().trim())
-          )
-        : searchResults;
-
-      if (value !== 'all') {
-        results = results.filter((order) => order.status === value);
-      }
-
-      setSearchResults(results);
-    }
-  };
+  }, [initialFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -137,42 +112,54 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
               placeholder={t('enterPhoneOrOrderId')}
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="h-10 sm:h-11"
             />
-            <Button onClick={handleSearch} className="h-10 sm:h-11 w-full sm:w-auto text-xs sm:text-sm">
-              <MagnifyingGlass size={18} className="mr-1.5" />
-              {t('track')}
-            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{t('filterByStatus')}:</span>
-            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-              <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('allStatuses')}</SelectItem>
-                <SelectItem value="pending">{t('pending')}</SelectItem>
-                <SelectItem value="in-progress">{t('inProgress')}</SelectItem>
-                <SelectItem value="ready">{t('ready')}</SelectItem>
-                <SelectItem value="delivered">{t('delivered')}</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{t('filterByStatus')}:</span>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+                <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('allStatuses')}</SelectItem>
+                  <SelectItem value="pending">{t('pending')}</SelectItem>
+                  <SelectItem value="in-progress">{t('inProgress')}</SelectItem>
+                  <SelectItem value="ready">{t('ready')}</SelectItem>
+                  <SelectItem value="delivered">{t('delivered')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">{t('filterByTailor')}:</span>
+              <Select value={tailorFilter} onValueChange={setTailorFilter}>
+                <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('allTailors')}</SelectItem>
+                  {uniqueTailors.map((tailor) => (
+                    <SelectItem key={tailor} value={tailor}>
+                      {tailor}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </Card>
 
-      {hasSearched && (
-        <div className="space-y-4">
-          {searchResults.length === 0 ? (
+      <div className="space-y-4">
+        {filteredOrders.length === 0 ? (
             <Card className="p-8 sm:p-12 text-center">
               <Package size={48} className="sm:size-16 mx-auto text-muted-foreground mb-3 sm:mb-4" />
               <p className="text-base sm:text-lg font-medium mb-2">{t('noOrdersFound')}</p>
               <p className="text-sm sm:text-base text-muted-foreground">{t('checkDetails')}</p>
             </Card>
           ) : (
-            searchResults.map((order) => (
+            filteredOrders.map((order) => (
               <Card key={order.id} className="p-4 sm:p-6">
                 <div className="space-y-4 sm:space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
@@ -287,8 +274,7 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
               </Card>
             ))
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
