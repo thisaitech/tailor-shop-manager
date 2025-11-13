@@ -10,6 +10,7 @@ import { OrderTracking } from '@/components/OrderTracking';
 import { InventoryStats } from '@/components/InventoryStats';
 import { InventoryList } from '@/components/InventoryList';
 import { TransactionHistory } from '@/components/TransactionHistory';
+import { TailorManagement } from '@/components/TailorManagement';
 import { toast } from 'sonner';
 
 export function OwnerDashboard() {
@@ -18,12 +19,7 @@ export function OwnerDashboard() {
   const [orders, setOrders] = useKV<Order[]>('orders', []);
   const [inventory, setInventory] = useKV<InventoryItem[]>('inventory', []);
   const [transactions, setTransactions] = useKV<InventoryTransaction[]>('transactions', []);
-  const [tailors] = useKV<Tailor[]>('tailors', [
-    { id: '1', name: 'Kumar' },
-    { id: '2', name: 'Ravi' },
-    { id: '3', name: 'Murugan' },
-    { id: '4', name: 'Selvi' },
-  ]);
+  const [tailors] = useKV<Tailor[]>('tailors', []);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed'>('all');
 
@@ -173,12 +169,18 @@ export function OwnerDashboard() {
   return (
     <main className="container mx-auto px-4 py-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/60 gap-1">
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/60 gap-1">
           <TabsTrigger 
             value="dashboard" 
             className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
           >
             {t('dashboard')}
+          </TabsTrigger>
+          <TabsTrigger 
+            value="tailors" 
+            className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
+          >
+            Tailors
           </TabsTrigger>
           <TabsTrigger 
             value="inventory" 
@@ -223,6 +225,10 @@ export function OwnerDashboard() {
               />
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="tailors">
+          <TailorManagement />
         </TabsContent>
 
         <TabsContent value="inventory" className="space-y-6">

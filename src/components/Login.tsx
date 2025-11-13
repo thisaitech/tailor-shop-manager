@@ -1,89 +1,328 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useLanguage } from '@/hooks/use-language';
+import { useKV } from '@github/spark/hooks';
+import { User, Customer } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Scissors } from '@phosphor-icons/react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 export function Login() {
-  const { login } = useAuth();
-  const { t } = useLanguage();
+  const { login, updatePassword } = useAuth();
+  const [users, setUsers] = useKV<User[]>('auth_users', []);
+  const [customers, setCustomers] = useKV<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+  const [showCustomerRegistration, setShowCustomerRegistration] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [customerForm, setCustomerForm] = useState({
+    name: '',
+    phone: '',
+    place: '',
+    gender: 'male' as 'male' | 'female',
+    password: '',
+    confirmPassword: '',
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!username || !password) {
-      toast.error('Please enter username and password');
+      toast.error('Please enter phone number and password');
       return;
     }
 
     setIsLoading(true);
-    const success = await login(username, password);
+    const result = await login(username, password);
     setIsLoading(false);
 
-    if (success) {
-      toast.success('Login successful');
+    if (result.success) {
+      if (result.needsPasswordSetup) {
+        setShowPasswordSetup(true);
+      } else {
+        toast.success('Login successful');
+      }
     } else {
-      toast.error('Invalid username or password');
+      toast.error(result.message || 'Login failed');
     }
   };
 
+  const handlePasswordSetup = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    await updatePassword(newPassword);
+    setShowPasswordSetup(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    toast.success('Password setup complete! You can now use your new password.');
+  };
+
+  const handleCustomerRegistration = () => {
+    if (!customerForm.name || !customerForm.phone || !customerForm.place || !customerForm.password) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (customerForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    if (customerForm.password !== customerForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    const existingUser = (users || []).find(u => u.username === customerForm.phone);
+    if (existingUser) {
+      toast.error('A user with this phone number already exists');
+      return;
+    }
+
+    const customerId = `CUS${Date.now()}`;
+    
+    const newCustomer: Customer = {
+      id: customerId,
+      name: customerForm.name,
+      phone: customerForm.phone,
+      place: customerForm.place,
+      gender: customerForm.gender,
+      measurements: {},
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    const newUser: User = {
+      id: `USER${Date.now()}`,
+      username: customerForm.phone,
+      password: customerForm.password,
+      role: 'customer',
+      name: customerForm.name,
+      phone: customerForm.phone,
+      customerId: customerId,
+      isActive: true,
+      hasSetupPassword: true,
+      createdAt: Date.now(),
+    };
+
+    setCustomers((prev) => [...(prev || []), newCustomer]);
+    setUsers((prev) => [...(prev || []), newUser]);
+    
+    setShowCustomerRegistration(false);
+    setCustomerForm({
+      name: '',
+      phone: '',
+      place: '',
+      gender: 'male',
+      password: '',
+      confirmPassword: '',
+    });
+    
+    toast.success('Registration successful! You can now login.');
+  };
+
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto bg-primary p-4 rounded-xl w-fit">
-            <Scissors size={48} className="text-primary-foreground" weight="duotone" />
-          </div>
-          <div>
-            <CardTitle className="text-3xl font-bold">{t('appName')}</CardTitle>
-            <CardDescription className="text-base mt-2">Management System</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isLoading}
-              />
+    <>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-4 text-center">
+            <div className="mx-auto bg-primary p-4 rounded-xl w-fit">
+              <Scissors size={48} className="text-primary-foreground" weight="duotone" />
             </div>
+            <div>
+              <CardTitle className="text-3xl font-bold">Thisai Technologies Tailor</CardTitle>
+              <CardDescription className="text-base mt-2">Management System</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Phone Number</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Enter your phone number"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Logging in...' : 'Login'}
+              </Button>
+            </form>
+            
+            <div className="mt-4">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setShowCustomerRegistration(true)}
+              >
+                <UserPlus className="mr-2" size={20} />
+                New Customer? Register Here
+              </Button>
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex gap-3">
+              <Info size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-900">
+                <p className="font-medium mb-1">Password Recovery</p>
+                <p className="text-xs text-blue-700">For password reset, please contact your administrator via WhatsApp. WhatsApp is a free messaging service that works best for account recovery.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={showPasswordSetup} onOpenChange={setShowPasswordSetup}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Setup Your Password</DialogTitle>
+            <DialogDescription>
+              This is your first login. Please set up a new secure password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="new-password">New Password</Label>
               <Input
-                id="password"
+                id="new-password"
                 type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+                placeholder="Enter new password (min 6 characters)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
-            </Button>
-          </form>
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground mb-2 font-medium">Default Credentials:</p>
-            <div className="space-y-1 text-xs">
-              <p><strong>Owner:</strong> admin / admin123</p>
-              <p><strong>Tailor:</strong> tailor1 / tailor123</p>
-              <p><strong>Customer:</strong> customer1 / customer123</p>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <DialogFooter>
+            <Button onClick={handlePasswordSetup} className="w-full">
+              Setup Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCustomerRegistration} onOpenChange={setShowCustomerRegistration}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Customer Registration</DialogTitle>
+            <DialogDescription>
+              Create your account to track your orders and measurements
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="customer-name">Full Name *</Label>
+              <Input
+                id="customer-name"
+                placeholder="Enter your name"
+                value={customerForm.name}
+                onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-phone">Phone Number *</Label>
+              <Input
+                id="customer-phone"
+                placeholder="Enter your phone number"
+                value={customerForm.phone}
+                onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-place">Place/City *</Label>
+              <Input
+                id="customer-place"
+                placeholder="Enter your city"
+                value={customerForm.place}
+                onChange={(e) => setCustomerForm({ ...customerForm, place: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-gender">Gender *</Label>
+              <Select value={customerForm.gender} onValueChange={(value: 'male' | 'female') => setCustomerForm({ ...customerForm, gender: value })}>
+                <SelectTrigger id="customer-gender">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-password">Password *</Label>
+              <Input
+                id="customer-password"
+                type="password"
+                placeholder="Enter password (min 6 characters)"
+                value={customerForm.password}
+                onChange={(e) => setCustomerForm({ ...customerForm, password: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-confirm-password">Confirm Password *</Label>
+              <Input
+                id="customer-confirm-password"
+                type="password"
+                placeholder="Confirm password"
+                value={customerForm.confirmPassword}
+                onChange={(e) => setCustomerForm({ ...customerForm, confirmPassword: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCustomerRegistration(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCustomerRegistration}>
+              Register
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

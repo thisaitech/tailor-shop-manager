@@ -90,9 +90,20 @@ export interface MaterialUsed {
   unit: MaterialUnit;
 }
 
+export type SalaryType = 'monthly' | 'daily';
+
 export interface Tailor {
   id: string;
   name: string;
+  phone: string;
+  specialization: string[];
+  salaryType: SalaryType;
+  salaryAmount: number;
+  bonus?: number;
+  isActive: boolean;
+  hasSetupPassword: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export type MaterialCategory = 'fabric' | 'thread' | 'button' | 'zipper' | 'accessory' | 'other';
@@ -139,6 +150,8 @@ export interface User {
   phone?: string;
   tailorId?: string;
   customerId?: string;
+  isActive: boolean;
+  hasSetupPassword: boolean;
   createdAt: number;
 }
 

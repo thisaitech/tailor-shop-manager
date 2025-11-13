@@ -1,18 +1,22 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
-import { Order, Customer, Measurements } from '@/lib/types';
+import { Order, Customer, Measurements, Tailor } from '@/lib/types';
 import { useKV } from '@github/spark/hooks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Package, Ruler } from '@phosphor-icons/react';
+import { User, Package, Ruler, UserCircle, WhatsappLogo, Share } from '@phosphor-icons/react';
+import { toast } from 'sonner';
+import { sendWhatsAppMessage } from '@/lib/utils';
 
 export function CustomerDashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [orders] = useKV<Order[]>('orders', []);
   const [customers] = useKV<Customer[]>('customers', []);
+  const [tailors] = useKV<Tailor[]>('tailors', []);
 
   const customerData = useMemo(() => {
     return (customers || []).find(c => c.id === user?.customerId);
@@ -22,6 +26,13 @@ export function CustomerDashboard() {
     return (orders || []).filter(order => order.customerId === user?.customerId);
   }, [orders, user?.customerId]);
 
+  const myTailors = useMemo(() => {
+    const tailorIds = new Set(myOrders.map(order => order.assignedTailor));
+    return (tailors || []).filter(tailor => 
+      myOrders.some(order => order.assignedTailor === tailor.name)
+    );
+  }, [myOrders, tailors]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-gray-500';
@@ -29,6 +40,45 @@ export function CustomerDashboard() {
       case 'ready': return 'bg-green-500';
       case 'delivered': return 'bg-slate-500';
       default: return 'bg-gray-500';
+    }
+  };
+
+  const handleShareProfile = () => {
+    if (!customerData) return;
+    
+    const profileData = `
+*Customer Profile*
+Name: ${customerData.name}
+Phone: ${customerData.phone}
+Place: ${customerData.place}
+Gender: ${customerData.gender}
+
+*Measurements:*
+${Object.entries(customerData.measurements).map(([garment, measurements]) => 
+  `\n${garment.toUpperCase()}:\n${Object.entries(measurements || {}).map(([key, value]) => 
+    `  ${key}: ${value}`
+  ).join('\n')}`
+).join('\n')}
+    `.trim();
+    
+    navigator.clipboard.writeText(profileData);
+    toast.success('Profile copied to clipboard! You can now share it.');
+  };
+
+  const handleShareProfileWhatsApp = (tailorPhone?: string) => {
+    if (!customerData) return;
+    
+    const profileData = `Hello! Here are my measurements for your reference:\n\nName: ${customerData.name}\nPhone: ${customerData.phone}\n\nMeasurements:\n${Object.entries(customerData.measurements).map(([garment, measurements]) => 
+      `${garment.toUpperCase()}:\n${Object.entries(measurements || {}).map(([key, value]) => 
+        `  ${key}: ${value}`
+      ).join('\n')}`
+    ).join('\n\n')}`;
+    
+    if (tailorPhone) {
+      sendWhatsAppMessage(tailorPhone, profileData);
+    } else {
+      navigator.clipboard.writeText(profileData);
+      toast.success('Measurements copied! Open WhatsApp to share.');
     }
   };
 
@@ -58,23 +108,30 @@ export function CustomerDashboard() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="measurements">Measurements</TabsTrigger>
+          <TabsTrigger value="tailors">Tailors</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-3 rounded-full">
-                  <User size={32} className="text-primary" weight="duotone" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-3 rounded-full">
+                    <User size={32} className="text-primary" weight="duotone" />
+                  </div>
+                  <div>
+                    <CardTitle>{customerData?.name || user?.name}</CardTitle>
+                    <CardDescription>{t('customerDetails')}</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle>{customerData?.name || user?.name}</CardTitle>
-                  <CardDescription>{t('customerDetails')}</CardDescription>
-                </div>
+                <Button variant="outline" size="sm" onClick={handleShareProfile}>
+                  <Share size={16} className="mr-2" />
+                  Share Profile
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -103,14 +160,24 @@ export function CustomerDashboard() {
         <TabsContent value="measurements" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="bg-accent/10 p-3 rounded-full">
-                  <Ruler size={32} className="text-accent" weight="duotone" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-accent/10 p-3 rounded-full">
+                    <Ruler size={32} className="text-accent" weight="duotone" />
+                  </div>
+                  <div>
+                    <CardTitle>{t('measurements')}</CardTitle>
+                    <CardDescription>Your saved measurements</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle>{t('measurements')}</CardTitle>
-                  <CardDescription>Your saved measurements</CardDescription>
-                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handleShareProfileWhatsApp()}
+                >
+                  <WhatsappLogo size={16} className="mr-2" weight="fill" />
+                  Share via WhatsApp
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -126,6 +193,55 @@ export function CustomerDashboard() {
                   {customerData.measurements.sudhar && renderMeasurements('sudhar', customerData.measurements.sudhar)}
                   {customerData.measurements.kurta && renderMeasurements('kurta', customerData.measurements.kurta)}
                 </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tailors" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-500/10 p-3 rounded-full">
+                  <UserCircle size={32} className="text-purple-500" weight="duotone" />
+                </div>
+                <div>
+                  <CardTitle>My Tailors</CardTitle>
+                  <CardDescription>Tailors working on your orders</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {myTailors.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No tailors assigned yet</p>
+              ) : (
+                <div className="space-y-4">
+                  {myTailors.map((tailor) => (
+                    <Card key={tailor.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg">{tailor.name}</h4>
+                            <p className="text-sm text-muted-foreground mb-3">{tailor.phone}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {tailor.specialization.map((spec, idx) => (
+                                <Badge key={idx} variant="secondary">{spec}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleShareProfileWhatsApp(tailor.phone)}
+                          >
+                            <WhatsappLogo size={16} weight="fill" className="mr-2 text-green-600" />
+                            Share
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
