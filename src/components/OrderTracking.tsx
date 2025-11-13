@@ -23,10 +23,10 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
   const [tailorFilter, setTailorFilter] = useState<string>('all');
 
   // Get unique tailors from orders
-  const uniqueTailors = Array.from(new Set(orders.map(order => order.assignedTailor))).sort();
+  const uniqueTailors = Array.from(new Set((orders || []).map(order => order.assignedTailor))).sort();
 
   // Apply filters automatically whenever filters or search change
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = (orders || []).filter(order => {
     // Search filter (phone or order ID)
     const matchesSearch = !searchValue.trim() || 
       order.customerPhone.includes(searchValue.trim()) ||

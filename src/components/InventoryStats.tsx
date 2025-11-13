@@ -10,10 +10,10 @@ interface InventoryStatsProps {
 export function InventoryStats({ items }: InventoryStatsProps) {
   const { t } = useLanguage();
 
-  const totalItems = items.length;
-  const lowStockItems = items.filter(item => item.quantity <= item.minQuantity).length;
-  const totalValue = items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalItems = (items || []).length;
+  const lowStockItems = (items || []).filter(item => item.quantity <= item.minQuantity).length;
+  const totalValue = (items || []).reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+  const totalQuantity = (items || []).reduce((sum, item) => sum + item.quantity, 0);
 
   const stats = [
     {

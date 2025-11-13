@@ -42,7 +42,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
 
-  const filteredCustomers = customers.filter((c) => {
+  const filteredCustomers = (customers || []).filter((c) => {
     const matchesSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search) ||
@@ -98,7 +98,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
   const alphabetLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   
   const getCustomerCountForLetter = (letter: string) => {
-    return customers.filter(c => c.name.charAt(0).toLowerCase() === letter.toLowerCase()).length;
+    return (customers || []).filter(c => c.name.charAt(0).toLowerCase() === letter.toLowerCase()).length;
   };
 
   return (
@@ -130,7 +130,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             onClick={() => setAlphabetFilter('all')}
             className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
           >
-            {t('all')} ({customers.length})
+            {t('all')} ({(customers || []).length})
           </Button>
           {alphabetLetters.map((letter) => {
             const count = getCustomerCountForLetter(letter);

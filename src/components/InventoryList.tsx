@@ -21,7 +21,7 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  const filteredItems = items.filter((item) => {
+  const filteredItems = (items || []).filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.color?.toLowerCase().includes(searchTerm.toLowerCase());

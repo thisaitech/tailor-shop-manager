@@ -55,7 +55,7 @@ export function OrderList({
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
-  const filteredOrders = orders.filter((o) => {
+  const filteredOrders = (orders || []).filter((o) => {
     const matchesSearch =
       o.customerName.toLowerCase().includes(search.toLowerCase()) ||
       o.customerPhone.includes(search) ||
@@ -136,7 +136,7 @@ export function OrderList({
             onClick={() => setStatusFilter('all')}
             className="text-xs font-semibold whitespace-nowrap touch-manipulation"
           >
-            {t('all')} ({orders.length})
+            {t('all')} ({(orders || []).length})
           </Button>
           <Button
             variant={statusFilter === 'pending' ? 'default' : 'outline'}
@@ -144,7 +144,7 @@ export function OrderList({
             onClick={() => setStatusFilter('pending')}
             className="text-xs font-semibold whitespace-nowrap touch-manipulation"
           >
-            {t('pending')} ({orders.filter(o => o.status === 'pending').length})
+            {t('pending')} ({(orders || []).filter(o => o.status === 'pending').length})
           </Button>
           <Button
             variant={statusFilter === 'in-progress' ? 'default' : 'outline'}
@@ -152,7 +152,7 @@ export function OrderList({
             onClick={() => setStatusFilter('in-progress')}
             className="text-xs font-semibold whitespace-nowrap touch-manipulation"
           >
-            {t('inProgress')} ({orders.filter(o => o.status === 'in-progress').length})
+            {t('inProgress')} ({(orders || []).filter(o => o.status === 'in-progress').length})
           </Button>
           <Button
             variant={statusFilter === 'ready' ? 'default' : 'outline'}
@@ -160,7 +160,7 @@ export function OrderList({
             onClick={() => setStatusFilter('ready')}
             className="text-xs font-semibold whitespace-nowrap touch-manipulation"
           >
-            {t('ready')} ({orders.filter(o => o.status === 'ready').length})
+            {t('ready')} ({(orders || []).filter(o => o.status === 'ready').length})
           </Button>
           <Button
             variant={statusFilter === 'delivered' ? 'default' : 'outline'}
@@ -168,7 +168,7 @@ export function OrderList({
             onClick={() => setStatusFilter('delivered')}
             className="text-xs font-semibold whitespace-nowrap touch-manipulation"
           >
-            {t('delivered')} ({orders.filter(o => o.status === 'delivered').length})
+            {t('delivered')} ({(orders || []).filter(o => o.status === 'delivered').length})
           </Button>
         </div>
       </div>

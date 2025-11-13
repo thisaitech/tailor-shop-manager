@@ -12,12 +12,12 @@ interface DashboardStatsProps {
 export function DashboardStats({ totalCustomers, orders, onStatClick }: DashboardStatsProps) {
   const { t } = useLanguage();
 
-  const activeOrders = orders.filter(
+  const activeOrders = (orders || []).filter(
     (o) => o.status === 'pending' || o.status === 'in-progress'
   ).length;
 
-  const readyOrders = orders.filter((o) => o.status === 'ready').length;
-  const completedOrders = orders.filter((o) => o.status === 'delivered').length;
+  const readyOrders = (orders || []).filter((o) => o.status === 'ready').length;
+  const completedOrders = (orders || []).filter((o) => o.status === 'delivered').length;
 
   const stats = [
     {

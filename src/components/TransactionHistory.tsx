@@ -13,7 +13,7 @@ interface TransactionHistoryProps {
 export function TransactionHistory({ transactions, limit = 10 }: TransactionHistoryProps) {
   const { t } = useLanguage();
 
-  const sortedTransactions = [...transactions]
+  const sortedTransactions = [...(transactions || [])]
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, limit);
 
