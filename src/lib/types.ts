@@ -127,3 +127,22 @@ export interface InventoryTransaction {
 }
 
 export type Language = 'en' | 'ta';
+
+export type UserRole = 'owner' | 'tailor' | 'customer';
+
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  role: UserRole;
+  name: string;
+  phone?: string;
+  tailorId?: string;
+  customerId?: string;
+  createdAt: number;
+}
+
+export interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+}

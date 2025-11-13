@@ -1,6 +1,6 @@
 # Planning Guide
 
-A premium digital platform that transforms traditional tailor shop operations into a modern, efficient, and customer-centric ecosystem supporting seamless order tracking, staff coordination, and bilingual communication.
+A premium digital platform that transforms traditional tailor shop operations into a modern, efficient, and customer-centric ecosystem with role-based access control, supporting seamless order tracking, staff coordination, and bilingual communication across Owner/Admin, Tailor, and Customer portals.
 
 **Experience Qualities**: 
 1. **Effortless** - Staff should complete common tasks (new order, status update) in under 30 seconds with minimal clicks
@@ -8,9 +8,37 @@ A premium digital platform that transforms traditional tailor shop operations in
 3. **Responsive** - Instant feedback on every action with smooth transitions that feel natural and professional
 
 **Complexity Level**: Complex Application (advanced functionality, accounts)
-  - Multiple user roles (Admin, Staff, Tailor, Customer), comprehensive order workflow management, real-time status tracking, bilingual support, and interconnected data relationships requiring sophisticated state management and persistence.
+  - Multiple user roles (Owner/Admin, Tailor, Customer) with distinct permissions and dashboards, comprehensive order workflow management, real-time status tracking, bilingual support, secure authentication, and interconnected data relationships requiring sophisticated state management and persistence.
 
 ## Essential Features
+
+### Authentication & Role-Based Access Control
+- **Functionality**: Secure login system with three distinct user roles: Owner/Admin (full access), Tailor (restricted access), and Customer (personal data only)
+- **Purpose**: Protect sensitive information and provide appropriate access levels for each user type
+- **Trigger**: User opens application or session expires
+- **Progression**: Enter Username & Password → Validate Credentials → Route to Role-Specific Dashboard
+- **Success criteria**: Users can only access data and features appropriate to their role, session persists across page refreshes, default test accounts available for each role
+
+### Owner/Admin Dashboard
+- **Functionality**: Full access to all customers, orders, inventory, and tailors with complete CRUD operations; view analytics and manage all aspects of the shop
+- **Purpose**: Enable complete business oversight and management for shop owners
+- **Trigger**: Owner logs in with admin credentials
+- **Progression**: Login → Dashboard Overview → Manage Customers/Orders/Inventory → Track Performance
+- **Success criteria**: Owner can see all customer details including phone and address, create/edit/delete all records, view complete analytics, and manage inventory
+
+### Tailor Dashboard
+- **Functionality**: View assigned orders with customer name, gender, and measurements (no phone/address); update order status; edit measurement details for assigned orders; view personal workload statistics
+- **Purpose**: Provide tailors with necessary work information while protecting customer privacy
+- **Trigger**: Tailor logs in with tailor credentials
+- **Progression**: Login → View Assigned Orders → Update Status/Measurements → Track Personal Progress
+- **Success criteria**: Tailor sees only customer name and gender (no phone/place), can edit measurements on their orders, update order status from pending → in-progress → ready → delivered, view dashboard with pending/in-progress/ready/completed counts
+
+### Customer Dashboard
+- **Functionality**: View personal profile information, saved measurements, and order history with status tracking
+- **Purpose**: Allow customers to track their orders and view their information without staff assistance
+- **Trigger**: Customer logs in with customer credentials
+- **Progression**: Login → View Profile → Check Measurements → Track Orders
+- **Success criteria**: Customer can see their personal info, all saved measurements, order history with current status, assigned tailor name, and delivery dates
 
 ### Customer Profile Management
 - **Functionality**: Create, view, edit customer profiles with personal details (name, phone, address, gender) and comprehensive measurements (Pant, Shirt, Coat, Blazer, Jocket, Sudhar, Kurta)
@@ -79,6 +107,11 @@ A premium digital platform that transforms traditional tailor shop operations in
 - **Tailor Overload**: Dashboard shows warning when tailor has >10 active orders
 - **Out of Stock Materials**: Prevent negative inventory, show clear alert when attempting to use unavailable materials
 - **Duplicate Item Names**: Warn when adding inventory item with similar name to existing item
+- **Invalid Login**: Show clear error message for incorrect username/password
+- **Unauthorized Access**: Prevent users from accessing features/data outside their role permissions
+- **Session Persistence**: Maintain login state across page refreshes and browser restarts
+- **No Assigned Orders (Tailor)**: Show friendly empty state when tailor has no current assignments
+- **Customer Without Orders**: Display helpful message when customer has no order history
 
 ## Design Direction
 

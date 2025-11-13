@@ -156,6 +156,14 @@ export const translations = {
     installApp: 'Install App',
     installAppDescription: 'Install this app on your device for quick access and offline use.',
     install: 'Install Now',
+    
+    login: 'Login',
+    logout: 'Logout',
+    username: 'Username',
+    password: 'Password',
+    profile: 'Profile',
+    myAccount: 'My Account',
+    myDashboard: 'My Dashboard',
   },
   ta: {
     appName: 'தையல் கடை',
@@ -312,6 +320,14 @@ export const translations = {
     installApp: 'செயலியை நிறுவவும்',
     installAppDescription: 'விரைவான அணுகல் மற்றும் ஆஃப்லைன் பயன்பாட்டிற்காக உங்கள் சாதனத்தில் இந்த செயலியை நிறுவவும்.',
     install: 'இப்போது நிறுவவும்',
+    
+    login: 'உள்நுழைய',
+    logout: 'வெளியேறு',
+    username: 'பயனர்பெயர்',
+    password: 'கடவுச்சொல்',
+    profile: 'சுயவிவரம்',
+    myAccount: 'என் கணக்கு',
+    myDashboard: 'என் முகப்பு',
   },
 };
 
