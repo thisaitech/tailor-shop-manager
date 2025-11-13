@@ -16,7 +16,7 @@ export function InventoryStats({ items }: InventoryStatsProps) {
     const price = typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0;
     const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 0;
     return sum + (price * quantity);
-  }, 0) || 0;
+  }, 0);
   const totalQuantity = (items || []).reduce((sum, item) => {
     const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 0;
     return sum + quantity;
@@ -39,7 +39,7 @@ export function InventoryStats({ items }: InventoryStatsProps) {
     },
     {
       title: t('totalValue'),
-      value: `₹${totalValue.toLocaleString()}`,
+      value: `₹${(totalValue || 0).toLocaleString()}`,
       icon: CurrencyDollar,
       color: 'text-accent',
       bgColor: 'bg-accent/10',
