@@ -1,20 +1,19 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { User, UserRole } from '@/lib/types'
+import { useKV } from '@github/spark/hooks';
 import { User, UserRole } from '@/lib/types';
 
+interface AuthContextType {
+  user: User | null;
   isAuthenticated: boolean;
-  logout: () => void
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
 }
-const AuthContext = createContext<AuthContextType | undefined>(und
-export function AuthP
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useKV<User[]>('auth_users', []);
- 
-
-      setCurrentUser(user);
-
-    return false;
-
-  const [users, setUsers] = useKV<User[]>('auth_users', []);
+  const [currentUser, setCurrentUser] = useKV<User | null>('current_user', null);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     const user = (users || []).find(u => u.username === username && u.password === password);
@@ -31,39 +30,16 @@ export function AuthP
     setCurrentUser(null);
   };
 
-  };
+  const isAuthenticated = currentUser !== null && currentUser !== undefined;
+
   return (
-    
-        isAuthenticated
-        logout,
-     
-
+    <AuthContext.Provider value={{ user: currentUser ?? null, isAuthenticated, login, logout }}>
+      {children}
+    </AuthContext.Provider>
   );
+}
 
-  const context = useContext(A
-    throw new Error('useAuth
-  retu
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
