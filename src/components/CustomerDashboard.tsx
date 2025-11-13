@@ -54,7 +54,7 @@ Place: ${customerData.place}
 Gender: ${customerData.gender}
 
 *Measurements:*
-${Object.entries(customerData.measurements).map(([garment, measurements]) => 
+${Object.entries(customerData.measurements || {}).map(([garment, measurements]) => 
   `\n${garment.toUpperCase()}:\n${Object.entries(measurements || {}).map(([key, value]) => 
     `  ${key}: ${value}`
   ).join('\n')}`
@@ -68,7 +68,7 @@ ${Object.entries(customerData.measurements).map(([garment, measurements]) =>
   const handleShareProfileWhatsApp = (tailorPhone?: string) => {
     if (!customerData) return;
     
-    const profileData = `Hello! Here are my measurements for your reference:\n\nName: ${customerData.name}\nPhone: ${customerData.phone}\n\nMeasurements:\n${Object.entries(customerData.measurements).map(([garment, measurements]) => 
+    const profileData = `Hello! Here are my measurements for your reference:\n\nName: ${customerData.name}\nPhone: ${customerData.phone}\n\nMeasurements:\n${Object.entries(customerData.measurements || {}).map(([garment, measurements]) => 
       `${garment.toUpperCase()}:\n${Object.entries(measurements || {}).map(([key, value]) => 
         `  ${key}: ${value}`
       ).join('\n')}`
@@ -181,17 +181,17 @@ ${Object.entries(customerData.measurements).map(([garment, measurements]) =>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {!customerData?.measurements || Object.keys(customerData.measurements).length === 0 ? (
+              {!customerData?.measurements || Object.keys(customerData.measurements || {}).length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">No measurements available</p>
               ) : (
                 <>
-                  {customerData.measurements.pant && renderMeasurements('pant', customerData.measurements.pant)}
-                  {customerData.measurements.shirt && renderMeasurements('shirt', customerData.measurements.shirt)}
-                  {customerData.measurements.coat && renderMeasurements('coat', customerData.measurements.coat)}
-                  {customerData.measurements.blazer && renderMeasurements('blazer', customerData.measurements.blazer)}
-                  {customerData.measurements.jocket && renderMeasurements('jocket', customerData.measurements.jocket)}
-                  {customerData.measurements.sudhar && renderMeasurements('sudhar', customerData.measurements.sudhar)}
-                  {customerData.measurements.kurta && renderMeasurements('kurta', customerData.measurements.kurta)}
+                  {customerData.measurements?.pant && renderMeasurements('pant', customerData.measurements.pant)}
+                  {customerData.measurements?.shirt && renderMeasurements('shirt', customerData.measurements.shirt)}
+                  {customerData.measurements?.coat && renderMeasurements('coat', customerData.measurements.coat)}
+                  {customerData.measurements?.blazer && renderMeasurements('blazer', customerData.measurements.blazer)}
+                  {customerData.measurements?.jocket && renderMeasurements('jocket', customerData.measurements.jocket)}
+                  {customerData.measurements?.sudhar && renderMeasurements('sudhar', customerData.measurements.sudhar)}
+                  {customerData.measurements?.kurta && renderMeasurements('kurta', customerData.measurements.kurta)}
                 </>
               )}
             </CardContent>

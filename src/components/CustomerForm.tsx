@@ -41,7 +41,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       setPhone(customer.phone);
       setPlace(customer.place);
       setGender(customer.gender);
-      setMeasurements(customer.measurements);
+      setMeasurements(customer.measurements || {});
     } else {
       resetForm();
     }

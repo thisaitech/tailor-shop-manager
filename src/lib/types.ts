@@ -60,7 +60,7 @@ export interface Customer {
   phone: string;
   place: string;
   gender: Gender;
-  measurements: Measurements;
+  measurements?: Measurements;
   createdAt: number;
   updatedAt: number;
 }
@@ -70,7 +70,7 @@ export interface Order {
   customerId: string;
   customerName: string;
   customerPhone: string;
-  measurements: Measurements;
+  measurements?: Measurements;
   fabricDetails: string;
   designNotes: string;
   fabricPhotos?: string[];

@@ -29,7 +29,7 @@ interface OrderFormProps {
     customerId: string;
     customerName: string;
     customerPhone: string;
-    measurements: Measurements;
+    measurements?: Measurements;
     fabricDetails: string;
     designNotes: string;
     fabricPhotos?: string[];
@@ -80,7 +80,7 @@ export function OrderForm({
       customerId: customer.id,
       customerName: customer.name,
       customerPhone: customer.phone,
-      measurements: customer.measurements,
+      measurements: customer.measurements || {},
       fabricDetails: fabricDetails.trim(),
       designNotes: designNotes.trim(),
       fabricPhotos: fabricPhotos.length > 0 ? fabricPhotos : undefined,
