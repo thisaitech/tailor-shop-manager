@@ -27,7 +27,10 @@ export function MaterialSelector({ inventory, selectedMaterials, onChange }: Mat
   const [currentItemId, setCurrentItemId] = useState('');
   const [currentQuantity, setCurrentQuantity] = useState('');
 
-  const availableItems = inventory.filter(item => item.quantity > 0);
+  const safeInventory = inventory || [];
+  const safeMaterials = selectedMaterials || [];
+
+  const availableItems = safeInventory.filter(item => item.quantity > 0);
 
   const handleAddMaterial = () => {
     if (!currentItemId || !currentQuantity) {
@@ -35,7 +38,7 @@ export function MaterialSelector({ inventory, selectedMaterials, onChange }: Mat
       return;
     }
 
-    const item = inventory.find(i => i.id === currentItemId);
+    const item = safeInventory.find(i => i.id === currentItemId);
     if (!item) return;
 
     const quantity = parseFloat(currentQuantity);
@@ -49,8 +52,7 @@ export function MaterialSelector({ inventory, selectedMaterials, onChange }: Mat
       return;
     }
 
-    // Check if already added
-    if (selectedMaterials.find(m => m.itemId === currentItemId)) {
+    if (safeMaterials.find(m => m.itemId === currentItemId)) {
       toast.error('Material already added');
       return;
     }
@@ -62,13 +64,13 @@ export function MaterialSelector({ inventory, selectedMaterials, onChange }: Mat
       unit: item.unit,
     };
 
-    onChange([...selectedMaterials, newMaterial]);
+    onChange([...safeMaterials, newMaterial]);
     setCurrentItemId('');
     setCurrentQuantity('');
   };
 
   const handleRemoveMaterial = (itemId: string) => {
-    onChange(selectedMaterials.filter(m => m.itemId !== itemId));
+    onChange(safeMaterials.filter(m => m.itemId !== itemId));
   };
 
   return (
@@ -109,9 +111,9 @@ export function MaterialSelector({ inventory, selectedMaterials, onChange }: Mat
       </Card>
 
       {/* Selected Materials */}
-      {selectedMaterials.length > 0 && (
+      {safeMaterials.length > 0 && (
         <div className="space-y-2">
-          {selectedMaterials.map((material) => (
+          {safeMaterials.map((material) => (
             <div
               key={material.itemId}
               className="flex items-center justify-between p-3 bg-muted rounded-lg"

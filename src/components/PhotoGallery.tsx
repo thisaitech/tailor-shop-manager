@@ -18,6 +18,8 @@ export function PhotoGallery({ photos, onPhotoClick, minimized = true }: PhotoGa
     onPhotoClick?.(index);
   };
 
+  const safePhotos = photos || [];
+
   const handlePrevious = () => {
     if (selectedIndex !== null && selectedIndex > 0) {
       setSelectedIndex(selectedIndex - 1);
@@ -25,15 +27,15 @@ export function PhotoGallery({ photos, onPhotoClick, minimized = true }: PhotoGa
   };
 
   const handleNext = () => {
-    if (selectedIndex !== null && selectedIndex < photos.length - 1) {
+    if (selectedIndex !== null && selectedIndex < safePhotos.length - 1) {
       setSelectedIndex(selectedIndex + 1);
     }
   };
 
-  if (photos.length === 0) return null;
+  if (safePhotos.length === 0) return null;
 
-  const displayPhotos = isExpanded ? photos : photos.slice(0, 3);
-  const hasMore = photos.length > 3;
+  const displayPhotos = isExpanded ? safePhotos : safePhotos.slice(0, 3);
+  const hasMore = safePhotos.length > 3;
 
   return (
     <>
@@ -70,7 +72,7 @@ export function PhotoGallery({ photos, onPhotoClick, minimized = true }: PhotoGa
             ) : (
               <>
                 <CaretDown size={16} weight="bold" />
-                <span className="text-sm sm:text-base">Show All ({photos.length})</span>
+                <span className="text-sm sm:text-base">Show All ({safePhotos.length})</span>
               </>
             )}
           </button>
@@ -90,7 +92,7 @@ export function PhotoGallery({ photos, onPhotoClick, minimized = true }: PhotoGa
 
               <div className="relative">
                 <img
-                  src={photos[selectedIndex]}
+                  src={safePhotos[selectedIndex]}
                   alt={`Photo ${selectedIndex + 1}`}
                   className="w-full h-auto max-h-[80vh] object-contain"
                 />
@@ -104,7 +106,7 @@ export function PhotoGallery({ photos, onPhotoClick, minimized = true }: PhotoGa
                   </button>
                 )}
 
-                {selectedIndex < photos.length - 1 && (
+                {selectedIndex < safePhotos.length - 1 && (
                   <button
                     onClick={handleNext}
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white rounded-full p-2.5 sm:p-2 hover:bg-black/70 transition-colors touch-manipulation"
@@ -115,7 +117,7 @@ export function PhotoGallery({ photos, onPhotoClick, minimized = true }: PhotoGa
               </div>
 
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 sm:px-3 sm:py-1.5 rounded-full text-base sm:text-sm font-medium">
-                {selectedIndex + 1} / {photos.length}
+                {selectedIndex + 1} / {safePhotos.length}
               </div>
             </div>
           )}

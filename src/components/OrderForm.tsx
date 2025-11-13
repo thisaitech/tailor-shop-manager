@@ -63,7 +63,11 @@ export function OrderForm({
     format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
   );
 
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+  const safeCustomers = customers || [];
+  const safeTailors = tailors || [];
+  const safeInventory = inventory || [];
+
+  const selectedCustomer = safeCustomers.find((c) => c.id === selectedCustomerId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +77,7 @@ export function OrderForm({
       return;
     }
 
-    const customer = customers.find((c) => c.id === selectedCustomerId);
+    const customer = safeCustomers.find((c) => c.id === selectedCustomerId);
     if (!customer) return;
 
     onSave({
@@ -121,7 +125,7 @@ export function OrderForm({
                   <SelectValue placeholder={t('selectCustomer')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers.map((customer) => (
+                  {safeCustomers.map((customer) => (
                     <SelectItem key={customer.id} value={customer.id}>
                       {customer.name} - {customer.phone}
                     </SelectItem>
@@ -170,7 +174,7 @@ export function OrderForm({
               />
 
               <MaterialSelector
-                inventory={inventory}
+                inventory={safeInventory}
                 selectedMaterials={materialsUsed}
                 onChange={setMaterialsUsed}
               />
@@ -184,7 +188,7 @@ export function OrderForm({
                     <SelectValue placeholder={t('assignTailor')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {tailors.map((tailor) => (
+                    {safeTailors.map((tailor) => (
                       <SelectItem key={tailor.id} value={tailor.name}>
                         {tailor.name}
                       </SelectItem>

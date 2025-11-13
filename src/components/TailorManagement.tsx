@@ -326,7 +326,7 @@ export function TailorManagement() {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Specialization</p>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {tailor.specialization.map((spec, idx) => (
+                        {(tailor.specialization || []).map((spec, idx) => (
                           <Badge key={idx} variant="secondary">{spec}</Badge>
                         ))}
                       </div>
