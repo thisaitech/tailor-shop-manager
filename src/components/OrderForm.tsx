@@ -29,6 +29,7 @@ interface OrderFormProps {
     customerId: string;
     customerName: string;
     customerPhone: string;
+    garmentTypes: string[];
     measurements?: Measurements;
     fabricDetails: string;
     designNotes: string;
@@ -53,6 +54,7 @@ export function OrderForm({
 }: OrderFormProps) {
   const { t } = useLanguage();
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [garmentTypes, setGarmentTypes] = useState<string[]>([]);
   const [fabricDetails, setFabricDetails] = useState('');
   const [designNotes, setDesignNotes] = useState('');
   const [fabricPhotos, setFabricPhotos] = useState<string[]>([]);
@@ -77,6 +79,11 @@ export function OrderForm({
       return;
     }
 
+    if (garmentTypes.length === 0) {
+      toast.error('Please select at least one garment type');
+      return;
+    }
+
     const customer = safeCustomers.find((c) => c.id === selectedCustomerId);
     if (!customer) return;
 
@@ -84,6 +91,7 @@ export function OrderForm({
       customerId: customer.id,
       customerName: customer.name,
       customerPhone: customer.phone,
+      garmentTypes,
       measurements: customer.measurements || {},
       fabricDetails: fabricDetails.trim(),
       designNotes: designNotes.trim(),
@@ -100,6 +108,7 @@ export function OrderForm({
 
   const resetForm = () => {
     setSelectedCustomerId('');
+    setGarmentTypes([]);
     setFabricDetails('');
     setDesignNotes('');
     setFabricPhotos([]);
@@ -157,6 +166,34 @@ export function OrderForm({
                 </div>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label>{t('garmentType')} *</Label>
+              <div className="grid grid-cols-2 gap-3 p-4 bg-muted rounded-lg">
+                {['pant', 'shirt', 'coat', 'blazer', 'jocket', 'sudhar', 'kurta'].map((type) => (
+                  <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={garmentTypes.includes(type)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setGarmentTypes([...garmentTypes, type]);
+                        } else {
+                          setGarmentTypes(garmentTypes.filter((t) => t !== type));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm capitalize">{t(type)}</span>
+                  </label>
+                ))}
+              </div>
+              {garmentTypes.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {garmentTypes.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')}
+                </p>
+              )}
+            </div>
 
             <div className="space-y-4">
               <PhotoUpload

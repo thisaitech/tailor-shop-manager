@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransaction } from '@/lib/types';
-import { useKV } from '@github/spark/hooks';
+import { useStorage } from '@/hooks/use-storage';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DashboardStats } from '@/components/DashboardStats';
 import { CustomerList } from '@/components/CustomerList';
@@ -15,11 +15,11 @@ import { toast } from 'sonner';
 
 export function OwnerDashboard() {
   const { t } = useLanguage();
-  const [customers, setCustomers] = useKV<Customer[]>('customers', []);
-  const [orders, setOrders] = useKV<Order[]>('orders', []);
-  const [inventory, setInventory] = useKV<InventoryItem[]>('inventory', []);
-  const [transactions, setTransactions] = useKV<InventoryTransaction[]>('transactions', []);
-  const [tailors] = useKV<Tailor[]>('tailors', []);
+  const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
+  const [orders, setOrders] = useStorage<Order[]>('orders', []);
+  const [inventory, setInventory] = useStorage<InventoryItem[]>('inventory', []);
+  const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
+  const [tailors] = useStorage<Tailor[]>('tailors', []);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed'>('all');
 
@@ -31,13 +31,12 @@ export function OwnerDashboard() {
       updatedAt: Date.now(),
     };
 
-    setCustomers((prev) => [...(prev || []), newCustomer]);
+    setCustomers([...(customers || []), newCustomer]);
     toast.success('Customer added successfully');
   };
 
   const handleUpdateCustomer = (id: string, customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
-    setCustomers((prev) =>
-      (prev || []).map((customer) =>
+    setCustomers((customers || []).map((customer) =>
         customer.id === id
           ? { ...customerData, id, createdAt: customer.createdAt, updatedAt: Date.now() }
           : customer
@@ -47,7 +46,7 @@ export function OwnerDashboard() {
   };
 
   const handleDeleteCustomer = (id: string) => {
-    setCustomers((prev) => (prev || []).filter((customer) => customer.id !== id));
+    setCustomers((customers || []).filter((customer) => customer.id !== id));
     toast.success('Customer deleted successfully');
   };
 
@@ -55,7 +54,8 @@ export function OwnerDashboard() {
     customerId: string;
     customerName: string;
     customerPhone: string;
-    measurements: any;
+    garmentTypes: string[];
+    measurements?: any;
     fabricDetails: string;
     designNotes: string;
     fabricPhotos?: string[];
@@ -72,12 +72,11 @@ export function OwnerDashboard() {
       updatedAt: Date.now(),
     };
 
-    setOrders((prev) => [...(prev || []), newOrder]);
+    setOrders([...(orders || []), newOrder]);
 
     if (orderData.materialsUsed && orderData.materialsUsed.length > 0) {
       orderData.materialsUsed.forEach((material: any) => {
-        setInventory((prev) =>
-          (prev || []).map((item) =>
+        setInventory((inventory || []).map((item) =>
             item.id === material.itemId
               ? { ...item, quantity: item.quantity - material.quantity, updatedAt: Date.now() }
               : item
@@ -96,7 +95,7 @@ export function OwnerDashboard() {
           createdAt: Date.now(),
         };
 
-        setTransactions((prev) => [...(prev || []), transaction]);
+        setTransactions([...(transactions || []), transaction]);
       });
     }
 
@@ -104,8 +103,7 @@ export function OwnerDashboard() {
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders((prev) =>
-      (prev || []).map((order) =>
+    setOrders((orders || []).map((order) =>
         order.id === orderId
           ? { ...order, status, updatedAt: Date.now() }
           : order
@@ -122,7 +120,7 @@ export function OwnerDashboard() {
       updatedAt: Date.now(),
     };
 
-    setInventory((prev) => [...(prev || []), newItem]);
+    setInventory([...(inventory || []), newItem]);
     toast.success('Inventory item added successfully');
   };
 
@@ -134,8 +132,7 @@ export function OwnerDashboard() {
       ? item.quantity + quantity 
       : item.quantity - quantity;
 
-    setInventory((prev) =>
-      (prev || []).map((item) =>
+    setInventory((inventory || []).map((item) =>
         item.id === itemId
           ? { 
               ...item, 
@@ -157,7 +154,7 @@ export function OwnerDashboard() {
       createdAt: Date.now(),
     };
 
-    setTransactions((prev) => [...(prev || []), transaction]);
+    setTransactions([...(transactions || []), transaction]);
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 

@@ -70,6 +70,7 @@ export interface Order {
   customerId: string;
   customerName: string;
   customerPhone: string;
+  garmentTypes: string[];
   measurements?: Measurements;
   fabricDetails: string;
   designNotes: string;

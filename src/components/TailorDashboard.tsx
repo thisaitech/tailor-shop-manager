@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { Order, OrderStatus, Measurements } from '@/lib/types';
-import { useKV } from '@github/spark/hooks';
+import { useStorage } from '@/hooks/use-storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 export function TailorDashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const [orders, setOrders] = useKV<Order[]>('orders', []);
+  const [orders, setOrders] = useStorage<Order[]>('orders', []);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [editedMeasurements, setEditedMeasurements] = useState<Measurements>({});
 
@@ -35,8 +35,7 @@ export function TailorDashboard() {
   }, [myOrders]);
 
   const handleUpdateStatus = (orderId: string, status: OrderStatus) => {
-    setOrders((prev) =>
-      (prev || []).map((order) =>
+    setOrders((orders || []).map((order) =>
         order.id === orderId
           ? { ...order, status, updatedAt: Date.now() }
           : order
@@ -46,8 +45,7 @@ export function TailorDashboard() {
   };
 
   const handleUpdateMeasurements = (orderId: string) => {
-    setOrders((prev) =>
-      (prev || []).map((order) =>
+    setOrders((orders || []).map((order) =>
         order.id === orderId
           ? { ...order, measurements: editedMeasurements, updatedAt: Date.now() }
           : order

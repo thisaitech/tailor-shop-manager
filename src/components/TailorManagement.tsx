@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { useStorage } from '@/hooks/use-storage';
+import { useAuth } from '@/hooks/use-auth';
 import { Tailor, User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,12 @@ import { toast } from 'sonner';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
 export function TailorManagement() {
-  const [tailors, setTailors] = useKV<Tailor[]>('tailors', []);
-  const [users, setUsers] = useKV<User[]>('auth_users', []);
+  const { addUser, getAllUsers, updateUser, deleteUser } = useAuth();
+  const [tailors, setTailors] = useStorage<Tailor[]>('tailors', []);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingTailor, setEditingTailor] = useState<Tailor | null>(null);
+  
+  const users = getAllUsers();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -63,15 +66,18 @@ export function TailorManagement() {
         updatedAt: Date.now(),
       };
 
-      setTailors((prev) => (prev || []).map(t => t.id === editingTailor.id ? updatedTailor : t));
+      setTailors((tailors || []).map(t => t.id === editingTailor.id ? updatedTailor : t));
       
-      setUsers((prev) =>
-        (prev || []).map(u =>
-          u.tailorId === editingTailor.id
-            ? { ...u, name: formData.name, phone: formData.phone, isActive: formData.isActive }
-            : u
-        )
-      );
+      // Update the user associated with this tailor
+      const tailorUser = users.find(u => u.tailorId === editingTailor.id);
+      if (tailorUser) {
+        updateUser(tailorUser.id, { 
+          name: formData.name, 
+          phone: formData.phone, 
+          username: formData.phone,
+          isActive: formData.isActive 
+        });
+      }
 
       toast.success('Tailor updated successfully');
     } else {
@@ -103,8 +109,10 @@ export function TailorManagement() {
         createdAt: Date.now(),
       };
 
-      setTailors((prev) => [...(prev || []), newTailor]);
-      setUsers((prev) => [...(prev || []), newUser]);
+      console.log('Creating new tailor user:', newUser);
+      
+      addUser(newUser);
+      setTailors([...(tailors || []), newTailor]);
       
       toast.success('Tailor profile created successfully');
     }
@@ -128,8 +136,14 @@ export function TailorManagement() {
   };
 
   const handleDelete = (tailorId: string) => {
-    setTailors((prev) => (prev || []).filter(t => t.id !== tailorId));
-    setUsers((prev) => (prev || []).filter(u => u.tailorId !== tailorId));
+    setTailors((tailors || []).filter(t => t.id !== tailorId));
+    
+    // Delete the user associated with this tailor
+    const tailorUser = users.find(u => u.tailorId === tailorId);
+    if (tailorUser) {
+      deleteUser(tailorUser.id);
+    }
+    
     toast.success('Tailor deleted successfully');
   };
 
@@ -142,12 +156,14 @@ export function TailorManagement() {
 
   const toggleActiveStatus = (tailor: Tailor) => {
     const updatedTailor = { ...tailor, isActive: !tailor.isActive, updatedAt: Date.now() };
-    setTailors((prev) => (prev || []).map(t => t.id === tailor.id ? updatedTailor : t));
-    setUsers((prev) =>
-      (prev || []).map(u =>
-        u.tailorId === tailor.id ? { ...u, isActive: !tailor.isActive } : u
-      )
-    );
+    setTailors((tailors || []).map(t => t.id === tailor.id ? updatedTailor : t));
+    
+    // Update the user associated with this tailor
+    const tailorUser = users.find(u => u.tailorId === tailor.id);
+    if (tailorUser) {
+      updateUser(tailorUser.id, { isActive: !tailor.isActive });
+    }
+    
     toast.success(`Tailor ${updatedTailor.isActive ? 'activated' : 'deactivated'}`);
   };
 

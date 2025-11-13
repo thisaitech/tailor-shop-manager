@@ -28,7 +28,8 @@ interface OrderListProps {
     customerId: string;
     customerName: string;
     customerPhone: string;
-    measurements: any;
+    garmentTypes: string[];
+    measurements?: any;
     fabricDetails: string;
     designNotes: string;
     fabricPhotos?: string[];
@@ -246,6 +247,11 @@ export function OrderList({
                     </div>
 
                     <div className="flex flex-wrap gap-2 text-sm">
+                      {order.garmentTypes && order.garmentTypes.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px] font-semibold">
+                          {order.garmentTypes.map(type => type.charAt(0).toUpperCase() + type.slice(1)).join(', ')}
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-[10px] font-semibold line-clamp-1">
                         {t('tailor')}: {order.assignedTailor}
                       </Badge>

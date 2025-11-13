@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useKV } from '@github/spark/hooks';
+import { useStorage } from '@/hooks/use-storage';
 import { User, Customer } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,8 @@ import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 export function Login() {
-  const { login, updatePassword } = useAuth();
-  const [users, setUsers] = useKV<User[]>('auth_users', []);
-  const [customers, setCustomers] = useKV<Customer[]>('customers', []);
+  const { login, updatePassword, addUser, resetUsers, getAllUsers } = useAuth();
+  const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +52,40 @@ export function Login() {
     } else {
       toast.error(result.message || 'Login failed');
     }
+  };
+
+  const handleResetData = () => {
+    const defaultUser: User = {
+      id: 'USER1',
+      username: '9486229273',
+      password: 'admin123',
+      role: 'owner',
+      name: 'Thisai Technologies Tailor',
+      phone: '9486229273',
+      isActive: true,
+      hasSetupPassword: true,
+      createdAt: Date.now(),
+    };
+    
+    resetUsers([defaultUser]);
+    toast.success('Database reset! Use phone: 9486229273, password: admin123');
+  };
+
+  const handleAddTestTailor = () => {
+    const testTailor: User = {
+      id: 'USER_TEST',
+      username: '1234567890',
+      password: 'password',
+      role: 'tailor',
+      name: 'Test Tailor',
+      phone: '1234567890',
+      isActive: true,
+      hasSetupPassword: false,
+      createdAt: Date.now(),
+    };
+    
+    addUser(testTailor);
+    toast.success('Test tailor added! Login: 1234567890 / password');
   };
 
   const handlePasswordSetup = async () => {
@@ -94,7 +127,7 @@ export function Login() {
       return;
     }
 
-    const existingUser = (users || []).find(u => u.username === customerForm.phone);
+    const existingUser = (getAllUsers() || []).find(u => u.username === customerForm.phone);
     if (existingUser) {
       toast.error('A user with this phone number already exists');
       return;
@@ -126,8 +159,8 @@ export function Login() {
       createdAt: Date.now(),
     };
 
-    setCustomers((prev) => [...(prev || []), newCustomer]);
-    setUsers((prev) => [...(prev || []), newUser]);
+    setCustomers([...(customers || []), newCustomer]);
+    addUser(newUser);
     
     setShowCustomerRegistration(false);
     setCustomerForm({
@@ -192,6 +225,28 @@ export function Login() {
               >
                 <UserPlus className="mr-2" size={20} />
                 New Customer? Register Here
+              </Button>
+            </div>
+
+            <div className="mt-2">
+              <Button 
+                variant="destructive" 
+                className="w-full"
+                onClick={handleResetData}
+                type="button"
+              >
+                Reset Database (Admin Only)
+              </Button>
+            </div>
+
+            <div className="mt-2">
+              <Button 
+                variant="outline" 
+                className="w-full bg-green-50 hover:bg-green-100 border-green-300"
+                onClick={handleAddTestTailor}
+                type="button"
+              >
+                Add Test Tailor (1234567890 / password)
               </Button>
             </div>
 

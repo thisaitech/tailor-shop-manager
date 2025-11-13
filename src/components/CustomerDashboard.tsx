@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { Order, Customer, Measurements, Tailor } from '@/lib/types';
-import { useKV } from '@github/spark/hooks';
+import { useStorage } from '@/hooks/use-storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,9 +14,9 @@ import { sendWhatsAppMessage } from '@/lib/utils';
 export function CustomerDashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const [orders] = useKV<Order[]>('orders', []);
-  const [customers] = useKV<Customer[]>('customers', []);
-  const [tailors] = useKV<Tailor[]>('tailors', []);
+  const [orders] = useStorage<Order[]>('orders', []);
+  const [customers] = useStorage<Customer[]>('customers', []);
+  const [tailors] = useStorage<Tailor[]>('tailors', []);
 
   const customerData = useMemo(() => {
     return (customers || []).find(c => c.id === user?.customerId);

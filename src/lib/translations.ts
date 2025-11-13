@@ -46,6 +46,7 @@ export const translations = {
     neck: 'Neck',
     
     customer: 'Customer',
+    garmentType: 'Garment Type',
     selectCustomer: 'Select Customer',
     fabricDetails: 'Fabric Details',
     designNotes: 'Design Notes',
@@ -210,6 +211,7 @@ export const translations = {
     neck: 'கழுத்து',
     
     customer: 'வாடிக்கையாளர்',
+    garmentType: 'ஆடை வகை',
     selectCustomer: 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்',
     fabricDetails: 'துணி விவரங்கள்',
     designNotes: 'டிசைன் குறிப்புகள்',

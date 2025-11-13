@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { useStorage } from './use-storage';
 import { User, UserRole } from '@/lib/types';
 
 interface AuthContextType {
@@ -8,16 +8,26 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; message?: string }>;
   logout: () => void;
   updatePassword: (newPassword: string) => Promise<void>;
+  addUser: (user: User) => void;
+  resetUsers: (users: User[]) => void;
+  getAllUsers: () => User[];
+  updateUser: (userId: string, updatedData: Partial<User>) => void;
+  deleteUser: (userId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useKV<User[]>('auth_users', []);
-  const [currentUser, setCurrentUser] = useKV<User | null>('current_user', null);
+  const [users, setUsers] = useStorage<User[]>('auth_users', []);
+  const [currentUser, setCurrentUser] = useStorage<User | null>('current_user', null);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; message?: string }> => {
+    console.log('Login attempt:', { username, password });
+    console.log('Available users:', users);
+    
     const user = (users || []).find(u => u.username === username && u.password === password);
+    
+    console.log('Found user:', user);
     
     if (!user) {
       return { success: false, message: 'Invalid username or password' };
@@ -36,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
-  const updatePassword = async (newPassword: string): Promise<void> => {
+  const updatePassword = async (newPassword: string) => {
     if (!currentUser) return;
     
     const updatedUser = {
@@ -45,9 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasSetupPassword: true,
     };
     
-    setUsers((prevUsers) => 
-      (prevUsers || []).map(u => u.id === currentUser.id ? updatedUser : u)
-    );
+    const updatedUsers = (users || []).map(u => u.id === currentUser.id ? updatedUser : u);
+    setUsers(updatedUsers);
     setCurrentUser(updatedUser);
   };
 
@@ -55,10 +64,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null);
   };
 
+  const addUser = (user: User) => {
+    console.log('[AuthContext] Adding user:', user);
+    const updatedUsers = [...(users || []), user];
+    setUsers(updatedUsers);
+    console.log('[AuthContext] Users after add:', updatedUsers);
+  };
+
+  const resetUsers = (newUsers: User[]) => {
+    console.log('[AuthContext] Resetting users to:', newUsers);
+    setUsers(newUsers);
+  };
+
+  const getAllUsers = () => {
+    return users || [];
+  };
+
+  const updateUser = (userId: string, updatedData: Partial<User>) => {
+    console.log('[AuthContext] Updating user:', userId, updatedData);
+    const updatedUsers = (users || []).map(u => 
+      u.id === userId ? { ...u, ...updatedData } : u
+    );
+    setUsers(updatedUsers);
+    console.log('[AuthContext] Users after update:', updatedUsers);
+  };
+
+  const deleteUser = (userId: string) => {
+    console.log('[AuthContext] Deleting user:', userId);
+    const updatedUsers = (users || []).filter(u => u.id !== userId);
+    setUsers(updatedUsers);
+    console.log('[AuthContext] Users after delete:', updatedUsers);
+  };
+
   const isAuthenticated = currentUser !== null && currentUser !== undefined;
 
   return (
-    <AuthContext.Provider value={{ user: currentUser ?? null, isAuthenticated, login, logout, updatePassword }}>
+    <AuthContext.Provider value={{ user: currentUser ?? null, isAuthenticated, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
       {children}
     </AuthContext.Provider>
   );
