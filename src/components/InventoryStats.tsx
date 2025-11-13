@@ -12,8 +12,15 @@ export function InventoryStats({ items }: InventoryStatsProps) {
 
   const totalItems = (items || []).length;
   const lowStockItems = (items || []).filter(item => item.quantity <= item.minQuantity).length;
-  const totalValue = (items || []).reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-  const totalQuantity = (items || []).reduce((sum, item) => sum + item.quantity, 0);
+  const totalValue = (items || []).reduce((sum, item) => {
+    const price = typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0;
+    const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 0;
+    return sum + (price * quantity);
+  }, 0);
+  const totalQuantity = (items || []).reduce((sum, item) => {
+    const quantity = typeof item.quantity === 'number' && !isNaN(item.quantity) ? item.quantity : 0;
+    return sum + quantity;
+  }, 0);
 
   const stats = [
     {
@@ -32,7 +39,7 @@ export function InventoryStats({ items }: InventoryStatsProps) {
     },
     {
       title: t('totalValue'),
-      value: `₹${totalValue.toLocaleString()}`,
+      value: `₹${(typeof totalValue === 'number' && !isNaN(totalValue) ? totalValue : 0).toLocaleString()}`,
       icon: CurrencyDollar,
       color: 'text-accent',
       bgColor: 'bg-accent/10',
