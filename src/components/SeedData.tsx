@@ -7,7 +7,10 @@ export function SeedData() {
   const [customers, setCustomers] = useKV<Customer[]>('customers', []);
 
   useEffect(() => {
-    if (!users || users.length === 0) {
+    const currentUsers = users || [];
+    const currentCustomers = customers || [];
+
+    if (currentUsers.length === 0) {
       const defaultUsers: User[] = [
         {
           id: 'USER1',
@@ -26,12 +29,22 @@ export function SeedData() {
           tailorId: '1',
           createdAt: Date.now(),
         },
+        {
+          id: 'USER3',
+          username: 'customer1',
+          password: 'customer123',
+          role: 'customer',
+          name: 'John Doe',
+          phone: '9876543210',
+          customerId: 'CUS1',
+          createdAt: Date.now(),
+        },
       ];
 
       setUsers(defaultUsers);
     }
 
-    if (!customers || customers.length === 0) {
+    if (currentCustomers.length === 0) {
       const demoCustomer: Customer = {
         id: 'CUS1',
         name: 'John Doe',
@@ -60,23 +73,6 @@ export function SeedData() {
       };
 
       setCustomers([demoCustomer]);
-
-      const customerUser: User = {
-        id: 'USER3',
-        username: 'customer1',
-        password: 'customer123',
-        role: 'customer',
-        name: 'John Doe',
-        phone: '9876543210',
-        customerId: 'CUS1',
-        createdAt: Date.now(),
-      };
-
-      setUsers((prev) => {
-        const existing = (prev || []).find(u => u.username === 'customer1');
-        if (existing) return prev || [];
-        return [...(prev || []), customerUser];
-      });
     }
   }, []);
 
