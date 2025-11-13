@@ -273,7 +273,7 @@ ${Object.entries(customerData.measurements || {}).map(([garment, measurements]) 
                             <div>
                               <p className="font-medium">{order.id}</p>
                               <p className="text-sm text-muted-foreground">
-                                {new Date(order.createdAt).toLocaleDateString()}
+                                {order?.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                               </p>
                             </div>
                             <Badge className={getStatusColor(order.status)}>
@@ -289,7 +289,7 @@ ${Object.entries(customerData.measurements || {}).map(([garment, measurements]) 
                             <div>
                               <p className="text-muted-foreground">{t('deliveryDate')}</p>
                               <p className="font-medium">
-                                {new Date(order.deliveryDate).toLocaleDateString()}
+                                {order?.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : 'TBD'}
                               </p>
                             </div>
                           </div>

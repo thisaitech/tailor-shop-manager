@@ -203,7 +203,7 @@ export function TailorDashboard() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">{t('deliveryDate')}</p>
-                      <p className="font-medium">{new Date(order.deliveryDate).toLocaleDateString()}</p>
+                      <p className="font-medium">{order?.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : 'TBD'}</p>
                     </div>
                   </div>
                   
@@ -275,7 +275,7 @@ export function TailorDashboard() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Delivered on {new Date(order.updatedAt).toLocaleDateString()}
+                    Delivered on {order?.updatedAt ? new Date(order.updatedAt).toLocaleDateString() : 'N/A'}
                   </p>
                 </CardContent>
               </Card>

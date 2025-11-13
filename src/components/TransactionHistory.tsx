@@ -14,7 +14,7 @@ export function TransactionHistory({ transactions, limit = 10 }: TransactionHist
   const { t } = useLanguage();
 
   const sortedTransactions = [...(transactions || [])]
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => (b?.createdAt || 0) - (a?.createdAt || 0))
     .slice(0, limit);
 
   if (sortedTransactions.length === 0) {
@@ -70,7 +70,7 @@ export function TransactionHistory({ transactions, limit = 10 }: TransactionHist
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
                   <p className="text-[10px] sm:text-xs text-muted-foreground">
-                    {format(transaction.createdAt, 'PPp')}
+                    {transaction?.createdAt ? format(transaction.createdAt, 'PPp') : 'N/A'}
                   </p>
                   {transaction.orderId && (
                     <Badge variant="secondary" className="text-[10px] sm:text-xs">

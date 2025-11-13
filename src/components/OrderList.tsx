@@ -81,7 +81,7 @@ export function OrderList({
   };
 
   const isOverdue = (order: Order) => {
-    return order.status !== 'delivered' && isPast(order.deliveryDate);
+    return order?.deliveryDate && order.status !== 'delivered' && isPast(order.deliveryDate);
   };
 
   const toggleExpanded = (orderId: string, e: React.MouseEvent) => {
@@ -98,9 +98,10 @@ export function OrderList({
   };
 
   const getOrderStatusMessage = (order: Order) => {
+    const deliveryDateStr = order?.deliveryDate ? format(order.deliveryDate, 'MMM dd, yyyy') : 'TBD';
     const statusMessages = {
-      pending: `Your order ${order.id.slice(0, 8)} is pending. Expected delivery: ${format(order.deliveryDate, 'MMM dd, yyyy')}`,
-      'in-progress': `Your order ${order.id.slice(0, 8)} is being stitched by ${order.assignedTailor}. Expected delivery: ${format(order.deliveryDate, 'MMM dd, yyyy')}`,
+      pending: `Your order ${order.id.slice(0, 8)} is pending. Expected delivery: ${deliveryDateStr}`,
+      'in-progress': `Your order ${order.id.slice(0, 8)} is being stitched by ${order.assignedTailor}. Expected delivery: ${deliveryDateStr}`,
       ready: `Good news! Your order ${order.id.slice(0, 8)} is ready for pickup. Please collect at your earliest convenience.`,
       delivered: `Thank you! Your order ${order.id.slice(0, 8)} has been delivered. We hope you love it!`,
     };
@@ -252,7 +253,7 @@ export function OrderList({
                         variant={
                           isOverdue(order)
                             ? 'destructive'
-                            : isToday(order.deliveryDate)
+                            : order?.deliveryDate && isToday(order.deliveryDate)
                             ? 'default'
                             : 'outline'
                         }
@@ -260,9 +261,11 @@ export function OrderList({
                       >
                         {isOverdue(order)
                           ? t('overdue')
-                          : isToday(order.deliveryDate)
+                          : order?.deliveryDate && isToday(order.deliveryDate)
                           ? t('dueToday')
-                          : format(order.deliveryDate, 'MMM dd, yyyy')}
+                          : order?.deliveryDate 
+                          ? format(order.deliveryDate, 'MMM dd, yyyy')
+                          : 'TBD'}
                       </Badge>
                     </div>
                   </div>

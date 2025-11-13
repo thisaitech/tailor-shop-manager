@@ -14,20 +14,22 @@ export function InventoryStats({ items }: InventoryStatsProps) {
   const lowStockItems = (items || []).filter(item => item.quantity <= item.minQuantity).length;
   
   const totalValue = (items || []).reduce((sum, item) => {
-    const price = (typeof item.price === 'number' && !isNaN(item.price)) ? item.price : 0;
-    const quantity = (typeof item.quantity === 'number' && !isNaN(item.quantity)) ? item.quantity : 0;
+    const price = (typeof item?.price === 'number' && !isNaN(item.price)) ? item.price : 0;
+    const quantity = (typeof item?.quantity === 'number' && !isNaN(item.quantity)) ? item.quantity : 0;
     const itemValue = price * quantity;
     const result = sum + itemValue;
     return (typeof result === 'number' && !isNaN(result)) ? result : sum;
   }, 0);
   
-  const safeTotal = (typeof totalValue === 'number' && !isNaN(totalValue)) ? totalValue : 0;
+  const safeTotal = (typeof totalValue === 'number' && !isNaN(totalValue) && isFinite(totalValue)) ? totalValue : 0;
   
   const totalQuantity = (items || []).reduce((sum, item) => {
-    const quantity = (typeof item.quantity === 'number' && !isNaN(item.quantity)) ? item.quantity : 0;
+    const quantity = (typeof item?.quantity === 'number' && !isNaN(item.quantity)) ? item.quantity : 0;
     const result = sum + quantity;
     return (typeof result === 'number' && !isNaN(result)) ? result : sum;
   }, 0);
+  
+  const safeQuantity = (typeof totalQuantity === 'number' && !isNaN(totalQuantity) && isFinite(totalQuantity)) ? totalQuantity : 0;
 
   const stats = [
     {
@@ -53,7 +55,7 @@ export function InventoryStats({ items }: InventoryStatsProps) {
     },
     {
       title: t('quantity'),
-      value: totalQuantity,
+      value: safeQuantity,
       icon: Stack,
       color: 'text-secondary',
       bgColor: 'bg-secondary/10',

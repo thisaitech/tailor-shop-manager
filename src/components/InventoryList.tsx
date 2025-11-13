@@ -116,7 +116,7 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
                         </div>
                         <div className="min-w-0">
                           <p className="text-muted-foreground line-clamp-1">{t('totalValue')}</p>
-                          <p className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</p>
+                          <p className="font-semibold">₹{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</p>
                         </div>
                       </>
                     )}
