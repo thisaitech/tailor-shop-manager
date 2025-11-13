@@ -1,22 +1,12 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { storage } from './firebase';
-
 /**
- * Upload a photo to Firebase Storage
+ * Upload a photo (convert to base64 data URL)
  * @param file - File to upload
  * @param path - Storage path (e.g., 'customers/photos', 'orders/fabric')
- * @returns Download URL of the uploaded file
+ * @returns Data URL of the file
  */
 export async function uploadPhoto(file: File, path: string): Promise<string> {
   try {
-    const timestamp = Date.now();
-    const fileName = `${timestamp}_${file.name}`;
-    const storageRef = ref(storage, `${path}/${fileName}`);
-    
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
-    
-    return downloadURL;
+    return await fileToDataUrl(file);
   } catch (error) {
     console.error('Error uploading photo:', error);
     throw error;
@@ -27,7 +17,7 @@ export async function uploadPhoto(file: File, path: string): Promise<string> {
  * Upload multiple photos
  * @param files - Array of files to upload
  * @param path - Storage path
- * @returns Array of download URLs
+ * @returns Array of data URLs
  */
 export async function uploadPhotos(files: File[], path: string): Promise<string[]> {
   try {
@@ -40,17 +30,25 @@ export async function uploadPhotos(files: File[], path: string): Promise<string[
 }
 
 /**
- * Delete a photo from Firebase Storage
- * @param url - Download URL of the photo to delete
+ * Delete a photo (no-op for data URLs)
+ * @param url - Data URL of the photo
  */
 export async function deletePhoto(url: string): Promise<void> {
-  try {
-    const storageRef = ref(storage, url);
-    await deleteObject(storageRef);
-  } catch (error) {
-    console.error('Error deleting photo:', error);
-    throw error;
-  }
+  return Promise.resolve();
+}
+
+/**
+ * Convert File to base64 data URL
+ * @param file - File to convert
+ * @returns Promise with data URL
+ */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
