@@ -1,19 +1,19 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { useKV } from '@github/spark/hooks';
+import { User, UserRole } from '@/lib/types'
 import { User, UserRole } from '@/lib/types';
 
-interface AuthContextType {
-  user: User | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  register: (userData: Omit<User, 'id' | 'createdAt'>) => Promise<boolean>;
+  logout: () => void
 }
+const AuthContext = createContext<AuthContextType | undefined>(und
+export function AuthP
+  const [users, setUsers] = useKV<User[]>('auth_users', []);
+ 
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+      setCurrentUser(user);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useKV<User | null>('auth_current_user', null);
+    return false;
+
   const [users, setUsers] = useKV<User[]>('auth_users', []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -31,39 +31,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null);
   };
 
-  const register = async (userData: Omit<User, 'id' | 'createdAt'>): Promise<boolean> => {
-    const existingUser = (users || []).find(u => u.username === userData.username);
-    
-    if (existingUser) {
-      return false;
-    }
-
-    const newUser: User = {
-      ...userData,
-      id: `USER${Date.now()}`,
-      createdAt: Date.now(),
-    };
-
-    setUsers(prev => [...(prev || []), newUser]);
-    return true;
   };
-
   return (
-    <AuthContext.Provider
-      value={{
-        user: currentUser || null,
-        isAuthenticated: !!currentUser,
-        login,
+    
+        isAuthenticated
         logout,
-        register,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
+     
 
-export function useAuth() {
+  );
+
+  const context = useContext(A
+    throw new Error('useAuth
+  retu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
