@@ -22,10 +22,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useStorage<User | null>('current_user', null);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; message?: string }> => {
-    console.log('Login attempt:', { username, password });
-    console.log('Available users:', users);
+    console.log('=== LOGIN ATTEMPT ===');
+    console.log('Username:', username);
+    console.log('Password:', password);
+    console.log('Total users in storage:', (users || []).length);
+    console.log('All users:', (users || []).map(u => ({ 
+      id: u.id, 
+      username: u.username, 
+      password: u.password, 
+      role: u.role,
+      name: u.name 
+    })));
     
-    const user = (users || []).find(u => u.username === username && u.password === password);
+    const user = (users || []).find(u => {
+      console.log(`Checking user ${u.username}: username match=${u.username === username}, password match=${u.password === password}`);
+      return u.username === username && u.password === password;
+    });
     
     console.log('Found user:', user);
     

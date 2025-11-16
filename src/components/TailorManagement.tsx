@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLanguage } from '@/hooks/use-language';
 import { useStorage } from '@/hooks/use-storage';
 import { useAuth } from '@/hooks/use-auth';
 import { Tailor, User } from '@/lib/types';
@@ -10,13 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, UserCircle, WhatsappLogo, PencilSimple, Trash } from '@phosphor-icons/react';
+import { Plus, UserCircle, WhatsappLogo, PencilSimple, Trash, CheckCircle, XCircle, CalendarX } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { sendWhatsAppMessage } from '@/lib/utils';
+import { TailorStats } from './TailorStats';
+import type { AttendanceRecord, AttendanceStatus } from '@/lib/types';
 
 export function TailorManagement() {
-  const { addUser, getAllUsers, updateUser, deleteUser } = useAuth();
+  const { t } = useLanguage();
+  const { addUser, getAllUsers, updateUser, deleteUser, user } = useAuth();
   const [tailors, setTailors] = useStorage<Tailor[]>('tailors', []);
+  const [attendance, setAttendance] = useStorage<AttendanceRecord[]>('tailor_attendance', []);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingTailor, setEditingTailor] = useState<Tailor | null>(null);
   
@@ -25,18 +30,20 @@ export function TailorManagement() {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    specialization: '',
+    specialization: [] as string[],
     salaryType: 'monthly' as 'monthly' | 'daily',
     salaryAmount: '',
     bonus: '',
     isActive: true,
   });
 
+  const garmentTypes = ['Pant', 'Shirt', 'Coat', 'Blazer', 'Jocket', 'Sudhar', 'Kurta'];
+
   const resetForm = () => {
     setFormData({
       name: '',
       phone: '',
-      specialization: '',
+      specialization: [],
       salaryType: 'monthly',
       salaryAmount: '',
       bonus: '',
@@ -46,12 +53,12 @@ export function TailorManagement() {
   };
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.phone || !formData.specialization || !formData.salaryAmount) {
+    if (!formData.name || !formData.phone || formData.specialization.length === 0 || !formData.salaryAmount) {
       toast.error('Please fill all required fields');
       return;
     }
 
-    const specializationArray = formData.specialization.split(',').map(s => s.trim()).filter(s => s);
+    const specializationArray = formData.specialization;
     
     if (editingTailor) {
       const updatedTailor: Tailor = {
@@ -126,7 +133,7 @@ export function TailorManagement() {
     setFormData({
       name: tailor.name,
       phone: tailor.phone,
-      specialization: tailor.specialization.join(', '),
+      specialization: tailor.specialization,
       salaryType: tailor.salaryType,
       salaryAmount: tailor.salaryAmount.toString(),
       bonus: tailor.bonus?.toString() || '',
@@ -167,11 +174,63 @@ export function TailorManagement() {
     toast.success(`Tailor ${updatedTailor.isActive ? 'activated' : 'deactivated'}`);
   };
 
+  const ymd = (d: Date) => {
+    const y = d.getFullYear();
+    const m = `${d.getMonth() + 1}`.padStart(2, '0');
+    const day = `${d.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const markAttendance = (tailorId: string, status: AttendanceStatus) => {
+    const today = ymd(new Date());
+    const existingIdx = (attendance || []).findIndex(r => r.tailorId === tailorId && r.date === today);
+    let updated: AttendanceRecord[];
+    if (existingIdx >= 0) {
+      updated = [...(attendance || [])];
+      updated[existingIdx] = { ...updated[existingIdx], status };
+    } else {
+      const rec: AttendanceRecord = {
+        id: `ATT_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        tailorId,
+        date: today,
+        status,
+        createdAt: Date.now(),
+      };
+      updated = [...(attendance || []), rec];
+    }
+    setAttendance(updated);
+    toast.success(`Marked ${status} for today`);
+  };
+
+  const getMonthlyCounts = (tailorId: string) => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const inMonth = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return d >= start && d <= end;
+    };
+    const records = (attendance || []).filter(r => r.tailorId === tailorId && inMonth(r.date));
+    const present = records.filter(r => r.status === 'present').length;
+    const leave = records.filter(r => r.status === 'leave').length;
+    const absent = records.filter(r => r.status === 'absent').length;
+    return { present, leave, absent };
+  };
+
+  const getTodayStatus = (tailorId: string) => {
+    const todayStr = ymd(new Date());
+    const rec = (attendance || []).find(r => r.tailorId === tailorId && r.date === todayStr);
+    return rec?.status as AttendanceStatus | undefined;
+  };
+
   return (
     <div className="space-y-6">
+      {/* Stats Overview */}
+      <TailorStats />
+
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Tailor Management</h2>
+          <h2 className="text-2xl font-bold">{t('tailors')}</h2>
           <p className="text-sm text-muted-foreground">Manage tailor profiles, specializations, and salaries</p>
         </div>
         <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
@@ -211,14 +270,30 @@ export function TailorManagement() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="specialization">Specialization *</Label>
-                <Input
-                  id="specialization"
-                  value={formData.specialization}
-                  onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                  placeholder="e.g., Shirts, Pants, Suits (comma separated)"
-                />
-                <p className="text-xs text-muted-foreground">Enter specializations separated by commas</p>
+                <Label>Specialization *</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 border rounded-lg">
+                  {garmentTypes.map((type) => (
+                    <div key={type} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`spec-${type}`}
+                        checked={formData.specialization.includes(type)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({ ...formData, specialization: [...formData.specialization, type] });
+                          } else {
+                            setFormData({ ...formData, specialization: formData.specialization.filter(s => s !== type) });
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <label htmlFor={`spec-${type}`} className="text-sm font-medium cursor-pointer">
+                        {type}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Select one or more garment types</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -337,32 +412,93 @@ export function TailorManagement() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Specialization</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {(tailor.specialization || []).map((spec, idx) => (
-                          <Badge key={idx} variant="secondary">{spec}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Salary Type</p>
-                      <p className="text-base font-medium capitalize">{tailor.salaryType}</p>
+                <div className="space-y-3">
+                  {/* Specialization */}
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-muted-foreground">Specialization:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {(tailor.specialization || []).map((spec, idx) => (
+                        <Badge key={idx} variant="secondary">{spec}</Badge>
+                      ))}
                     </div>
                   </div>
-                  <div className="space-y-3">
+
+                  {/* Row 1: Salary Type, Salary, Bonus, Month Payable */}
+                  <div className="grid grid-cols-4 gap-3 text-sm text-center">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">Salary Amount</p>
-                      <p className="text-base font-medium">₹{tailor.salaryAmount.toLocaleString()}</p>
+                      <p className="text-muted-foreground mb-1">Salary Type</p>
+                      <p className="font-medium capitalize">{tailor.salaryType}</p>
                     </div>
-                    {tailor.bonus && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Bonus</p>
-                        <p className="text-base font-medium">₹{tailor.bonus.toLocaleString()}</p>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Salary</p>
+                      <p className="font-medium">₹{tailor.salaryAmount.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Bonus</p>
+                      <p className="font-medium">₹{(tailor.bonus || 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Month Payable</p>
+                      {(() => {
+                        const c = getMonthlyCounts(tailor.id);
+                        const payable = tailor.salaryType === 'monthly'
+                          ? (tailor.salaryAmount + (tailor.bonus || 0))
+                          : c.present * tailor.salaryAmount;
+                        return <p className="font-medium">₹{payable.toLocaleString()}</p>;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Row 2: Today status + Attendance buttons */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-1">
+                      {(() => {
+                        const st = getTodayStatus(tailor.id);
+                        const label = st === 'present' ? t('present') : st === 'absent' ? t('absent') : st === 'leave' ? t('leave') : '—';
+                        const cls = st === 'present' ? 'bg-green-100 text-green-800' : st === 'absent' ? 'bg-red-100 text-red-800' : st === 'leave' ? 'bg-amber-100 text-amber-800' : 'bg-muted text-muted-foreground';
+                        return (
+                          <span className={`inline-block text-xs px-2 py-1 rounded ${cls}`}>
+                            {t('today')}: {label}
+                          </span>
+                        );
+                      })()}
+                      <p className="text-xs text-muted-foreground">Monthly</p>
+                    </div>
+                    {user?.role === 'owner' ? (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => markAttendance(tailor.id, 'present')}>
+                          <CheckCircle className="mr-1" size={16} /> Present
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => markAttendance(tailor.id, 'absent')}>
+                          <XCircle className="mr-1" size={16} /> Absent
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => markAttendance(tailor.id, 'leave')}>
+                          <CalendarX className="mr-1" size={16} /> Leave
+                        </Button>
                       </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Login as owner to mark attendance</span>
                     )}
+                  </div>
+
+                  {/* Row 3: Monthly counts aligned under buttons */}
+                  <div className="flex justify-end gap-2">
+                    {(() => {
+                      const c = getMonthlyCounts(tailor.id);
+                      return (
+                        <>
+                          <div className="text-center" style={{ width: '94px' }}>
+                            <p className="font-bold text-lg text-green-600">{c.present}</p>
+                          </div>
+                          <div className="text-center" style={{ width: '94px' }}>
+                            <p className="font-bold text-lg text-red-600">{c.absent}</p>
+                          </div>
+                          <div className="text-center" style={{ width: '94px' }}>
+                            <p className="font-bold text-lg text-amber-600">{c.leave}</p>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="mt-4 pt-4 border-t flex items-center justify-between">

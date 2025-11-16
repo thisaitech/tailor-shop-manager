@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClockCounterClockwise, CheckCircle, Package, TrendUp } from '@phosphor-icons/react';
+import { TailorAttendance } from './TailorAttendance';
 import { toast } from 'sonner';
 
 export function TailorDashboard() {
@@ -106,56 +107,69 @@ export function TailorDashboard() {
     );
   };
 
+  const dashStats = [
+    {
+      label: t('pending'),
+      value: stats.pending,
+      icon: ClockCounterClockwise,
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-50',
+    },
+    {
+      label: t('inProgress'),
+      value: stats.inProgress,
+      icon: TrendUp,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+    },
+    {
+      label: t('ready'),
+      value: stats.ready,
+      icon: Package,
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+    },
+    {
+      label: t('delivered'),
+      value: stats.delivered,
+      icon: CheckCircle,
+      color: 'text-slate-600',
+      bgColor: 'bg-slate-50',
+    },
+  ];
+
   return (
     <main className="container mx-auto px-4 py-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">My Dashboard</h2>
+        <h2 className="text-2xl font-bold">{t('myDashboard')}</h2>
         <p className="text-muted-foreground">Welcome back, {user?.name}</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Pending</CardDescription>
-            <CardTitle className="text-3xl">{stats.pending}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ClockCounterClockwise size={24} className="text-muted-foreground" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">In Progress</CardDescription>
-            <CardTitle className="text-3xl">{stats.inProgress}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TrendUp size={24} className="text-blue-500" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Ready</CardDescription>
-            <CardTitle className="text-3xl">{stats.ready}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Package size={24} className="text-green-500" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Delivered</CardDescription>
-            <CardTitle className="text-3xl">{stats.delivered}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CheckCircle size={24} className="text-slate-500" />
-          </CardContent>
-        </Card>
+      <TailorAttendance />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        {dashStats.map((stat, index) => (
+          <Card key={index} className="p-3 sm:p-6">
+            <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
+              <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+                <stat.icon size={20} className="sm:size-7" weight="duotone" />
+              </div>
+              <div className="w-full min-w-0">
+                <p className="text-3xl sm:text-5xl font-bold text-foreground mb-1">
+                  {stat.value}
+                </p>
+                <p className="text-[9px] sm:text-xs font-medium text-muted-foreground line-clamp-2 leading-tight px-1">
+                  {stat.label}
+                </p>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
       <Tabs defaultValue="active" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="active">Active Orders</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsTrigger value="active">{t('activeOrders')}</TabsTrigger>
+          <TabsTrigger value="completed">{t('completedOrders')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-4">

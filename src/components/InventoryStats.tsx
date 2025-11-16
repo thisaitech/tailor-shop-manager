@@ -1,13 +1,14 @@
-import { InventoryItem } from '@/lib/types';
+import { InventoryItem, InventoryTransaction } from '@/lib/types';
 import { useLanguage } from '@/hooks/use-language';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, WarningCircle, CurrencyDollar, Stack } from '@phosphor-icons/react';
+import { Card } from '@/components/ui/card';
+import { Package, WarningCircle, CurrencyDollar, ShoppingCart } from '@phosphor-icons/react';
 
 interface InventoryStatsProps {
   items: InventoryItem[];
+  transactions?: InventoryTransaction[];
 }
 
-export function InventoryStats({ items }: InventoryStatsProps) {
+export function InventoryStats({ items, transactions = [] }: InventoryStatsProps) {
   const { t } = useLanguage();
 
   const totalItems = (items || []).length;
@@ -31,52 +32,64 @@ export function InventoryStats({ items }: InventoryStatsProps) {
   
   const safeQuantity = (typeof totalQuantity === 'number' && !isNaN(totalQuantity) && isFinite(totalQuantity)) ? totalQuantity : 0;
 
+  // Estimate spend for 'in' transactions using current item price * quantity
+  const priceById = new Map<string, number>((items || []).map(i => [i.id, typeof i.price === 'number' ? i.price : 0]));
+  const spent = (transactions || [])
+    .filter(tx => tx.type === 'in')
+    .reduce((sum, tx) => {
+      const unit = priceById.get(tx.itemId) || 0;
+      return sum + unit * tx.quantity;
+    }, 0);
+  const safeSpent = (typeof spent === 'number' && isFinite(spent)) ? spent : 0;
+
   const stats = [
     {
-      title: t('totalItems'),
+      label: t('totalItems'),
       value: totalItems,
       icon: Package,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
     },
     {
-      title: t('lowStockItems'),
+      label: t('lowStockItems'),
       value: lowStockItems,
       icon: WarningCircle,
-      color: 'text-destructive',
-      bgColor: 'bg-destructive/10',
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
     },
     {
-      title: t('totalValue'),
+      label: t('spentOnInventory'),
+      value: `₹${safeSpent.toLocaleString('en-IN')}`,
+      icon: ShoppingCart,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+    },
+    {
+      label: t('totalValue'),
       value: `₹${safeTotal.toLocaleString('en-IN')}`,
       icon: CurrencyDollar,
-      color: 'text-accent',
-      bgColor: 'bg-accent/10',
-    },
-    {
-      title: t('quantity'),
-      value: safeQuantity,
-      icon: Stack,
-      color: 'text-secondary',
-      bgColor: 'bg-secondary/10',
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-50',
     },
   ];
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-      {stats.map((stat) => (
-        <Card key={stat.title}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-[9px] sm:text-sm font-medium text-muted-foreground line-clamp-2 leading-tight flex-1 min-w-0">
-              {stat.title}
-            </CardTitle>
-            <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor} flex-shrink-0`}>
-              <stat.icon className={`${stat.color} size-4 sm:size-5`} weight="duotone" />
+      {stats.map((stat, index) => (
+        <Card key={index} className="p-3 sm:p-6">
+          <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
+            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+              <stat.icon size={20} className="sm:size-7" weight="duotone" />
             </div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-base sm:text-2xl font-bold break-all">{stat.value}</div>
-          </CardContent>
+            <div className="w-full min-w-0">
+              <p className="text-3xl sm:text-5xl font-bold text-foreground mb-1">
+                {stat.value}
+              </p>
+              <p className="text-[9px] sm:text-xs font-medium text-muted-foreground line-clamp-2 leading-tight px-1">
+                {stat.label}
+              </p>
+            </div>
+          </div>
         </Card>
       ))}
     </div>

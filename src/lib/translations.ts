@@ -8,6 +8,7 @@ export const translations = {
     orders: 'Orders',
     track: 'Track Order',
     inventory: 'Inventory',
+    tailors: 'Tailors',
     
     totalCustomers: 'Total Customers',
     activeOrders: 'Active Orders',
@@ -140,6 +141,11 @@ export const translations = {
     totalItems: 'Total Items',
     lowStockItems: 'Low Stock Items',
     totalValue: 'Total Value',
+    spentOnInventory: 'Spent on Inventory',
+      today: 'Today',
+      present: 'Present',
+      absent: 'Absent',
+      leave: 'Leave',
     
     noItems: 'No inventory items yet',
     recentTransactions: 'Recent Transactions',
@@ -173,6 +179,7 @@ export const translations = {
     orders: 'ஆர்டர்கள்',
     track: 'ஆர்டரை கண்காணிக்க',
     inventory: 'சரக்கு',
+    tailors: 'தையல்காரர்கள்',
     
     totalCustomers: 'மொத்த வாடிக்கையாளர்கள்',
     activeOrders: 'செயலில் உள்ள ஆர்டர்கள்',
@@ -305,6 +312,11 @@ export const translations = {
     totalItems: 'மொத்த பொருட்கள்',
     lowStockItems: 'குறைந்த சரக்கு பொருட்கள்',
     totalValue: 'மொத்த மதிப்பு',
+    spentOnInventory: 'சரக்கு செலவு',
+      today: 'இன்று',
+      present: 'வருகை',
+      absent: 'வருகை இல்லை',
+      leave: 'விடுப்பு',
     
     noItems: 'இன்னும் சரக்கு பொருட்கள் இல்லை',
     recentTransactions: 'சமீபத்திய பரிவர்த்தனைகள்',

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+import { DebugPanel } from './DebugPanel';
 
 export function Login() {
   const { login, updatePassword, addUser, resetUsers, getAllUsers } = useAuth();
@@ -378,6 +379,9 @@ export function Login() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Debug Panel - Remove before production */}
+      <DebugPanel />
     </>
   );
 }

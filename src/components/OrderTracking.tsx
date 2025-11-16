@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { Order } from '@/lib/types';
 import { Card } from '@/components/ui/card';
@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, MagnifyingGlass, Phone, WhatsappLogo } from '@phosphor-icons/react';
+import { Package, MagnifyingGlass, Phone, WhatsappLogo, ClockCounterClockwise, TrendUp, CheckCircle } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { PhotoGallery } from './PhotoGallery';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
 interface OrderTrackingProps {
@@ -99,11 +100,70 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
     return statusMessages[order.status];
   };
 
+  const stats = useMemo(() => {
+    const pending = (orders || []).filter(o => o.status === 'pending').length;
+    const inProgress = (orders || []).filter(o => o.status === 'in-progress').length;
+    const ready = (orders || []).filter(o => o.status === 'ready').length;
+    const delivered = (orders || []).filter(o => o.status === 'delivered').length;
+
+    return [
+      {
+        label: t('pending'),
+        value: pending,
+        icon: ClockCounterClockwise,
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-50',
+      },
+      {
+        label: t('inProgress'),
+        value: inProgress,
+        icon: TrendUp,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+      },
+      {
+        label: t('ready'),
+        value: ready,
+        icon: Package,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+      },
+      {
+        label: t('delivered'),
+        value: delivered,
+        icon: CheckCircle,
+        color: 'text-slate-600',
+        bgColor: 'bg-slate-50',
+      },
+    ];
+  }, [orders, t]);
+
   return (
     <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
       <div className="text-center mb-6 sm:mb-8">
         <h1 className="text-xl sm:text-3xl font-bold mb-2 line-clamp-2">{t('trackYourOrder')}</h1>
         <p className="text-xs sm:text-base text-muted-foreground line-clamp-2">{t('enterPhoneOrOrderId')}</p>
+      </div>
+
+      {/* Stats Dashboard */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {stats.map((stat, index) => (
+          <Card key={index} className="p-3 sm:p-6">
+            <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
+              <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+                <stat.icon size={20} className="sm:size-7" weight="duotone" />
+              </div>
+              <div className="w-full min-w-0">
+                <p className="text-3xl sm:text-5xl font-bold text-foreground mb-1">
+                  {stat.value}
+                </p>
+                <p className="text-[9px] sm:text-xs font-medium text-muted-foreground line-clamp-2 leading-tight px-1">
+                  {stat.label}
+                </p>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
 
       <Card className="p-4 sm:p-6">
@@ -163,7 +223,7 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
             filteredOrders.map((order) => (
               <Card key={order.id} className="p-4 sm:p-6">
                 <div className="space-y-4 sm:space-y-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0">
+                  <div className="flex justify-between items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <h2 className="text-base sm:text-xl font-semibold mb-1 break-words line-clamp-2">
                         {order.customerName}
@@ -188,16 +248,22 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
                         </button>
                       </div>
                     </div>
-                    <Badge className={`${getStatusColor(order.status)} hidden sm:inline-flex text-xs`}>
-                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
-                    </Badge>
+                    <div className="text-right space-y-1 flex-shrink-0">
+                      <div className="flex justify-end">
+                        <Badge className={`${getStatusColor(order.status)} text-xs`}>
+                          {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
+                        {t('tailor')}: {order.assignedTailor}
+                      </p>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
+                        {t('deliveryDate')}: {order?.deliveryDate ? format(order.deliveryDate, 'MMM dd, yyyy') : 'TBD'}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-4 sm:space-y-6">
-                    <Badge className={`${getStatusColor(order.status)} sm:hidden w-fit text-xs`}>
-                      {t(order.status === 'in-progress' ? 'inProgress' : order.status)}
-                    </Badge>
-
                     <div className="relative">
                       <div className="flex justify-between mb-2">
                         {[
@@ -233,41 +299,30 @@ export function OrderTracking({ orders, initialFilter = 'all' }: OrderTrackingPr
                     </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 pt-3 sm:pt-4 border-t">
-                      <div className="min-w-0">
-                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1">
-                          {t('tailor')}
-                        </p>
-                        <p className="font-medium text-xs sm:text-base truncate">{order.assignedTailor}</p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] sm:text-sm text-muted-foreground mb-0.5 sm:mb-1 line-clamp-1">
-                          {t('deliveryDate')}
-                        </p>
-                        <p className="font-medium text-xs sm:text-base">
-                          {order?.deliveryDate ? format(order.deliveryDate, 'MMM dd, yyyy') : 'TBD'}
-                        </p>
-                      </div>
-                    </div>
-
                     {(order.fabricPhotos?.length || order.designPhotos?.length) && (
-                      <div className="pt-3 sm:pt-4 border-t space-y-3 sm:space-y-4">
-                        {order.fabricPhotos && order.fabricPhotos.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-[10px] sm:text-sm font-medium text-foreground">
-                              {t('fabricPhotos')} ({order.fabricPhotos.length})
-                            </p>
-                            <PhotoGallery photos={order.fabricPhotos} />
-                          </div>
-                        )}
-                        {order.designPhotos && order.designPhotos.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-[10px] sm:text-sm font-medium text-foreground">
-                              {t('designPhotos')} ({order.designPhotos.length})
-                            </p>
-                            <PhotoGallery photos={order.designPhotos} />
-                          </div>
-                        )}
+                      <div className="pt-3 sm:pt-4 border-t">
+                        <Accordion type="multiple" className="w-full">
+                          {order.fabricPhotos && order.fabricPhotos.length > 0 && (
+                            <AccordionItem value={`fabric-${order.id}`}>
+                              <AccordionTrigger className="text-[10px] sm:text-sm font-medium">
+                                {t('fabricPhotos')} ({order.fabricPhotos.length})
+                              </AccordionTrigger>
+                              <AccordionContent className="pt-2">
+                                <PhotoGallery photos={order.fabricPhotos} />
+                              </AccordionContent>
+                            </AccordionItem>
+                          )}
+                          {order.designPhotos && order.designPhotos.length > 0 && (
+                            <AccordionItem value={`design-${order.id}`}>
+                              <AccordionTrigger className="text-[10px] sm:text-sm font-medium">
+                                {t('designPhotos')} ({order.designPhotos.length})
+                              </AccordionTrigger>
+                              <AccordionContent className="pt-2">
+                                <PhotoGallery photos={order.designPhotos} />
+                              </AccordionContent>
+                            </AccordionItem>
+                          )}
+                        </Accordion>
                       </div>
                     )}
                   </div>

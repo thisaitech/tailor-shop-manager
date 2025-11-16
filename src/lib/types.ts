@@ -160,3 +160,16 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
 }
+
+// Tailor attendance tracking
+export type AttendanceStatus = 'present' | 'absent' | 'leave';
+
+export interface AttendanceRecord {
+  id: string; // ATT_<timestamp>
+  tailorId: string;
+  date: string; // YYYY-MM-DD
+  status: AttendanceStatus;
+  hours?: number;
+  note?: string;
+  createdAt: number;
+}

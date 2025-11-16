@@ -177,7 +177,7 @@ export function OwnerDashboard() {
             value="tailors" 
             className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
           >
-            Tailors
+            {t('tailors')}
           </TabsTrigger>
           <TabsTrigger 
             value="inventory" 
@@ -229,7 +229,7 @@ export function OwnerDashboard() {
         </TabsContent>
 
         <TabsContent value="inventory" className="space-y-6">
-          <InventoryStats items={inventory || []} />
+          <InventoryStats items={inventory || []} transactions={transactions || []} />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <InventoryList

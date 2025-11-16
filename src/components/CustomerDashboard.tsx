@@ -103,16 +103,16 @@ ${Object.entries(customerData.measurements || {}).map(([garment, measurements]) 
   return (
     <main className="container mx-auto px-4 py-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">My Account</h2>
+        <h2 className="text-2xl font-bold">{t('myAccount')}</h2>
         <p className="text-muted-foreground">Welcome, {customerData?.name || user?.name}</p>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="measurements">Measurements</TabsTrigger>
-          <TabsTrigger value="tailors">Tailors</TabsTrigger>
-          <TabsTrigger value="orders">Orders</TabsTrigger>
+          <TabsTrigger value="profile">{t('profile')}</TabsTrigger>
+          <TabsTrigger value="measurements">{t('measurements')}</TabsTrigger>
+          <TabsTrigger value="tailors">{t('tailors')}</TabsTrigger>
+          <TabsTrigger value="orders">{t('orders')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
