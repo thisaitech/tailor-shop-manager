@@ -229,28 +229,6 @@ export function Login() {
               </Button>
             </div>
 
-            <div className="mt-2">
-              <Button 
-                variant="destructive" 
-                className="w-full"
-                onClick={handleResetData}
-                type="button"
-              >
-                Reset Database (Admin Only)
-              </Button>
-            </div>
-
-            <div className="mt-2">
-              <Button 
-                variant="outline" 
-                className="w-full bg-green-50 hover:bg-green-100 border-green-300"
-                onClick={handleAddTestTailor}
-                type="button"
-              >
-                Add Test Tailor (1234567890 / password)
-              </Button>
-            </div>
-
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex gap-3">
               <Info size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-900">
