@@ -150,9 +150,156 @@ export function MeasurementDiagram({
             {points.map((point) => {
               const hasValue = measurements[point.id] !== undefined && measurements[point.id] !== null;
               if (!hasValue) return null;
+              const display = `${measurements[point.id]} cm`;
 
               // Draw measurement lines for visual feedback
-              if (isPantType) {
+              if (garmentType === 'body') {
+                // Body measurements - draw representative lines/markers
+                // For some long measurements we'll render the value on the arrow (midpoint) instead of near the point
+                const arrowLabelOnLine = ['totalHeight', 'neckToFloor', 'waistToFloor', 'legLength', 'armLength'];
+
+                const renderBubble = (x: number, y: number, text: string, overrideX?: number, overrideY?: number) => {
+                  const tx = typeof overrideX === 'number' ? overrideX : x + 6;
+                  const ty = typeof overrideY === 'number' ? overrideY : y - 6;
+                  // Bubble rectangle dimensions (approx)
+                  const bw = 46;
+                  const bh = 18;
+                  return (
+                    <g>
+                      <rect x={tx - 6} y={ty - 12} width={bw} height={bh} rx={6} fill="#FF6B35" opacity={0.95} />
+                      <text x={tx + bw / 2 - 6} y={ty + 2} fontSize={11} fill="#fff" textAnchor="middle" fontWeight={600}>{text}</text>
+                    </g>
+                  );
+                };
+
+                const mid = (x1: number, y1: number, x2: number, y2: number) => ({ x: (x1 + x2) / 2, y: (y1 + y2) / 2 });
+
+                if (point.id === 'totalHeight') {
+                  const x1 = 150, y1 = 20, x2 = 150, y2 = 385;
+                  const m = mid(x1, y1, x2, y2);
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FF6B35" strokeWidth="2" strokeDasharray="5,3" markerStart="url(#arrowhead)" markerEnd="url(#arrowhead)" />
+                      {arrowLabelOnLine.includes(point.id) ? renderBubble(m.x + 8, m.y - 6, display) : renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'neckToFloor') {
+                  const x1 = 150, y1 = 48, x2 = 150, y2 = 385;
+                  const m = mid(x1, y1, x2, y2);
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FF6B35" strokeWidth="2" markerStart="url(#arrowhead)" markerEnd="url(#arrowhead)" />
+                      {arrowLabelOnLine.includes(point.id) ? renderBubble(m.x + 8, m.y - 6, display) : renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'shoulderToWaistFront') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="150" y1="100" x2="150" y2="175" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'shoulderToWaistBack') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="120" y1="100" x2="120" y2="175" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'bustHeight') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="150" y1="105" x2="150" y2="125" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'bustSeparation') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="135" y1="120" x2="165" y2="120" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'bust') {
+                  // Move bust label slightly left as requested
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="110" y1="135" x2="190" y2="135" stroke="#FF6B35" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                      {renderBubble(point.x + 4, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'underBust') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="120" y1="150" x2="180" y2="150" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'waist') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="110" y1="175" x2="190" y2="175" stroke="#FF6B35" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'waistToFloor') {
+                  const x1 = 170, y1 = 175, x2 = 170, y2 = 385;
+                  const m = mid(x1, y1, x2, y2);
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FF6B35" strokeWidth="2" strokeDasharray="5,3" markerStart="url(#arrowhead)" markerEnd="url(#arrowhead)" />
+                      {renderBubble(m.x + 8, m.y - 6, display)}
+                    </g>
+                  );
+                } else if (point.id === 'hip') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="110" y1="200" x2="190" y2="200" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'thigh') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="130" y1="235" x2="170" y2="235" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'calf') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="130" y1="305" x2="170" y2="305" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                } else if (point.id === 'legLength') {
+                  const x1 = 140, y1 = 100, x2 = 140, y2 = 385;
+                  const m = mid(x1, y1, x2, y2);
+                  // Raise legLength label a bit as requested
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FF6B35" strokeWidth="2" strokeDasharray="5,3" markerStart="url(#arrowhead)" markerEnd="url(#arrowhead)" />
+                      {renderBubble(m.x + 8, m.y - 16, display)}
+                    </g>
+                  );
+                } else if (point.id === 'armLength') {
+                  const x1 = 190, y1 = 100, x2 = 240, y2 = 180;
+                  const m = mid(x1, y1, x2, y2);
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#FF6B35" strokeWidth="2" strokeDasharray="5,3" markerStart="url(#arrowhead)" markerEnd="url(#arrowhead)" />
+                      {renderBubble(m.x + 6, m.y - 6, display)}
+                    </g>
+                  );
+                } else if (point.id === 'wrist') {
+                  return (
+                    <g key={`arrow-${point.id}`}>
+                      <line x1="235" y1="180" x2="245" y2="180" stroke="#FF6B35" strokeWidth="2" />
+                      {renderBubble(point.x, point.y, display)}
+                    </g>
+                  );
+                }
+              } else if (isPantType) {
                 if (point.id === 'waist') {
                   return (
                     <g key={`arrow-${point.id}`}>
@@ -272,7 +419,7 @@ export function MeasurementDiagram({
                     </text>
                   )}
                   {/* Value display */}
-                  {hasValue && !isHovered && !isActive && (
+                  {hasValue && !isHovered && !isActive && garmentType !== 'body' && (
                     <text
                       x={point.cx}
                       y={point.cy! - 15}
