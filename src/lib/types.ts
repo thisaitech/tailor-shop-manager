@@ -52,6 +52,8 @@ export interface Measurements {
     chest?: number;
     sleeve?: number;
   };
+  // General body measurements (height, bust, waist, etc.)
+  body?: { [key: string]: number | undefined };
 }
 
 export interface Customer {

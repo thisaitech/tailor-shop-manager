@@ -45,6 +45,14 @@ export const translations = {
     chest: 'Chest',
     sleeve: 'Sleeve',
     neck: 'Neck',
+    bodyMeasurements: 'Body Measurements',
+    totalHeight: 'Total Height',
+    neckToFloor: 'Neck to Floor',
+    shoulderToWaist: 'Shoulder to Waist',
+    underBust: 'Under Bust',
+    calf: 'Calf',
+    armLength: 'Arm Length',
+    wrist: 'Wrist',
     
     customer: 'Customer',
     garmentType: 'Garment Type',
@@ -171,6 +179,35 @@ export const translations = {
     profile: 'Profile',
     myAccount: 'My Account',
     myDashboard: 'My Dashboard',
+    clickOnBodyPart: 'Click on body part to enter measurement',
+
+    // Measurement Guide
+    measurementGuide: 'How to Measure',
+    howToMeasure: 'How to Measure',
+    upperBody: 'Upper Body',
+    lowerBody: 'Lower Body',
+    close: 'Close',
+
+    // Measurement Descriptions
+    shoulderGuide: 'Measure from one shoulder point across the back to the other shoulder point.',
+    chestGuide: 'Measure around the fullest part of the chest, keeping the tape parallel to the floor.',
+    waistGuide: 'Measure around the natural waistline, keeping one finger between the body and tape.',
+    sleeveGuide: 'Measure from shoulder point to wrist with arm slightly bent.',
+    neckGuide: 'Measure around the base of the neck where the collar would sit.',
+    lengthGuideUpper: 'Measure from the shoulder point straight down to desired length.',
+    waistGuideLower: 'Measure around the natural waist where the pants will sit.',
+    hipGuide: 'Measure around the fullest part of the hips.',
+    thighGuide: 'Measure around the fullest part of the thigh.',
+    lengthGuideLower: 'Measure from waist down to the desired pants length.',
+    bottomGuide: 'Measure the circumference of the ankle or leg opening.',
+    inseamGuide: 'Measure from crotch seam down to the desired pants length.',
+
+    // Tips
+    measurementTips: 'Measurement Tips',
+    tip1: 'Always measure over the undergarments that will be worn with the garment',
+    tip2: 'Keep the measuring tape parallel to the floor and snug but not tight',
+    tip3: 'Stand in a relaxed, natural position during measurement',
+    tip4: 'Take measurements twice to ensure accuracy',
   },
   ta: {
     appName: 'தையல் கடை',
@@ -216,6 +253,14 @@ export const translations = {
     chest: 'மார்பு',
     sleeve: 'கை',
     neck: 'கழுத்து',
+    bodyMeasurements: 'உடல் அளவுகள்',
+    totalHeight: 'மொத்த உயரம்',
+    neckToFloor: 'கழுத்து முதல் தரை வரை',
+    shoulderToWaist: 'தோள் முதல் இடுப்பு வரை',
+    underBust: 'அடிப்பகுதி மார்பு',
+    calf: 'மடு',
+    armLength: 'கை நீளம்',
+    wrist: 'கைக்கால்',
     
     customer: 'வாடிக்கையாளர்',
     garmentType: 'ஆடை வகை',
@@ -342,6 +387,35 @@ export const translations = {
     profile: 'சுயவிவரம்',
     myAccount: 'என் கணக்கு',
     myDashboard: 'என் முகப்பு',
+    clickOnBodyPart: 'அளவை உள்ளிட உடல் பகுதியைக் கிளிக் செய்யவும்',
+
+    // Measurement Guide
+    measurementGuide: 'எப்படி அளவிடுவது',
+    howToMeasure: 'எப்படி அளவிடுவது',
+    upperBody: 'மேல் உடல்',
+    lowerBody: 'கீழ் உடல்',
+    close: 'மூடு',
+
+    // Measurement Descriptions
+    shoulderGuide: 'ஒரு தோள் புள்ளியிலிருந்து முதுகின் குறுக்கே மற்றொரு தோள் புள்ளி வரை அளவிடவும்.',
+    chestGuide: 'மார்பின் மிக முழு பகுதியை சுற்றி அளவிடவும், டேப்பை தரையுடன் இணையாக வைக்கவும்.',
+    waistGuide: 'இயற்கையான இடுப்பை சுற்றி அளவிடவும், உடலுக்கும் டேப்பிற்கும் இடையே ஒரு விரலை வைக்கவும்.',
+    sleeveGuide: 'தோள் புள்ளியிலிருந்து மணிக்கட்டு வரை கை சற்று வளைந்த நிலையில் அளவிடவும்.',
+    neckGuide: 'கழுத்தின் அடிப்பகுதியை சுற்றி காலர் அமரும் இடத்தில் அளவிடவும்.',
+    lengthGuideUpper: 'தோள் புள்ளியிலிருந்து நேராக கீழே விரும்பிய நீளம் வரை அளவிடவும்.',
+    waistGuideLower: 'பேன்ட் அமரும் இயற்கையான இடுப்பை சுற்றி அளவிடவும்.',
+    hipGuide: 'இடுப்பின் மிக முழு பகுதியை சுற்றி அளவிடவும்.',
+    thighGuide: 'தொடையின் மிக முழு பகுதியை சுற்றி அளவிடவும்.',
+    lengthGuideLower: 'இடுப்பிலிருந்து கீழே விரும்பிய பேன்ட் நீளம் வரை அளவிடவும்.',
+    bottomGuide: 'கணுக்கால் அல்லது கால் திறப்பின் சுற்றளவை அளவிடவும்.',
+    inseamGuide: 'கிராச் சீமிலிருந்து கீழே விரும்பிய பேன்ட் நீளம் வரை அளவிடவும்.',
+
+    // Tips
+    measurementTips: 'அளவீட்டு குறிப்புகள்',
+    tip1: 'உடையுடன் அணியப்படும் உள்ளாடைகளுக்கு மேல் எப்போதும் அளவிடவும்',
+    tip2: 'அளவிடும் டேப்பை தரையுடன் இணையாகவும் இறுக்கமாக ஆனால் இறுக்காமலும் வைக்கவும்',
+    tip3: 'அளவிடும்போது இயல்பான, நிதானமான நிலையில் நிற்கவும்',
+    tip4: 'துல்லியத்தை உறுதி செய்ய அளவீடுகளை இரண்டு முறை எடுக்கவும்',
   },
 };
 
