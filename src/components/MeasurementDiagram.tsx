@@ -101,6 +101,7 @@ export function MeasurementDiagram({
   const { t } = useLanguage();
   const [hoveredPoint, setHoveredPoint] = useState<string | null>(null);
   const [activePoint, setActivePoint] = useState<string | null>(null);
+  const [usePhoto, setUsePhoto] = useState<boolean>(false);
 
   const points = MEASUREMENT_POINTS[garmentType] || [];
 
@@ -122,7 +123,20 @@ export function MeasurementDiagram({
           <h3 className="text-sm font-medium text-center flex-1">
             {t('clickOnBodyPart')}
           </h3>
-          <MeasurementGuide garmentType={isPantType ? 'lower' : 'upper'} />
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-muted-foreground">Photo mode</label>
+            <button
+              type="button"
+              onClick={() => setUsePhoto((s) => !s)}
+              className={cn(
+                'px-2 py-1 rounded text-xs transition',
+                usePhoto ? 'bg-primary text-white' : 'bg-muted/20 text-muted-foreground'
+              )}
+            >
+              {usePhoto ? 'On' : 'Off'}
+            </button>
+            <MeasurementGuide garmentType={isPantType ? 'lower' : 'upper'} />
+          </div>
         </div>
         <div className="relative bg-muted/30 rounded-lg p-4 inline-block">
           <svg
@@ -130,21 +144,38 @@ export function MeasurementDiagram({
             className="w-full max-w-[300px] h-auto"
             style={{ minHeight: '400px' }}
           >
-            {/* Try to load real photo first, fallback to SVG */}
-            <image
-              href={`/images/measurements/${gender}-${isPantType ? 'lower' : 'upper'}-body.jpg`}
-              x="0"
-              y="0"
-              width="300"
-              height="400"
-              preserveAspectRatio="xMidYMid meet"
-              onError={(e) => {
-                // Hide image if it fails to load, SVG will show instead
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            {/* SVG illustration as fallback */}
-            <BodyDiagram gender={gender} type={isPantType ? 'lower' : 'upper'} />
+            {/* Image or SVG illustration */}
+            {usePhoto ? (
+              <image
+                href={`/images/measurements/${gender}-${isPantType ? 'lower' : 'upper'}-photo.jpg`}
+                x="0"
+                y="0"
+                width="300"
+                height="400"
+                preserveAspectRatio="xMidYMid meet"
+                onError={(e) => {
+                  // Hide image if it fails to load, SVG will show instead
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <>
+                {/* Try to load real photo first, fallback to SVG */}
+                <image
+                  href={`/images/measurements/${gender}-${isPantType ? 'lower' : 'upper'}-body.jpg`}
+                  x="0"
+                  y="0"
+                  width="300"
+                  height="400"
+                  preserveAspectRatio="xMidYMid meet"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                {/* SVG illustration as fallback */}
+                <BodyDiagram gender={gender} type={isPantType ? 'lower' : 'upper'} />
+              </>
+            )}
 
             {/* Measurement arrows and lines */}
             {points.map((point) => {
