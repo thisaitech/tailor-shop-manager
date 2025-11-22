@@ -1,12 +1,31 @@
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { AdminMenu } from '@/components/AdminMenu';
+import { EmployeeMenu } from '@/components/EmployeeMenu';
 import { Button } from '@/components/ui/button';
 import { Scissors, SignOut } from '@phosphor-icons/react';
+import { toast } from 'sonner';
 
-export function Header() {
-  const { user, logout } = useAuth();
+interface HeaderProps {
+  onProfileClick?: () => void;
+  onEmployeeClick?: () => void;
+  onVendorClick?: () => void;
+  onDesignClick?: () => void;
+  onPaymentClick?: () => void;
+  onDeliveryChallanClick?: () => void;
+  onGoodsReceiptClick?: () => void;
+  onEmployeeProfileClick?: () => void;
+}
+
+export function Header({ onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick }: HeaderProps) {
+  const { user, employee, logout } = useAuth();
   const { t } = useLanguage();
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Logout successful');
+  };
 
   return (
     <header className="border-b bg-card/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
@@ -27,10 +46,24 @@ export function Header() {
           </div>
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <Button variant="outline" size="sm" onClick={logout} className="gap-2">
-              <SignOut size={16} />
-              <span className="hidden sm:inline">Logout</span>
-            </Button>
+            {user?.role === 'owner' && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
+              <AdminMenu
+                onProfileClick={onProfileClick}
+                onEmployeeClick={onEmployeeClick}
+                onVendorClick={onVendorClick}
+                onDesignClick={onDesignClick}
+                onPaymentClick={onPaymentClick}
+                onDeliveryChallanClick={onDeliveryChallanClick}
+                onGoodsReceiptClick={onGoodsReceiptClick}
+              />
+            ) : employee && onEmployeeProfileClick ? (
+              <EmployeeMenu onProfileClick={onEmployeeProfileClick} />
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+                <SignOut size={16} />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>

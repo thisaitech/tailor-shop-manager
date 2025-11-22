@@ -11,18 +11,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { DebugPanel } from './DebugPanel';
+import { ChangePasswordDialog } from './ChangePasswordDialog';
 
 export function Login() {
-  const { login, updatePassword, addUser, resetUsers, getAllUsers } = useAuth();
+  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee } = useAuth();
   const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+  const [showEmployeePasswordSetup, setShowEmployeePasswordSetup] = useState(false);
   const [showCustomerRegistration, setShowCustomerRegistration] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+  const [tempEmployee, setTempEmployee] = useState<any>(null); // Temporary employee storage for first login
+
   const [customerForm, setCustomerForm] = useState({
     name: '',
     phone: '',
@@ -34,7 +37,7 @@ export function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!username || !password) {
       toast.error('Please enter phone number and password');
       return;
@@ -44,13 +47,27 @@ export function Login() {
     const result = await login(username, password);
     setIsLoading(false);
 
+    console.log('[Login] Login result:', result);
+
     if (result.success) {
+      console.log('[Login] Login successful');
       if (result.needsPasswordSetup) {
-        setShowPasswordSetup(true);
+        console.log('[Login] Password setup needed. isEmployee:', result.isEmployee);
+        if (result.isEmployee) {
+          console.log('[Login] ✅ Setting showEmployeePasswordSetup to TRUE');
+          console.log('[Login] Employee data from login:', result.employeeData);
+          setTempEmployee(result.employeeData); // Store employee data temporarily
+          setShowEmployeePasswordSetup(true);
+        } else {
+          console.log('[Login] Setting showPasswordSetup to TRUE (non-employee)');
+          setShowPasswordSetup(true);
+        }
       } else {
+        console.log('[Login] No password setup needed - showing success toast');
         toast.success('Login successful');
       }
     } else {
+      console.log('[Login] Login failed:', result.message);
       toast.error(result.message || 'Login failed');
     }
   };
@@ -59,7 +76,7 @@ export function Login() {
     const defaultUser: User = {
       id: 'USER1',
       username: '9486229273',
-      password: 'admin123',
+      password: 'password',
       role: 'owner',
       name: 'Thisai Technologies Tailor',
       phone: '9486229273',
@@ -67,9 +84,9 @@ export function Login() {
       hasSetupPassword: true,
       createdAt: Date.now(),
     };
-    
+
     resetUsers([defaultUser]);
-    toast.success('Database reset! Use phone: 9486229273, password: admin123');
+    toast.success('Database reset! Use phone: 9486229273, password: password');
   };
 
   const handleAddTestTailor = () => {
@@ -357,6 +374,31 @@ export function Login() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Employee First Login Password Change */}
+      {(() => {
+        console.log('[Login] Modal render check - showEmployeePasswordSetup:', showEmployeePasswordSetup);
+        console.log('[Login] Modal render check - tempEmployee:', tempEmployee);
+        if (showEmployeePasswordSetup && tempEmployee) {
+          console.log('[Login] ✅ RENDERING ChangePasswordDialog');
+          return (
+            <ChangePasswordDialog
+              employeeId={tempEmployee.id}
+              employeeName={tempEmployee.name}
+              onSuccess={() => {
+                console.log('[Login] Password change successful - redirecting to dashboard');
+                setShowEmployeePasswordSetup(false);
+                setTempEmployee(null); // Clear temp storage
+                toast.success('Password changed successfully! Redirecting...');
+                // Reload the page to trigger login with new password
+                window.location.reload();
+              }}
+            />
+          );
+        }
+        console.log('[Login] ❌ NOT rendering ChangePasswordDialog');
+        return null;
+      })()}
 
       {/* Debug Panel - Remove before production */}
       <DebugPanel />

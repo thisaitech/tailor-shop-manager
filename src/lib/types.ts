@@ -3,28 +3,67 @@ export type Gender = 'male' | 'female';
 export type OrderStatus = 'pending' | 'in-progress' | 'ready' | 'delivered';
 
 export interface Measurements {
-  pant?: {
+  // Shirt measurements (inches)
+  shirt?: {
+    chest?: number;
+    waist?: number;
     length?: number;
+    shoulder?: number;
+  };
+  // Pant measurements (inches)
+  pant?: {
+    waist?: number;
+    inseam?: number;
+    outseam?: number;
+    rise?: number;
+    thigh?: number;
+    hips?: number;
+    legOpening?: number;
+  };
+  // Coat measurements (inches)
+  coat?: {
+    standardSize?: string;
+    chest?: number;
+    waist?: number;
+    length?: number;
+    shoulder?: number;
+  };
+  // Chudithar Top measurements (inches)
+  chuditharTop?: {
+    shoulder?: number;
+    bust?: number;
     waist?: number;
     hip?: number;
+    length?: number;
+  };
+  // Chudithar Pant measurements (inches)
+  chuditharPant?: {
+    waist?: number;
+    hip?: number;
+    inseam?: number;
+    fullLength?: number;
+  };
+  // Blouse measurements (inches)
+  blouse?: {
+    shoulder?: number;
+    chest?: number;
+    neckDepthFront?: number;
+    neckDepthBack?: number;
+    armhole?: number;
+    halfSleeve?: number;
+    fullSleeve?: number;
+  };
+  // Trouser measurements (inches)
+  trouser?: {
+    waist?: number;
+    inseam?: number;
+    outseam?: number;
+    rise?: number;
     thigh?: number;
-    bottom?: number;
+    hips?: number;
+    legOpening?: number;
   };
-  shirt?: {
-    length?: number;
-    shoulder?: number;
-    chest?: number;
-    waist?: number;
-    sleeve?: number;
-    neck?: number;
-  };
-  coat?: {
-    length?: number;
-    shoulder?: number;
-    chest?: number;
-    waist?: number;
-    sleeve?: number;
-  };
+  // Legacy fields for backward compatibility
   blazer?: {
     length?: number;
     shoulder?: number;
@@ -55,12 +94,111 @@ export interface Measurements {
 }
 
 export interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  place: string;
+  id: string; // Auto-generated customer code
+  name: string; // Customer Name (max 40 chars, required)
+  aliasName?: string; // Alias Name (max 40 chars, optional)
+  phone: string; // Contact Number (max 15 chars, required)
+  whatsappNumber?: string; // WhatsApp Number (max 15 chars, optional)
+  place: string; // City (required)
+  address1?: string; // Address 1 (max 40 chars)
+  address2?: string; // Address 2 (max 40 chars)
+  pincode?: string; // Pincode (exactly 6 digits)
+  region?: string; // Region
+  state?: string; // State
+  country?: string; // Country
   gender: Gender;
   measurements?: Measurements;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Service Order
+export type OrderCategory = 'male' | 'female' | 'kids';
+export type ServiceOrderStatus = 'open' | 'allotment' | 'job-network' | 'ready' | 'delivered';
+
+// Unit of Measurement (UOM)
+export type UOM = 'Nos' | 'Cms' | 'Inches' | 'Meters' | 'Yards' | 'Feet' | 'Pieces' | 'Sets';
+
+// Dress Type for line items
+export type DressType = 'shirt' | 'pant' | 'coat' | 'chuditharTop' | 'chuditharPant' | 'blouse' | 'trouser' | 'other';
+
+// Individual dress line item in a service order
+export interface DressItem {
+  id: string; // Unique ID within the order (e.g., "ITEM-1", "ITEM-2")
+  dressType: DressType; // Type of dress
+  dressName: string; // Custom name or description
+  quantity: number; // Quantity for this dress type
+  stitchingCost: number; // Cost for this dress item
+  measurements?: Measurements; // Specific measurements for this item
+  designImages?: string[]; // Design images for this item
+  notes?: string; // Special instructions for this item
+  isAllotted?: boolean; // Whether this item has been assigned to a tailor
+}
+
+export interface ServiceOrder {
+  id: string; // Service Order No (SO0001, SO0002, etc.)
+  serviceOrderDate: number; // Auto-set to current date
+  customerId: string; // Reference to Customer
+  customerName: string; // Denormalized for display
+  orderCategory: OrderCategory; // Male/Female/Kids
+  measurements?: Measurements; // Current measurements (will be saved to customer profile)
+  previousMeasurements?: Measurements; // Measurement history - customer's measurements at order creation time
+  dressItems?: DressItem[]; // Array of dress line items (new - multiple dresses)
+  orderQty: number; // Total numeric quantity (sum of all dress items)
+  uom: UOM; // Unit of Measurement (Nos, Cms, Inches, etc.)
+  designList: string[]; // Array of design image URLs (legacy)
+  stitchingCost: number; // Total INR amount (sum of all dress items)
+  expectedDeliveryDate: number; // Delivery date timestamp
+  reference?: string; // Notes, instructions
+  orderStatus: ServiceOrderStatus; // In-Progress/Pending/Ready/Delivered
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Order Allotment
+export type StitchingAllotmentType = 'employee' | 'vendor';
+export type OrderTicketStatus = 'open' | 'in-progress' | 'closed';
+
+export interface OrderAllotment {
+  id: string; // Job Work No (JOB0001, JOB0002, etc.)
+  jobWorkDate: number; // Auto-set to current date
+  serviceOrderNo: string; // Reference to Service Order ID
+  dressItemId?: string; // Reference to specific dress item ID (new)
+  dressItemName?: string; // Dress item name for display (new)
+  customerName: string; // Denormalized from service order
+  customerId: string; // Customer ID reference
+  stitchingAllotment: StitchingAllotmentType; // Employee or Vendor
+  assignedTo: string; // Employee ID or Vendor ID
+  assignedName: string; // Employee/Vendor name (denormalized)
+  materialCost: number; // Material cost in INR
+  jobWorkCost: number; // Job work cost in INR
+  expectedDeliveryDate: number; // Delivery date timestamp
+  orderStatus: OrderTicketStatus; // Open/In Progress/Closed
+  serviceOrderStatus: ServiceOrderStatus; // Status to update in service order
+  companyId: string; // Company unique ID
+  adminId: string; // Admin user ID who created allotment
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Advance Payment
+export type ModeOfPayment = 'cash' | 'qrpay' | 'nil';
+
+export interface AdvancePayment {
+  id: string; // Proforma Invoice No (PI0001, PI0002, etc.)
+  proformaInvoiceNo: string; // Same as id
+  invoiceNo: string; // Invoice No (INV0001, INV0002, etc.)
+  proformaInvoiceDate: number; // Auto-set to current date
+  serviceOrderNo: string; // Reference to Service Order ID
+  jobWorkNo: string; // Reference to Job Work ID
+  customerId: string; // Customer ID reference
+  customerName: string; // Denormalized from service order
+  modeOfPayment: ModeOfPayment; // Cash / QRpay / Nil
+  amount: number; // Advance amount in INR
+  totalJobCost: number; // Total cost (material + job work)
+  remainingAmount: number; // Auto-calculated: totalJobCost - amount
+  companyId: string; // Company unique ID
+  adminId: string; // Admin user ID who created payment
   createdAt: number;
   updatedAt: number;
 }
@@ -172,4 +310,96 @@ export interface AttendanceRecord {
   hours?: number;
   note?: string;
   createdAt: number;
+}
+
+// Company Profile
+export type BusinessType = 'service' | 'sales' | 'sales_and_services';
+
+export interface CompanyProfile {
+  id: string; // Auto-generated company ID
+  companyName: string; // max 40 chars
+  aliasName?: string; // max 40 chars, optional
+  businessType: BusinessType;
+  productCategory: string; // e.g., "Readymades"
+  address1: string; // max 40 chars
+  address2?: string; // max 40 chars
+  city: string;
+  pincode: string; // 6 digits
+  region: string;
+  state: string;
+  country: string;
+  contactNumber: string; // max 20 digits
+  panNumber: string; // 15 chars, uppercase
+  udhyamMsmeNo?: string; // 15 chars, optional
+  gstinNumber: string; // 15 chars
+  bankName: string;
+  accountNumber: string;
+  accountHolderName: string;
+  branchName: string;
+  ifscCode: string;
+  bankContactNumber: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Employee
+export type EmployeeRole = 'manager' | 'accountant' | 'staff' | 'tailor' | 'other';
+export type EmployeeGender = 'male' | 'female';
+
+export interface Employee {
+  id: string; // Auto-generated employee code (EMP0001, EMP0002, etc.)
+  employeeCode: string; // Same as id, for display
+  name: string; // max 40 chars
+  aliasName?: string; // max 40 chars
+  gender: EmployeeGender;
+  profilePicture?: string; // URL or base64 string for profile picture
+  email?: string;
+  contactNumber: string; // max 15 digits, used as login ID
+  whatsappNumber?: string; // max 15 digits
+  address1?: string; // max 40 chars
+  address2?: string; // max 40 chars
+  city?: string;
+  pincode?: string; // 6 digits
+  region?: string;
+  state?: string;
+  country?: string;
+  role: EmployeeRole;
+  designation?: string;
+  joiningDate: number;
+  accessPermissions: string[]; // e.g., ['view_orders', 'manage_inventory']
+  accessPermissionEnabled: boolean; // If true, employee can login and appears in list
+  isActive: boolean;
+  firstLogin: boolean; // true by default, set to false after password change
+  companyId: string; // Company unique ID
+  companyDocId: string; // Firestore document ID of company
+  createdBy: string; // Admin user ID who created employee
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Vendor (Tailor Master)
+export type VendorGender = 'male' | 'female';
+export type VendorBusinessType = 'stitching' | 'aari_work' | 'others';
+
+export interface Vendor {
+  id: string; // Auto-generated tailor code (TAL0001, TAL0002, etc.)
+  tailorCode: string; // Same as id, for display
+  tailorName: string; // max 40 chars
+  aliasName?: string; // max 40 chars
+  gender: VendorGender;
+  businessType: VendorBusinessType;
+  address1: string; // max 40 chars
+  address2?: string; // max 40 chars
+  city: string;
+  pincode: string; // 6 digits
+  region: string;
+  state: string;
+  country: string;
+  contactNumber: string; // max 15 digits
+  whatsappNumber: string; // max 15 digits
+  companyId: string; // Company unique ID
+  companyDocId: string; // Firestore document ID of company
+  createdBy: string; // Admin user ID who created vendor
+  createdAt: number;
+  updatedAt: number;
 }

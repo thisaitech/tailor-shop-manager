@@ -1,48 +1,78 @@
+import { storage } from './firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+
 /**
- * Upload a photo (convert to base64 data URL)
+ * Upload a photo to Firebase Storage
  * @param file - File to upload
- * @param path - Storage path (e.g., 'customers/photos', 'orders/fabric')
- * @returns Data URL of the file
+ * @param path - Storage path (e.g., 'customers/photos', 'orders/designs')
+ * @returns Download URL of the uploaded file
  */
 export async function uploadPhoto(file: File, path: string): Promise<string> {
   try {
-    return await fileToDataUrl(file);
+    // Generate unique filename
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 9);
+    const filename = `${timestamp}_${randomString}_${file.name}`;
+    const storageRef = ref(storage, `${path}/${filename}`);
+
+    console.log(`[Storage] Uploading ${file.name} to ${path}/${filename}`);
+
+    // Upload file
+    const snapshot = await uploadBytes(storageRef, file);
+    console.log(`[Storage] Upload successful:`, snapshot.metadata.fullPath);
+
+    // Get download URL
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    console.log(`[Storage] Download URL:`, downloadURL);
+
+    return downloadURL;
   } catch (error) {
-    console.error('Error uploading photo:', error);
+    console.error('[Storage] Error uploading photo:', error);
     throw error;
   }
 }
 
 /**
- * Upload multiple photos
+ * Upload multiple photos to Firebase Storage
  * @param files - Array of files to upload
  * @param path - Storage path
- * @returns Array of data URLs
+ * @returns Array of download URLs
  */
 export async function uploadPhotos(files: File[], path: string): Promise<string[]> {
   try {
     const uploadPromises = files.map((file) => uploadPhoto(file, path));
     return await Promise.all(uploadPromises);
   } catch (error) {
-    console.error('Error uploading photos:', error);
+    console.error('[Storage] Error uploading photos:', error);
     throw error;
   }
 }
 
 /**
- * Delete a photo (no-op for data URLs)
- * @param url - Data URL of the photo
+ * Delete a photo from Firebase Storage
+ * @param url - Download URL of the photo
  */
 export async function deletePhoto(url: string): Promise<void> {
-  return Promise.resolve();
+  try {
+    // Extract storage path from URL
+    const storageRef = ref(storage, url);
+    await deleteObject(storageRef);
+    console.log('[Storage] Photo deleted successfully');
+  } catch (error) {
+    console.error('[Storage] Error deleting photo:', error);
+    // Don't throw error if file doesn't exist
+    if ((error as any).code !== 'storage/object-not-found') {
+      throw error;
+    }
+  }
 }
 
 /**
- * Convert File to base64 data URL
+ * Convert File to base64 data URL (for preview purposes)
  * @param file - File to convert
  * @returns Promise with data URL
  */
-function fileToDataUrl(file: File): Promise<string> {
+export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);

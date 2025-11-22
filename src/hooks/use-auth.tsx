@@ -1,11 +1,14 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useStorage } from './use-storage';
 import { User, UserRole } from '@/lib/types';
+import { verifyEmployeeCredentials } from '@/lib/firestore/employeeService';
+import type { EmployeeWithCompany } from '@/lib/firestore/employeeService';
 
 interface AuthContextType {
   user: User | null;
+  employee: EmployeeWithCompany | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; message?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; employeeData?: EmployeeWithCompany; message?: string }>;
   logout: () => void;
   updatePassword: (newPassword: string) => Promise<void>;
   addUser: (user: User) => void;
@@ -20,27 +23,61 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useStorage<User[]>('auth_users', []);
   const [currentUser, setCurrentUser] = useStorage<User | null>('current_user', null);
+  const [currentEmployee, setCurrentEmployee] = useStorage<EmployeeWithCompany | null>('current_employee', null);
 
-  const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; message?: string }> => {
+  const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; employeeData?: EmployeeWithCompany; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
     console.log('Username:', username);
     console.log('Password:', password);
+
+    // First, check if this is an employee login (Firestore)
+    console.log('Checking Firestore for employee credentials...');
+    const employee = await verifyEmployeeCredentials(username, password);
+
+    if (employee) {
+      console.log('[Auth] Found employee:', employee);
+      console.log('[Auth] Employee firstLogin status:', employee.firstLogin);
+      console.log('[Auth] Employee isActive status:', employee.isActive);
+
+      if (!employee.isActive) {
+        console.log('[Auth] Employee account is not active');
+        return { success: false, message: 'Your account is not active. Please contact the administrator.' };
+      }
+
+      if (employee.firstLogin) {
+        console.log('[Auth] ✅ FIRST LOGIN DETECTED - NOT setting employee in storage yet');
+        console.log('[Auth] Will set employee after password change');
+        // DON'T set employee in storage yet - wait for password change
+        // This prevents premature redirect to dashboard
+        // Return employee data so Login component can show the modal
+        return { success: true, needsPasswordSetup: true, isEmployee: true, employeeData: employee };
+      }
+
+      console.log('[Auth] Setting current employee in storage');
+      setCurrentEmployee(employee);
+      setCurrentUser(null); // Clear any existing user session
+
+      console.log('[Auth] Not first login - proceeding to dashboard');
+      return { success: true, isEmployee: true };
+    }
+
+    // If not an employee, check localStorage users (owner, tailor, customer)
     console.log('Total users in storage:', (users || []).length);
-    console.log('All users:', (users || []).map(u => ({ 
-      id: u.id, 
-      username: u.username, 
-      password: u.password, 
+    console.log('All users:', (users || []).map(u => ({
+      id: u.id,
+      username: u.username,
+      password: u.password,
       role: u.role,
-      name: u.name 
+      name: u.name
     })));
-    
+
     const user = (users || []).find(u => {
       console.log(`Checking user ${u.username}: username match=${u.username === username}, password match=${u.password === password}`);
       return u.username === username && u.password === password;
     });
-    
+
     console.log('Found user:', user);
-    
+
     if (!user) {
       return { success: false, message: 'Invalid username or password' };
     }
@@ -48,14 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user.role !== 'customer' && !user.isActive) {
       return { success: false, message: 'Your account is not active. Please contact the administrator.' };
     }
-    
+
     setCurrentUser(user);
-    
+    setCurrentEmployee(null); // Clear any existing employee session
+
     if (!user.hasSetupPassword) {
-      return { success: true, needsPasswordSetup: true };
+      return { success: true, needsPasswordSetup: true, isEmployee: false };
     }
-    
-    return { success: true };
+
+    return { success: true, isEmployee: false };
   };
 
   const updatePassword = async (newPassword: string) => {
@@ -74,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
+    setCurrentEmployee(null);
   };
 
   const addUser = (user: User) => {
@@ -108,10 +147,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[AuthContext] Users after delete:', updatedUsers);
   };
 
-  const isAuthenticated = currentUser !== null && currentUser !== undefined;
+  const isAuthenticated = (currentUser !== null && currentUser !== undefined) || (currentEmployee !== null && currentEmployee !== undefined);
 
   return (
-    <AuthContext.Provider value={{ user: currentUser ?? null, isAuthenticated, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
+    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, isAuthenticated, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
       {children}
     </AuthContext.Provider>
   );

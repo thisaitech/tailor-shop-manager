@@ -1,23 +1,30 @@
 import { useLanguage } from '@/hooks/use-language';
 import { Card } from '@/components/ui/card';
 import { Users, Scissors, Package, CheckCircle } from '@phosphor-icons/react';
-import { Order, OrderStatus } from '@/lib/types';
+import { Order, ServiceOrder } from '@/lib/types';
 
 interface DashboardStatsProps {
   totalCustomers: number;
   orders: Order[];
+  serviceOrders?: ServiceOrder[];
   onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed') => void;
 }
 
-export function DashboardStats({ totalCustomers, orders, onStatClick }: DashboardStatsProps) {
+export function DashboardStats({ totalCustomers, orders, serviceOrders, onStatClick }: DashboardStatsProps) {
   const { t } = useLanguage();
 
-  const activeOrders = (orders || []).filter(
-    (o) => o.status === 'pending' || o.status === 'in-progress'
-  ).length;
+  // Use serviceOrders if available, otherwise fall back to old orders array
+  const activeOrders = serviceOrders
+    ? serviceOrders.filter((o) => o.orderStatus !== 'delivered').length
+    : (orders || []).filter((o) => o.status === 'pending' || o.status === 'in-progress').length;
 
-  const readyOrders = (orders || []).filter((o) => o.status === 'ready').length;
-  const completedOrders = (orders || []).filter((o) => o.status === 'delivered').length;
+  const readyOrders = serviceOrders
+    ? serviceOrders.filter((o) => o.orderStatus === 'ready').length
+    : (orders || []).filter((o) => o.status === 'ready').length;
+
+  const completedOrders = serviceOrders
+    ? serviceOrders.filter((o) => o.orderStatus === 'delivered').length
+    : (orders || []).filter((o) => o.status === 'delivered').length;
 
   const stats = [
     {
@@ -59,8 +66,7 @@ export function DashboardStats({ totalCustomers, orders, onStatClick }: Dashboar
       {stats.map((stat, index) => (
         <Card
           key={index}
-          className="p-3 sm:p-6 hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95"
-          onClick={() => onStatClick?.(stat.filter)}
+          className="p-3 sm:p-6 transition-all duration-200"
         >
           <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
             <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>

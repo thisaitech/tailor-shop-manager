@@ -19,7 +19,7 @@ export function DebugPanel() {
       {
         id: 'USER1',
         username: '9486229273',
-        password: 'password123',
+        password: 'password',
         role: 'owner',
         name: 'Admin',
         phone: '9486229273',
@@ -70,7 +70,7 @@ export function DebugPanel() {
           <h4 className="font-bold mb-2">Login Credentials:</h4>
           <div className="space-y-2 text-sm">
             <div>
-              <strong>Admin:</strong> 9486229273 / password123
+              <strong>Admin:</strong> 9486229273 / password
             </div>
             <div>
               <strong>Tailor:</strong> 9486229274 / password

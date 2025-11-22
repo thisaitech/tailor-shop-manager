@@ -1,35 +1,90 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to authenticated users
-    // For production, you should add proper authentication
+
+    // ============================================
+    // DEVELOPMENT MODE - Open Access
+    // ============================================
+    // WARNING: Remove this before going to production!
+    // This allows anyone to read/write all data
     match /{document=**} {
       allow read, write: if true;
     }
-    
-    // Customers collection
+
+    // ============================================
+    // PRODUCTION MODE - Secure Rules (Commented)
+    // ============================================
+    // Uncomment these rules when moving to production
+    // and remove the catch-all rule above
+
+    /*
+    // Companies collection - Only owner can access their own company
+    match /companies/{userId} {
+      // User can only read/write their own company profile
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Employees collection - Linked to company owner
+    match /employees/{employeeId} {
+      // Anyone authenticated can read (for lookups)
+      allow read: if request.auth != null;
+
+      // Only company owner can create employees for their company
+      allow create: if request.auth != null &&
+                     request.resource.data.companyDocId == request.auth.uid;
+
+      // Only company owner can update/delete their employees
+      allow update, delete: if request.auth != null &&
+                              resource.data.companyDocId == request.auth.uid;
+    }
+
+    // Customers collection - Company-specific access
     match /customers/{customerId} {
-      allow read, write: if true;
+      // Authenticated users can read all customers
+      allow read: if request.auth != null;
+
+      // Only authenticated users can create/update/delete customers
+      allow write: if request.auth != null;
     }
-    
-    // Orders collection
+
+    // Orders collection - Company-specific access
     match /orders/{orderId} {
-      allow read, write: if true;
+      // Authenticated users can read all orders
+      allow read: if request.auth != null;
+
+      // Only authenticated users can create/update/delete orders
+      allow write: if request.auth != null;
     }
-    
-    // Inventory collection
+
+    // Inventory collection - Company-specific access
     match /inventory/{itemId} {
-      allow read, write: if true;
+      // Authenticated users can read all inventory
+      allow read: if request.auth != null;
+
+      // Only authenticated users can manage inventory
+      allow write: if request.auth != null;
     }
-    
-    // Transactions collection
+
+    // Transactions collection - Read-only for most, write for owners
     match /transactions/{transactionId} {
-      allow read, write: if true;
+      // Authenticated users can read transactions
+      allow read: if request.auth != null;
+
+      // Only authenticated users can create transactions
+      allow create: if request.auth != null;
+
+      // Transactions should not be updated/deleted (audit trail)
+      allow update, delete: if false;
     }
-    
-    // Tailors collection
+
+    // Tailors collection - Company-specific access
     match /tailors/{tailorId} {
-      allow read, write: if true;
+      // Authenticated users can read all tailors
+      allow read: if request.auth != null;
+
+      // Only authenticated users can manage tailors
+      allow write: if request.auth != null;
     }
+    */
   }
 }
