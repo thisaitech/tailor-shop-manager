@@ -13,7 +13,8 @@ interface RejectedOrdersListProps {
 }
 
 export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrdersListProps) {
-  const rejectedOrders = orders.filter(o => o.status === 'rejected');
+  // Filter rejected orders: status='rejected' AND not reassigned
+  const rejectedOrders = orders.filter(o => o.status === 'rejected' && !o.reassigned);
 
   return (
     <div className="space-y-4">

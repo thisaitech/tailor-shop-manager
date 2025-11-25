@@ -85,11 +85,27 @@ export async function createGoodsReceipt(
 
     console.log('[goodsReceiptService] Creating goods receipt:', newGRN);
 
-    await setDoc(doc(db, GOODS_RECEIPT_COLLECTION, grnNo), {
-      ...newGRN,
+    // Build Firestore document, excluding undefined fields
+    const firestoreDoc: any = {
+      id: grnNo,
+      grnNo,
+      grnDate: Date.now(),
+      dcNo: data.dcNo,
+      shipmentType: data.shipmentType,
+      consignmentNo: data.consignmentNo.slice(0, 20),
+      status: data.status,
+      companyId,
+      adminId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    // Only add optional imageUrl field if it has a value
+    if (data.imageUrl) {
+      firestoreDoc.imageUrl = data.imageUrl;
+    }
+
+    await setDoc(doc(db, GOODS_RECEIPT_COLLECTION, grnNo), firestoreDoc);
 
     console.log(`[goodsReceiptService] Goods Receipt ${grnNo} created successfully`);
     return newGRN;

@@ -351,7 +351,7 @@ export async function reassignStitchedOrder(
       timestamp: Date.now(),
       action: 'reassigned',
       previousStatus: currentData.status ?? 'unknown',
-      newStatus: 'rejected', // Mark as rejected when reassigned from stitched
+      newStatus: currentData.status ?? 'stitched', // Keep the same status (stitched)
       previousAssignedTo: currentData.assignedTo ?? '',
       previousAssignedName: currentData.assignedName ?? '',
       newAssignedTo: newAssignment.assignedTo,
@@ -366,19 +366,21 @@ export async function reassignStitchedOrder(
       stitchedDate: currentData.stitchedDate ?? null, // Preserve stitched date
       notes: `Stitched order reassigned from ${currentData.assignedName ?? 'previous tailor'} to ${newAssignment.assignedName}`,
       performedBy: performedBy || 'admin',
+      reassigned: true, // Mark as reassigned
     };
 
     const updateData: any = {
-      status: 'rejected', // Mark as rejected so it appears in Rejected Orders section
+      status: currentData.status ?? 'stitched', // Keep status as stitched, not rejected
       stitchingAllotment: newAssignment.stitchingAllotment,
       assignedTo: newAssignment.assignedTo,
       assignedName: newAssignment.assignedName,
       materialCost: newAssignment.materialCost ?? 0,
       jobWorkCost: newAssignment.jobWorkCost ?? 0,
-      orderStatus: 'open', // Reset to open so tailor can accept
+      orderStatus: 'open', // Reset to open so new tailor can accept
       assignedDate: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      rejectedDate: serverTimestamp(), // Add rejected date timestamp
+      reassigned: true, // Mark this order as reassigned
+      reassignedDate: serverTimestamp(), // Add reassignment timestamp
       // Keep stitchedId and stitchedDate for reference/history
       // Add history entry
       history: [...currentHistory, historyEntry],

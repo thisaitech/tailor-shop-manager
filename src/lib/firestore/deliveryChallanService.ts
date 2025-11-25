@@ -82,11 +82,29 @@ export async function createDeliveryChallan(
 
     console.log('[deliveryChallanService] Creating delivery challan:', newDC);
 
-    await setDoc(doc(db, DELIVERY_CHALLAN_COLLECTION, dcNo), {
-      ...newDC,
+    // Build Firestore document, excluding undefined fields
+    const firestoreDoc: any = {
+      id: dcNo,
+      dcNo,
+      dcDate: Date.now(),
+      jobWorkNo: data.jobWorkNo,
+      shipmentType: data.shipmentType,
+      consignmentNo: data.consignmentNo.slice(0, 20),
+      companyId,
+      adminId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    // Only add optional fields if they have values
+    if (data.jobWorkTailorName) {
+      firestoreDoc.jobWorkTailorName = data.jobWorkTailorName;
+    }
+    if (data.imageUrl) {
+      firestoreDoc.imageUrl = data.imageUrl;
+    }
+
+    await setDoc(doc(db, DELIVERY_CHALLAN_COLLECTION, dcNo), firestoreDoc);
 
     console.log(`[deliveryChallanService] Delivery Challan ${dcNo} created successfully`);
     return newDC;

@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checks, ArrowLeft, ArrowCounterClockwise } from '@phosphor-icons/react';
+import { Checks, ArrowLeft, ArrowCounterClockwise, Package } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { OrderAllotment } from '@/lib/types';
+import { toast } from 'sonner';
+import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { updateServiceOrderStatus } from '@/lib/firestore/serviceOrderService';
 
 interface StitchedOrdersListProps {
   orders: OrderAllotment[];
@@ -13,7 +17,41 @@ interface StitchedOrdersListProps {
 }
 
 export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrdersListProps) {
-  const stitchedOrders = orders.filter(o => o.status === 'stitched');
+  const [markingReady, setMarkingReady] = useState<string | null>(null);
+
+  // Filter stitched orders: status='stitched' AND not reassigned AND not ready to dispatch
+  const stitchedOrders = orders.filter(o =>
+    o.status === 'stitched' &&
+    !o.reassigned &&
+    o.serviceOrderStatus !== 'ready'
+  );
+
+  const handleMarkAsReadyToDispatch = async (order: OrderAllotment) => {
+    try {
+      setMarkingReady(order.id);
+
+      // Update order allotment: set status to 'delivered' and serviceOrderStatus to 'ready'
+      await updateDoc(doc(db, 'orderAllotment', order.id), {
+        status: 'delivered', // Set status to delivered to remove from Stitched Orders
+        orderStatus: 'closed',
+        serviceOrderStatus: 'ready',
+        deliveredDate: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Update the service order status to 'ready'
+      await updateServiceOrderStatus(order.serviceOrderNo, 'ready');
+
+      console.log(`[StitchedOrdersList] Order ${order.id} marked as delivered (ready to dispatch). Service order ${order.serviceOrderNo} updated to ready status.`);
+
+      toast.success('Order marked as Ready to Dispatch!');
+    } catch (error) {
+      console.error('Error marking order as ready to dispatch:', error);
+      toast.error('Failed to mark order as ready to dispatch');
+    } finally {
+      setMarkingReady(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -71,26 +109,38 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                             <span className="font-medium">{order.dressItemName}</span>
                           </div>
                         )}
-                        {order.stitchedDate && (
+                        {order.stitchedDate && typeof order.stitchedDate === 'number' && (
                           <div>
                             <span className="text-muted-foreground">Stitched on:</span>{' '}
                             <span className="font-medium">
-                              {format(order.stitchedDate, 'dd MMM yyyy, hh:mm a')}
+                              {format(new Date(order.stitchedDate), 'dd MMM yyyy, hh:mm a')}
                             </span>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onReassign(order)}
-                      className="whitespace-nowrap bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
-                    >
-                      <ArrowCounterClockwise size={16} className="mr-1" />
-                      Re-assign
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleMarkAsReadyToDispatch(order)}
+                        disabled={markingReady === order.id}
+                        className="whitespace-nowrap bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
+                      >
+                        <Package size={16} className="mr-1" weight="duotone" />
+                        {markingReady === order.id ? 'Processing...' : 'Ready to Dispatch'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onReassign(order)}
+                        className="whitespace-nowrap bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
+                      >
+                        <ArrowCounterClockwise size={16} className="mr-1" />
+                        Re-assign
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, ClockCountdown, CheckCircle, ListChecks, XCircle } from '@phosphor-icons/react';
+import { Package, ClockCountdown, CheckCircle, ListChecks, XCircle, User, SignOut } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { OrderAllotment } from '@/lib/types';
 import {
@@ -15,21 +15,30 @@ import { sendOrderRejectionEmail } from '@/lib/emailService';
 import { format } from 'date-fns';
 import { JobWorkFilteredOrders } from './JobWorkFilteredOrders';
 import { JobWorkOrderDetailsDialog } from './JobWorkOrderDetailsDialog';
+import { TailorProfile } from './TailorProfile';
 
 interface OrderWithCustomer extends OrderAllotment {
   customerName?: string;
 }
 
+type DashboardView = 'dashboard' | 'profile';
+
 export function JobWorkTailorDashboard() {
-  const { vendor } = useAuth();
+  const { vendor, logout } = useAuth();
   const [orders, setOrders] = useState<OrderWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterView, setFilterView] = useState<'all' | 'assigned' | 'in_progress' | 'stitched' | 'rejected' | null>(null);
   const [selectedOrderNo, setSelectedOrderNo] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
 
   // Summary counts
-  const assignedOrders = orders.filter(o => (o.status === 'allotted' || o.orderStatus === 'open')).length;
+  const assignedOrders = orders.filter(o =>
+    o.status !== 'rejected' &&
+    o.status !== 'stitched' &&
+    o.status !== 'delivered' &&
+    (o.status === 'allotted' || o.orderStatus === 'open')
+  ).length;
   const inProgressOrders = orders.filter(o => (o.status === 'in_progress' || o.orderStatus === 'in-progress')).length;
   const stitchedOrders = orders.filter(o => o.status === 'stitched').length;
   const rejectedOrders = orders.filter(o => o.status === 'rejected').length;
@@ -137,9 +146,27 @@ export function JobWorkTailorDashboard() {
   };
 
   const handleOrderRowClick = (order: OrderWithCustomer) => {
+    console.log('[JobWorkTailorDashboard] Order clicked:', order);
+    console.log('[JobWorkTailorDashboard] Service Order No:', order.serviceOrderNo);
+
+    if (!order.serviceOrderNo) {
+      toast.error('Service Order Number not found');
+      return;
+    }
+
     setSelectedOrderNo(order.serviceOrderNo);
     setShowOrderDetails(true);
   };
+
+  // Show Profile view
+  if (currentView === 'profile' && vendor) {
+    return (
+      <TailorProfile
+        vendorId={vendor.tailorCode}
+        onBack={() => setCurrentView('dashboard')}
+      />
+    );
+  }
 
   // If filter view is active, show filtered orders page
   if (filterView) {
@@ -180,10 +207,26 @@ export function JobWorkTailorDashboard() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Job Work Dashboard</h1>
-        <p className="text-muted-foreground">Welcome, {vendor?.tailorName}</p>
+      {/* Header with Menu Bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Job Work Dashboard</h1>
+          <p className="text-muted-foreground">Welcome, {vendor?.tailorName}</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentView('profile')}
+          >
+            <User size={16} className="mr-2" />
+            Profile
+          </Button>
+          <Button variant="outline" onClick={logout}>
+            <SignOut size={16} className="mr-2" />
+            Logout
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

@@ -66,8 +66,14 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
         const dcList = await getDeliveryChallansByCompany(company.id);
         setChallans(dcList);
         // Load stitched orders for Job Work No dropdown
+        // Include: status='stitched' OR (status='delivered' AND serviceOrderStatus='ready')
+        // Exclude: reassigned orders
         const allotments = await getOrderAllotmentsByCompany(company.id);
-        const stitched = allotments.filter(o => o.status === 'stitched' && o.stitchedId);
+        const stitched = allotments.filter(o =>
+          o.stitchedId &&
+          !o.reassigned &&
+          (o.status === 'stitched' || (o.status === 'delivered' && o.serviceOrderStatus === 'ready'))
+        );
         setStitchedOrders(stitched);
       }
     } catch (error) {

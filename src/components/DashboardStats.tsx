@@ -29,11 +29,15 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
 
   // Count rejected and stitched orders from order allotments
   const rejectedOrders = orderAllotments
-    ? orderAllotments.filter((o) => o.status === 'rejected').length
+    ? orderAllotments.filter((o) => o.status === 'rejected' && !o.reassigned).length
     : 0;
 
   const stitchedOrders = orderAllotments
-    ? orderAllotments.filter((o) => o.status === 'stitched').length
+    ? orderAllotments.filter((o) =>
+        o.status === 'stitched' &&
+        !o.reassigned &&
+        o.serviceOrderStatus !== 'ready'
+      ).length
     : 0;
 
   const stats = [

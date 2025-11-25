@@ -184,6 +184,9 @@ export interface OrderAllotment {
   stitchedId?: string; // Unique stitched ID (ST0001, ST0002, etc.)
   stitchedDate?: number; // Date when marked as stitched
   deliveredDate?: number; // Date when marked as delivered
+  reassigned?: boolean; // Flag to indicate if order has been reassigned
+  reassignedDate?: number; // Date when order was reassigned
+  rejectedDate?: number; // Date when order was rejected
   // End of Job Work Tailor fields
   materialCost: number; // Material cost in INR
   jobWorkCost: number; // Job work cost in INR

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
+import { TailorProfile } from '@/components/TailorProfile';
 import {
   Table,
   TableBody,
@@ -18,7 +19,6 @@ import {
   ClockCounterClockwise,
   CheckCircle,
   ListChecks,
-  SignOut,
   Check,
   X,
 } from '@phosphor-icons/react';
@@ -46,10 +46,10 @@ interface DashboardStats {
   totalOrders: number;
 }
 
-type TailorView = 'dashboard' | 'assigned' | 'in-progress' | 'ready' | 'all-orders';
+type TailorView = 'dashboard' | 'assigned' | 'in-progress' | 'ready' | 'all-orders' | 'profile';
 
 export function TailorDashboardFirestore() {
-  const { logout, employee } = useAuth();
+  const { employee } = useAuth();
   const [currentView, setCurrentView] = useState<TailorView>('dashboard');
   const [stats, setStats] = useState<DashboardStats>({
     assignedOrders: 0,
@@ -350,32 +350,35 @@ export function TailorDashboardFirestore() {
     );
   }
 
+  // Show Profile view
+  if (currentView === 'profile') {
+    return (
+      <TailorProfile
+        vendorId={employee.id}
+        onBack={() => setCurrentView('dashboard')}
+      />
+    );
+  }
+
   return (
     <main className="container mx-auto px-4 py-6">
-      {/* Header with Menu Bar */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          {currentView !== 'dashboard' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentView('dashboard')}
-            >
-              ← Back to Dashboard
-            </Button>
-          )}
-          <div>
-            <h2 className="text-2xl font-bold">Tailor Dashboard</h2>
-            <p className="text-muted-foreground">
-              Welcome back, {employee.name}
-            </p>
-          </div>
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        {currentView !== 'dashboard' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentView('dashboard')}
+          >
+            ← Back to Dashboard
+          </Button>
+        )}
+        <div>
+          <h2 className="text-2xl font-bold">Tailor Dashboard</h2>
+          <p className="text-muted-foreground">
+            Welcome back, {employee.name}
+          </p>
         </div>
-
-        <Button variant="outline" onClick={logout}>
-          <SignOut size={16} className="mr-2" />
-          Logout
-        </Button>
       </div>
 
       {/* Summary Cards - Only show on dashboard view */}

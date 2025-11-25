@@ -76,16 +76,19 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6">
-      <Header
-        onProfileClick={user?.role === 'owner' ? handleProfileClick : undefined}
-        onEmployeeClick={user?.role === 'owner' ? handleEmployeeClick : undefined}
-        onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}
-        onDesignClick={user?.role === 'owner' ? handleDesignClick : undefined}
-        onPaymentClick={user?.role === 'owner' ? handlePaymentClick : undefined}
-        onDeliveryChallanClick={user?.role === 'owner' ? handleDeliveryChallanClick : undefined}
-        onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
-        onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
-      />
+      {/* Hide Header for vendors (job work tailors) as they have their own menu bar */}
+      {!vendor && (
+        <Header
+          onProfileClick={user?.role === 'owner' ? handleProfileClick : undefined}
+          onEmployeeClick={user?.role === 'owner' ? handleEmployeeClick : undefined}
+          onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}
+          onDesignClick={user?.role === 'owner' ? handleDesignClick : undefined}
+          onPaymentClick={user?.role === 'owner' ? handlePaymentClick : undefined}
+          onDeliveryChallanClick={user?.role === 'owner' ? handleDeliveryChallanClick : undefined}
+          onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
+          onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
+        />
+      )}
       {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard />}
       {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}

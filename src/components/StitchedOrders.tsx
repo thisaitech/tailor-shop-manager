@@ -49,14 +49,19 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
           } as OrderAllotment;
         });
 
+        // Filter out reassigned orders and ready-to-dispatch orders
+        const activeStitchedOrders = orders.filter(o =>
+          !o.reassigned && o.serviceOrderStatus !== 'ready'
+        );
+
         // Sort by stitchedDate (most recent first)
-        orders.sort((a, b) => {
+        activeStitchedOrders.sort((a, b) => {
           const aDate = a.stitchedDate || a.updatedAt;
           const bDate = b.stitchedDate || b.updatedAt;
           return bDate - aDate;
         });
 
-        setStitchedOrders(orders);
+        setStitchedOrders(activeStitchedOrders);
         setLoading(false);
       },
       (error) => {
@@ -73,39 +78,27 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
     try {
       setUpdatingOrder(order.id);
 
-      // Create history entry for delivery
-      const currentHistory = order.history || [];
-      const historyEntry = {
-        timestamp: Date.now(),
-        action: 'delivered' as const,
-        previousStatus: order.status,
-        newStatus: 'delivered',
-        stitchedId: order.stitchedId,
-        stitchedDate: order.stitchedDate,
-        notes: `Order delivered. Stitched ID: ${order.stitchedId || 'N/A'}`,
-        performedBy: 'admin',
-      };
-
-      // Update orderAllotment collection
+      // Update orderAllotment: set status to 'delivered' and serviceOrderStatus to 'ready'
       const allotmentRef = doc(db, 'orderAllotment', order.id);
       await updateDoc(allotmentRef, {
-        status: 'delivered', // Clear from stitched status
+        status: 'delivered', // Set status to delivered to remove from Stitched Orders
         orderStatus: 'closed',
         serviceOrderStatus: 'ready',
         deliveredDate: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        history: [...currentHistory, historyEntry],
       });
 
-      // Update newOrder collection
+      // Update newOrder collection status to 'ready'
       if (order.serviceOrderNo) {
-        await updateServiceOrderStatus(order.serviceOrderNo, 'delivered');
+        await updateServiceOrderStatus(order.serviceOrderNo, 'ready');
       }
 
-      toast.success('Order marked as delivered!');
+      console.log(`[StitchedOrders] Order ${order.id} marked as delivered (ready to dispatch). Service order ${order.serviceOrderNo} updated to ready status.`);
+
+      toast.success('Order marked as Ready to Dispatch!');
     } catch (error) {
-      console.error('Error marking order as delivered:', error);
-      toast.error('Failed to mark order as delivered');
+      console.error('Error marking order as ready to dispatch:', error);
+      toast.error('Failed to mark order as ready to dispatch');
     } finally {
       setUpdatingOrder(null);
     }
@@ -191,23 +184,23 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
 
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleReassign(order)}
-                  disabled={updatingOrder === order.id}
-                  className="whitespace-nowrap"
-                >
-                  <ArrowCounterClockwise size={16} className="mr-1" />
-                  Re-assign
-                </Button>
-                <Button
                   size="sm"
                   onClick={() => handleMarkReady(order)}
                   disabled={updatingOrder === order.id}
                   className="whitespace-nowrap bg-green-600 hover:bg-green-700"
                 >
                   <Package size={16} className="mr-1" />
-                 Delivered
+                  {updatingOrder === order.id ? 'Processing...' : 'Ready to Dispatch'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReassign(order)}
+                  disabled={updatingOrder === order.id}
+                  className="whitespace-nowrap bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
+                >
+                  <ArrowCounterClockwise size={16} className="mr-1" />
+                  Re-assign
                 </Button>
               </div>
             </div>

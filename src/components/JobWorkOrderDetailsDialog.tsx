@@ -43,17 +43,22 @@ export function JobWorkOrderDetailsDialog({
   const loadOrderDetails = async () => {
     try {
       setLoading(true);
+      console.log('[JobWorkOrderDetailsDialog] Loading order details for:', serviceOrderNo);
+
       const orderData = await getServiceOrderById(serviceOrderNo);
+      console.log('[JobWorkOrderDetailsDialog] Order data received:', orderData);
       setOrder(orderData);
 
       // Get the allotment for this order to check status
       if (vendor?.tailorCode) {
         const allotments = await getOrderAllotmentsByVendor(vendor.tailorCode);
         const matchingAllotment = allotments.find(a => a.serviceOrderNo === serviceOrderNo);
+        console.log('[JobWorkOrderDetailsDialog] Matching allotment:', matchingAllotment);
         setAllotment(matchingAllotment || null);
       }
     } catch (error) {
-      console.error('Error loading order details:', error);
+      console.error('[JobWorkOrderDetailsDialog] Error loading order details:', error);
+      toast.error('Failed to load order details');
     } finally {
       setLoading(false);
     }
@@ -215,14 +220,34 @@ export function JobWorkOrderDetailsDialog({
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-muted-foreground">Measurements</h3>
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  {Object.entries(order.measurements).map(([key, value]) => (
-                    value !== undefined && value !== null && value !== '' && (
+                  {Object.entries(order.measurements).map(([key, value]) => {
+                    if (value === undefined || value === null || value === '') return null;
+
+                    // Handle object values (nested measurements)
+                    if (typeof value === 'object' && value !== null) {
+                      return (
+                        <div key={key} className="col-span-3">
+                          <p className="text-xs text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                          <div className="font-medium grid grid-cols-3 gap-2 mt-1">
+                            {Object.entries(value).map(([subKey, subValue]) => (
+                              <div key={subKey}>
+                                <span className="text-xs text-muted-foreground capitalize">{subKey}: </span>
+                                <span>{String(subValue)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Handle primitive values
+                    return (
                       <div key={key}>
                         <p className="text-xs text-muted-foreground capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                        <p className="font-medium">{value}</p>
+                        <p className="font-medium">{String(value)}</p>
                       </div>
-                    )
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
