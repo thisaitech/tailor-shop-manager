@@ -1,14 +1,16 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useStorage } from './use-storage';
-import { User, UserRole } from '@/lib/types';
+import { User, UserRole, Vendor } from '@/lib/types';
 import { verifyEmployeeCredentials } from '@/lib/firestore/employeeService';
+import { authenticateVendor } from '@/lib/firestore/vendorService';
 import type { EmployeeWithCompany } from '@/lib/firestore/employeeService';
 
 interface AuthContextType {
   user: User | null;
   employee: EmployeeWithCompany | null;
+  vendor: Vendor | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; employeeData?: EmployeeWithCompany; message?: string }>;
+  login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }>;
   logout: () => void;
   updatePassword: (newPassword: string) => Promise<void>;
   addUser: (user: User) => void;
@@ -24,8 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useStorage<User[]>('auth_users', []);
   const [currentUser, setCurrentUser] = useStorage<User | null>('current_user', null);
   const [currentEmployee, setCurrentEmployee] = useStorage<EmployeeWithCompany | null>('current_employee', null);
+  const [currentVendor, setCurrentVendor] = useStorage<Vendor | null>('current_vendor', null);
 
-  const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; employeeData?: EmployeeWithCompany; message?: string }> => {
+  const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
     console.log('Username:', username);
     console.log('Password:', password);
@@ -56,9 +59,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[Auth] Setting current employee in storage');
       setCurrentEmployee(employee);
       setCurrentUser(null); // Clear any existing user session
+      setCurrentVendor(null); // Clear any existing vendor session
 
       console.log('[Auth] Not first login - proceeding to dashboard');
       return { success: true, isEmployee: true };
+    }
+
+    // Second, check if this is a vendor/job work tailor login (Firestore)
+    console.log('Checking Firestore for vendor credentials...');
+    const vendor = await authenticateVendor(username, password);
+
+    if (vendor) {
+      console.log('[Auth] Found vendor:', vendor);
+      console.log('[Auth] Vendor isFirstLogin status:', vendor.isFirstLogin);
+
+      if (vendor.isFirstLogin) {
+        console.log('[Auth] ✅ FIRST LOGIN DETECTED FOR VENDOR - NOT setting vendor in storage yet');
+        console.log('[Auth] Will set vendor after password change');
+        // DON'T set vendor in storage yet - wait for password change
+        return { success: true, needsPasswordSetup: true, isVendor: true, vendorData: vendor };
+      }
+
+      console.log('[Auth] Setting current vendor in storage');
+      setCurrentVendor(vendor);
+      setCurrentUser(null); // Clear any existing user session
+      setCurrentEmployee(null); // Clear any existing employee session
+
+      console.log('[Auth] Not first login - proceeding to vendor dashboard');
+      return { success: true, isVendor: true };
     }
 
     // If not an employee, check localStorage users (owner, tailor, customer)
@@ -113,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setCurrentUser(null);
     setCurrentEmployee(null);
+    setCurrentVendor(null);
   };
 
   const addUser = (user: User) => {
@@ -147,10 +176,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[AuthContext] Users after delete:', updatedUsers);
   };
 
-  const isAuthenticated = (currentUser !== null && currentUser !== undefined) || (currentEmployee !== null && currentEmployee !== undefined);
+  const isAuthenticated = (currentUser !== null && currentUser !== undefined) || (currentEmployee !== null && currentEmployee !== undefined) || (currentVendor !== null && currentVendor !== undefined);
 
   return (
-    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, isAuthenticated, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
+    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -10,6 +10,8 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
+  orderBy,
+  limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Customer } from '@/lib/types';
@@ -218,5 +220,97 @@ export async function deleteCustomer(customerId: string): Promise<void> {
   } catch (error) {
     console.error('Error deleting customer:', error);
     throw new Error('Failed to delete customer');
+  }
+}
+
+/**
+ * Get 15 most recently created customers for a company
+ * Note: Sorts client-side to avoid requiring Firestore composite index
+ */
+export async function getRecentCustomers(companyId: string): Promise<CustomerWithCompany[]> {
+  try {
+    const customersRef = collection(db, CUSTOMERS_COLLECTION);
+    const q = query(
+      customersRef,
+      where('companyId', '==', companyId)
+    );
+    const snapshot = await getDocs(q);
+
+    const customers: CustomerWithCompany[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+      } as CustomerWithCompany;
+    });
+
+    // Sort by createdAt descending and take first 15
+    const recentCustomers = customers
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 15);
+
+    console.log(`Found ${recentCustomers.length} recent customers for company ${companyId}`);
+    return recentCustomers;
+  } catch (error) {
+    console.error('Error fetching recent customers:', error);
+    throw new Error('Failed to fetch recent customers');
+  }
+}
+
+/**
+ * Search customers by name or phone number
+ * Note: Uses client-side filtering to avoid requiring Firestore composite index
+ */
+export async function searchCustomers(companyId: string, searchText: string): Promise<CustomerWithCompany[]> {
+  try {
+    const text = (searchText || '').trim().toLowerCase();
+    if (!text) return [];
+
+    // Fetch all customers for the company
+    const customersRef = collection(db, CUSTOMERS_COLLECTION);
+    const q = query(customersRef, where('companyId', '==', companyId));
+    const snapshot = await getDocs(q);
+
+    const allCustomers: CustomerWithCompany[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+      } as CustomerWithCompany;
+    });
+
+    // Client-side filtering
+    const results = allCustomers.filter((customer) => {
+      // Search by name (case-insensitive, partial match)
+      const nameMatch = customer.name.toLowerCase().includes(text);
+
+      // Search by phone number (match digits only)
+      const phoneDigits = text.replace(/\D/g, '');
+      const phoneMatch = phoneDigits && (
+        customer.phone.includes(phoneDigits) ||
+        customer.phoneNormalized?.includes(phoneDigits)
+      );
+
+      // Search by customer ID
+      const idMatch = customer.id.toLowerCase().includes(text);
+
+      // Search by alias name
+      const aliasMatch = customer.aliasName?.toLowerCase().includes(text);
+
+      return nameMatch || phoneMatch || idMatch || aliasMatch;
+    });
+
+    // Limit to 30 results for performance
+    const limitedResults = results.slice(0, 30);
+
+    console.log(`Found ${limitedResults.length} customers matching "${searchText}"`);
+    return limitedResults;
+  } catch (error) {
+    console.error('Error searching customers:', error);
+    throw new Error('Failed to search customers');
   }
 }

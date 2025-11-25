@@ -16,12 +16,14 @@ import { toast } from 'sonner';
 interface ChangePasswordDialogProps {
   employeeId: string;
   employeeName: string;
+  currentPassword: string; // Temporary password from first login
   onSuccess: () => void;
 }
 
 export function ChangePasswordDialog({
   employeeId,
   employeeName,
+  currentPassword,
   onSuccess,
 }: ChangePasswordDialogProps) {
   const [newPassword, setNewPassword] = useState('');
@@ -56,7 +58,7 @@ export function ChangePasswordDialog({
 
     setSaving(true);
     try {
-      await changeEmployeePassword(employeeId, newPassword);
+      await changeEmployeePassword(employeeId, currentPassword, newPassword);
       toast.success('Password changed successfully!');
       onSuccess();
     } catch (error) {

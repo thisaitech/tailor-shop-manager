@@ -52,6 +52,7 @@ export async function saveCompanyProfile(
       state: profileData.state || '',
       country: profileData.country || 'India',
       contactNumber: profileData.contactNumber || '',
+      email: profileData.email || '',
       panNumber: profileData.panNumber || '',
       udhyamMsmeNo: profileData.udhyamMsmeNo,
       gstinNumber: profileData.gstinNumber || '',

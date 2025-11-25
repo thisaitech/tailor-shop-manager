@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 import { generateServiceOrderId } from '@/lib/firestore/serviceOrderService';
@@ -34,6 +34,7 @@ import {
   getDesignCategoriesByCompany,
 } from '@/lib/firestore/designCategoryService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { getRecentCustomers, searchCustomers, addCustomer } from '@/lib/firestore/customerService';
 
 // Measurement categories configuration
 const MEASUREMENT_CATEGORIES = {
@@ -79,6 +80,7 @@ interface ServiceOrderFormProps {
   customers: Customer[];
   onCreateCustomer?: () => void;
   order?: ServiceOrder;
+  initialCustomerId?: string;
 }
 
 export function ServiceOrderForm({
@@ -88,10 +90,12 @@ export function ServiceOrderForm({
   customers,
   onCreateCustomer,
   order,
+  initialCustomerId,
 }: ServiceOrderFormProps) {
   const { t } = useLanguage();
   const { user, employee } = useAuth();
   const companyId = employee?.companyId || user?.id || '';
+  const [actualCompanyId, setActualCompanyId] = useState<string>('');
 
   // Two-step form state
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -101,10 +105,14 @@ export function ServiceOrderForm({
   const [serviceOrderNo, setServiceOrderNo] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
-  const [orderCategory, setOrderCategory] = useState<OrderCategory>('male');
+  const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
+  const [searchResults, setSearchResults] = useState<Customer[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [orderCategory, setOrderCategory] = useState<OrderCategory | ''>('');
   const [measurements, setMeasurements] = useState<Measurements>({});
   const [previousMeasurements, setPreviousMeasurements] = useState<Measurements>({}); // Store customer's original measurements
-  const [orderQty, setOrderQty] = useState(1);
+  const [orderQty, setOrderQty] = useState(0);
   const [uom, setUom] = useState<UOM>('Nos');
   const [displayUom, setDisplayUom] = useState<'Inches' | 'Cms'>('Inches');
   const [designList, setDesignList] = useState<string[]>([]);
@@ -129,24 +137,46 @@ export function ServiceOrderForm({
   const [selectedDesigns, setSelectedDesigns] = useState<DesignImage[]>([]);
   const [nextServiceOrderId, setNextServiceOrderId] = useState<string>('');
 
-  // Load design categories and next service order ID on mount
+  // Upload Designs Modal (unified camera + gallery)
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'camera' | 'gallery'>('camera');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedImage, setCapturedImage] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load design categories, recent customers, and next service order ID on mount
   useEffect(() => {
     const loadData = async () => {
-      if (!user?.id) return;
+      if (!companyId) return;
       try {
         // Get company profile to get the correct companyId
-        const company = await getCompanyProfile(user.id);
-        if (company) {
+        const company = await getCompanyProfile(user?.id || companyId);
+        const actualCompanyId = company?.id || companyId;
+
+        if (actualCompanyId) {
+          // Store the actual company ID for use in search
+          setActualCompanyId(actualCompanyId);
+
           // Load design categories
-          const categories = await getDesignCategoriesByCompany(company.id);
+          const categories = await getDesignCategoriesByCompany(actualCompanyId);
           setDesignCategories(categories);
           console.log(`[ServiceOrderForm] Loaded ${categories.length} design categories`);
 
-          // Generate next service order ID for new orders (use company.id for proper scoping)
+          // Load 15 most recent customers - refresh whenever customers prop changes
           if (open && !order) {
-            const nextId = await generateServiceOrderId(company.id);
+            const recent = await getRecentCustomers(actualCompanyId);
+            setRecentCustomers(recent);
+            console.log(`[ServiceOrderForm] Loaded ${recent.length} recent customers`);
+          }
+
+          // Generate next service order ID for new orders
+          if (open && !order) {
+            const nextId = await generateServiceOrderId(actualCompanyId);
             setNextServiceOrderId(nextId);
-            setServiceOrderNo(nextId); // Also set to serviceOrderNo state
+            setServiceOrderNo(nextId);
             console.log(`[ServiceOrderForm] Next service order ID: ${nextId}`);
           } else if (!open) {
             // Reset when form closes
@@ -156,11 +186,48 @@ export function ServiceOrderForm({
         }
       } catch (error) {
         console.error('[ServiceOrderForm] Error loading data:', error);
-        toast.error('Failed to generate service order number');
+        toast.error('Failed to load form data');
       }
     };
     loadData();
-  }, [user, open, order]);
+  }, [user, companyId, open, order, customers]);
+
+  // Handle customer search with debouncing
+  useEffect(() => {
+    const searchCustomersDebounced = async () => {
+      if (!customerSearch.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      console.log('[ServiceOrderForm] Searching for:', customerSearch);
+      console.log('[ServiceOrderForm] Using companyId:', actualCompanyId || companyId);
+      try {
+        const results = await searchCustomers(actualCompanyId || companyId, customerSearch);
+        console.log('[ServiceOrderForm] Search results:', results.length, 'customers found');
+        setSearchResults(results);
+      } catch (error) {
+        console.error('[ServiceOrderForm] Error searching customers:', error);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timer = setTimeout(searchCustomersDebounced, 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch, companyId, actualCompanyId]);
+
+  // Auto-select newly created customer
+  useEffect(() => {
+    if (initialCustomerId && open && !order) {
+      console.log('[ServiceOrderForm] Auto-selecting newly created customer:', initialCustomerId);
+      handleCustomerChange(initialCustomerId);
+      toast.success('Customer selected! Continue with your order.');
+    }
+  }, [initialCustomerId, open, order]);
 
   // Get images for selected category
   const categoryImages = useMemo(() => {
@@ -233,10 +300,10 @@ export function ServiceOrderForm({
     setServiceOrderNo('');
     setCustomerId('');
     setCustomerSearch('');
-    setOrderCategory('male');
+    setOrderCategory('');
     setMeasurements({});
     setPreviousMeasurements({});
-    setOrderQty(1);
+    setOrderQty(0);
     setUom('Nos');
     setDisplayUom('Inches');
     setDesignList([]);
@@ -296,6 +363,11 @@ export function ServiceOrderForm({
       return;
     }
 
+    if (!orderCategory) {
+      toast.error('Please select the order category');
+      return;
+    }
+
     if (!expectedDeliveryDate) {
       toast.error('Please select expected delivery date');
       return;
@@ -342,15 +414,19 @@ export function ServiceOrderForm({
     // Store order data and proceed to Step 2 (Advance Payment)
     setCreatedOrderData(orderData);
 
-    // Fetch next PI number from Firestore
+    // Fetch next PI number from Firestore using actualCompanyId
     setIsLoadingPiNumber(true);
     try {
-      const piNo = await generateProformaInvoiceId(companyId || '');
+      const companyIdToUse = actualCompanyId || companyId || '';
+      console.log(`[ServiceOrderForm] Generating PI number with companyId: ${companyIdToUse}`);
+      const piNo = await generateProformaInvoiceId(companyIdToUse);
       setProformaInvoiceNo(piNo);
+      console.log(`[ServiceOrderForm] Generated PI: ${piNo}`);
     } catch (error) {
       console.error('Error generating PI number:', error);
-      // Fallback to timestamp-based PI if Firestore fails
-      setProformaInvoiceNo(`PI${Date.now().toString().slice(-4)}`);
+      // Fallback to timestamp-based number if Firestore fails
+      const timestamp = Date.now().toString().slice(-4);
+      setProformaInvoiceNo(`PI${timestamp}`);
     } finally {
       setIsLoadingPiNumber(false);
     }
@@ -678,7 +754,7 @@ export function ServiceOrderForm({
     `;
   };
 
-  // Print Proforma Invoice
+  // Print Proforma Invoice - Opens print preview only
   const handlePrintInvoice = () => {
     if (!createdOrderData) return;
 
@@ -760,17 +836,79 @@ export function ServiceOrderForm({
 
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Start camera stream
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraStream(stream);
+      console.log('[ServiceOrderForm] Camera started');
+    } catch (error) {
+      console.error('[ServiceOrderForm] Camera error:', error);
+      toast.error('Could not access camera. Please check permissions.');
+    }
+  };
+
+  // Stop camera stream
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+      console.log('[ServiceOrderForm] Camera stopped');
+    }
+  };
+
+  // Capture photo from video stream
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          setCapturedImage(file);
+          console.log('[ServiceOrderForm] Photo captured');
+        }
+      }, 'image/jpeg', 0.9);
+    }
+  };
+
+  // Handle file selection from gallery
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    console.log('[ServiceOrderForm] Uploading images:', files.length);
+    const fileArray = Array.from(files);
+    setSelectedFiles(fileArray);
+    console.log('[ServiceOrderForm] Files selected:', fileArray.length);
+  };
+
+  // Upload all selected/captured images
+  const handleUploadAll = async () => {
+    const filesToUpload = capturedImage ? [capturedImage] : selectedFiles;
+
+    if (filesToUpload.length === 0) {
+      toast.error('No images selected');
+      return;
+    }
 
     setIsUploading(true);
     const uploadedUrls: string[] = [];
 
     try {
-      for (const file of Array.from(files)) {
+      for (const file of filesToUpload) {
         if (file.size > 5 * 1024 * 1024) {
           toast.error(`${file.name} is too large. Maximum size is 5MB.`);
           continue;
@@ -779,52 +917,48 @@ export function ServiceOrderForm({
         // Upload to Firebase Storage
         const downloadURL = await uploadPhoto(file, `orders/designs/${companyId}`);
         uploadedUrls.push(downloadURL);
+        setUploadProgress(Math.round((uploadedUrls.length / filesToUpload.length) * 100));
         console.log('[ServiceOrderForm] Image uploaded:', downloadURL);
       }
 
       // Add all uploaded URLs to design list
       setDesignList((prev) => [...prev, ...uploadedUrls]);
       toast.success(`${uploadedUrls.length} image(s) uploaded successfully`);
+
+      // Close modal and reset
+      setShowUploadModal(false);
+      setCapturedImage(null);
+      setSelectedFiles([]);
+      setUploadProgress(0);
     } catch (error) {
       console.error('[ServiceOrderForm] Upload error:', error);
       toast.error('Failed to upload images. Please try again.');
     } finally {
       setIsUploading(false);
-      // Reset input
-      e.target.value = '';
     }
   };
 
-  const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // Handle modal close
+  const handleCloseUploadModal = () => {
+    stopCamera();
+    setShowUploadModal(false);
+    setCapturedImage(null);
+    setSelectedFiles([]);
+    setUploadProgress(0);
+    setUploadMode('camera');
+  };
 
-    console.log('[ServiceOrderForm] Camera capture:', files.length);
-
-    setIsUploading(true);
-
-    try {
-      const file = files[0]; // Camera only captures one image at a time
-
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Photo is too large. Maximum size is 5MB.');
-        return;
+  // Start camera when modal opens in camera mode
+  useEffect(() => {
+    if (showUploadModal && uploadMode === 'camera') {
+      startCamera();
+    }
+    return () => {
+      if (uploadMode === 'camera') {
+        stopCamera();
       }
-
-      // Upload to Firebase Storage
-      const downloadURL = await uploadPhoto(file, `orders/designs/${companyId}`);
-      setDesignList((prev) => [...prev, downloadURL]);
-      console.log('[ServiceOrderForm] Camera photo uploaded:', downloadURL);
-      toast.success('Photo captured and uploaded successfully');
-    } catch (error) {
-      console.error('[ServiceOrderForm] Camera capture error:', error);
-      toast.error('Failed to capture photo. Please try again.');
-    } finally {
-      setIsUploading(false);
-      // Reset input
-      e.target.value = '';
-    }
-  };
+    };
+  }, [showUploadModal, uploadMode]);
 
   const handleRemoveImage = (index: number) => {
     setDesignList((prev) => prev.filter((_, i) => i !== index));
@@ -886,27 +1020,133 @@ export function ServiceOrderForm({
               </div>
             </div>
 
-            {/* Customer Selection */}
+            {/* Customer Selection with Search */}
             <div className="space-y-2">
-              <Label htmlFor="customer">Customer Name *</Label>
-              <Select value={customerId} onValueChange={handleCustomerChange}>
-                <SelectTrigger id="customer">
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  <SelectItem value="create-new">
-                    <div className="flex items-center gap-2 text-primary font-medium">
-                      <Plus size={16} weight="bold" />
-                      Create new customer
+              <Label htmlFor="customer-search">Customer Name *</Label>
+
+              {/* Search Input */}
+              <div className="relative">
+                <MagnifyingGlass
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  id="customer-search"
+                  placeholder="Search by name or phone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  onBlur={() => {
+                    // Delay closing to allow clicking dropdown items
+                    setTimeout(() => setShowCustomerDropdown(false), 200);
+                  }}
+                  className="pl-10"
+                />
+                {isSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                  </div>
+                )}
+              </div>
+
+              {/* Customer List - Recent or Search Results */}
+              {showCustomerDropdown && (customerSearch.trim() || recentCustomers.length > 0) && (
+                <div className="border rounded-lg max-h-[240px] overflow-y-auto">
+                  {/* Show search results if searching */}
+                  {customerSearch.trim() && searchResults.length > 0 && (
+                    <div className="p-2 space-y-1">
+                      <p className="text-xs text-muted-foreground px-2 py-1">Search Results ({searchResults.length})</p>
+                      {searchResults.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                            setCustomerId(customer.id);
+                            setCustomerSearch('');
+                            handleCustomerChange(customer.id);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
+                            customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
+                            </div>
+                            {customerId === customer.id && (
+                              <Check size={16} className="text-green-600" weight="bold" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </SelectItem>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.name} - {customer.phone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  )}
+
+                  {/* Show "no results" if search returned nothing */}
+                  {customerSearch.trim() && !isSearching && searchResults.length === 0 && (
+                    <div className="p-4 text-center">
+                      <p className="text-sm text-muted-foreground mb-2">No customers found</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onCreateCustomer?.()}
+                        className="w-full"
+                      >
+                        <Plus size={16} weight="bold" className="mr-2" />
+                        Create New Customer
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Show recent customers when not searching */}
+                  {!customerSearch.trim() && recentCustomers.length > 0 && (
+                    <div className="p-2 space-y-1">
+                      <p className="text-xs text-muted-foreground px-2 py-1">Recent Customers (15)</p>
+                      {recentCustomers.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                            setCustomerId(customer.id);
+                            handleCustomerChange(customer.id);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
+                            customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
+                            </div>
+                            {customerId === customer.id && (
+                              <Check size={16} className="text-green-600" weight="bold" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Create New Customer Button */}
+                  {!customerSearch.trim() && (
+                    <div className="p-2 border-t">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onCreateCustomer?.()}
+                        className="w-full justify-start text-primary hover:text-primary"
+                      >
+                        <Plus size={16} weight="bold" className="mr-2" />
+                        Create New Customer
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Selected Customer Info */}
               {selectedCustomer && (
@@ -922,19 +1162,6 @@ export function ServiceOrderForm({
                   </p>
                 </div>
               )}
-
-              {customers.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No customers yet.{' '}
-                  <button
-                    type="button"
-                    onClick={onCreateCustomer}
-                    className="text-primary hover:underline font-medium"
-                  >
-                    Create a new customer
-                  </button>
-                </p>
-              )}
             </div>
 
             {/* Order Details */}
@@ -946,7 +1173,7 @@ export function ServiceOrderForm({
                   onValueChange={(v) => setOrderCategory(v as OrderCategory)}
                 >
                   <SelectTrigger id="orderCategory">
-                    <SelectValue />
+                    <SelectValue placeholder="Gender" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
@@ -962,8 +1189,9 @@ export function ServiceOrderForm({
                   id="orderQty"
                   type="number"
                   min="1"
-                  value={orderQty}
-                  onChange={(e) => setOrderQty(parseInt(e.target.value) || 1)}
+                  value={orderQty || ''}
+                  onChange={(e) => setOrderQty(parseInt(e.target.value) || 0)}
+                  placeholder="Enter quantity"
                   required
                 />
               </div>
@@ -1306,66 +1534,20 @@ export function ServiceOrderForm({
             <div className="space-y-2">
               <Label>Upload Design Images</Label>
               <div className="space-y-2">
-                {/* Gallery Upload and Camera Capture */}
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Gallery Upload */}
-                  <div>
-                    <Input
-                      id="designUpload"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => document.getElementById('designUpload')?.click()}
-                      className="w-full h-auto py-3"
-                      disabled={isUploading}
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        <Upload size={20} weight="bold" />
-                        <span className="text-xs font-semibold">Upload from Gallery</span>
-                      </div>
-                    </Button>
+                {/* Single Upload Designs Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowUploadModal(true)}
+                  className="w-full h-auto py-4"
+                  disabled={isUploading}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <ImageIcon size={24} weight="bold" />
+                    <span className="text-sm font-semibold">Upload Designs</span>
+                    <span className="text-xs text-muted-foreground">Camera or Gallery</span>
                   </div>
-
-                  {/* Camera Capture */}
-                  <div>
-                    <Input
-                      id="cameraCapture"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleCameraCapture}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => document.getElementById('cameraCapture')?.click()}
-                      className="w-full h-auto py-3"
-                      disabled={isUploading}
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        <Camera size={20} weight="bold" />
-                        <span className="text-xs font-semibold">Capture Photo</span>
-                      </div>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Uploading indicator */}
-                {isUploading && (
-                  <div className="text-center py-2">
-                    <div className="inline-flex items-center gap-2 text-sm text-primary">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
-                      <span className="font-medium">Uploading...</span>
-                    </div>
-                  </div>
-                )}
+                </Button>
 
                 {/* Preview Thumbnails */}
                 {designList.length > 0 && (
@@ -1441,14 +1623,14 @@ export function ServiceOrderForm({
                 </div>
               </div>
 
-              {/* Proforma Invoice Info */}
+              {/* Invoice Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted rounded-lg">
                 <div>
                   <Label className="text-sm text-muted-foreground">Proforma Invoice No</Label>
                   <p className="text-lg font-semibold text-primary">{proformaInvoiceNo}</p>
                 </div>
                 <div>
-                  <Label className="text-sm text-muted-foreground">Proforma Invoice Date</Label>
+                  <Label className="text-sm text-muted-foreground">Invoice Date</Label>
                   <p className="text-lg font-semibold">{format(new Date(), 'dd MMM yyyy')}</p>
                 </div>
               </div>
@@ -1639,6 +1821,195 @@ export function ServiceOrderForm({
               Done
             </Button>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Upload Designs Modal - Instagram Style */}
+    <Dialog open={showUploadModal} onOpenChange={handleCloseUploadModal}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Upload Designs</DialogTitle>
+          <DialogDescription>
+            Capture a photo with your camera or select from your gallery
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Mode Selector */}
+        <div className="flex gap-2 border-b pb-3">
+          <Button
+            type="button"
+            variant={uploadMode === 'camera' ? 'default' : 'outline'}
+            onClick={() => {
+              setUploadMode('camera');
+              setCapturedImage(null);
+              setSelectedFiles([]);
+            }}
+            className="flex-1"
+          >
+            <Camera className="mr-2" size={18} weight="bold" />
+            Camera
+          </Button>
+          <Button
+            type="button"
+            variant={uploadMode === 'gallery' ? 'default' : 'outline'}
+            onClick={() => {
+              setUploadMode('gallery');
+              stopCamera();
+              setCapturedImage(null);
+            }}
+            className="flex-1"
+          >
+            <Upload className="mr-2" size={18} weight="bold" />
+            Gallery
+          </Button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto py-4">
+          {uploadMode === 'camera' ? (
+            <div className="space-y-4">
+              {/* Camera Preview */}
+              <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* Capture Button */}
+              {!capturedImage && cameraStream && (
+                <Button
+                  type="button"
+                  onClick={capturePhoto}
+                  className="w-full"
+                  size="lg"
+                >
+                  <Camera className="mr-2" size={20} weight="bold" />
+                  Capture Photo
+                </Button>
+              )}
+
+              {/* Captured Image Preview */}
+              {capturedImage && (
+                <div className="space-y-3">
+                  <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+                    <img
+                      src={URL.createObjectURL(capturedImage)}
+                      alt="Captured"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCapturedImage(null)}
+                      className="flex-1"
+                    >
+                      Retake
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleUploadAll}
+                      className="flex-1"
+                      disabled={isUploading}
+                    >
+                      {isUploading ? `Uploading... ${uploadProgress}%` : 'Upload Photo'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* File Input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* Select Files Button */}
+              {selectedFiles.length === 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full h-32"
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <ImageIcon size={32} weight="duotone" />
+                    <span className="text-sm font-semibold">Select Images from Gallery</span>
+                    <span className="text-xs text-muted-foreground">Multiple selection allowed</span>
+                  </div>
+                </Button>
+              )}
+
+              {/* Selected Files Preview */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{selectedFiles.length} file(s) selected</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Change
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="relative aspect-square rounded-lg overflow-hidden border">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== index))}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleUploadAll}
+                    className="w-full"
+                    disabled={isUploading}
+                  >
+                    {isUploading ? `Uploading... ${uploadProgress}%` : `Upload ${selectedFiles.length} Image(s)`}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCloseUploadModal}
+            disabled={isUploading}
+          >
+            Cancel
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

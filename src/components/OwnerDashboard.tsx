@@ -61,6 +61,7 @@ export function OwnerDashboard() {
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
+  const [newlyCreatedCustomerId, setNewlyCreatedCustomerId] = useState<string | undefined>();
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';
@@ -135,10 +136,12 @@ export function OwnerDashboard() {
 
       const newCustomer = await addCustomer(customerData, companyId, adminId);
       setCustomers([...(customers || []), newCustomer]);
-      toast.success(`Customer ${newCustomer.id} added successfully to Firestore`);
+      toast.success('Account created successfully');
+      return newCustomer; // Return the newly created customer
     } catch (error) {
       console.error('[OwnerDashboard] Error adding customer:', error);
-      toast.error('Failed to add customer to Firestore');
+      toast.error('Failed to create account');
+      throw error; // Re-throw to handle in caller
     }
   };
 
@@ -153,10 +156,10 @@ export function OwnerDashboard() {
             : customer
         )
       );
-      toast.success('Customer updated successfully in Firestore');
+      toast.success('Account updated successfully');
     } catch (error) {
       console.error('[OwnerDashboard] Error updating customer:', error);
-      toast.error('Failed to update customer in Firestore');
+      toast.error('Failed to update account');
     }
   };
 
@@ -166,10 +169,10 @@ export function OwnerDashboard() {
 
       await deleteCustomer(id);
       setCustomers((customers || []).filter((customer) => customer.id !== id));
-      toast.success('Customer deleted successfully from Firestore');
+      toast.success('Account deleted successfully');
     } catch (error) {
       console.error('[OwnerDashboard] Error deleting customer:', error);
-      toast.error('Failed to delete customer from Firestore');
+      toast.error('Failed to delete account');
     }
   };
 
@@ -298,7 +301,7 @@ export function OwnerDashboard() {
 
       const newServiceOrder = await addServiceOrder(orderData, companyId, adminId);
       setServiceOrders([...(serviceOrders || []), newServiceOrder]);
-      toast.success(`Service Order ${newServiceOrder.id} created successfully in Firestore`);
+      toast.success('Service order created successfully');
 
       // Update customer measurements if provided in the order
       if (orderData.measurements && Object.keys(orderData.measurements).length > 0) {
@@ -341,7 +344,7 @@ export function OwnerDashboard() {
       }
     } catch (error) {
       console.error('[OwnerDashboard] Error adding service order:', error);
-      toast.error('Failed to create service order in Firestore');
+      toast.error('Failed to create service order');
     }
   };
 
@@ -376,10 +379,10 @@ export function OwnerDashboard() {
       const ordersData = await getServiceOrdersByCompany(companyId);
       setServiceOrders(ordersData);
 
-      toast.success(`Order Allotment ${newAllotment.id} created successfully in Firestore`);
+      toast.success('Order allotted successfully');
     } catch (error) {
       console.error('[OwnerDashboard] Error adding order allotment:', error);
-      toast.error('Failed to create order allotment in Firestore');
+      toast.error('Failed to allot order');
     }
   };
 
@@ -488,10 +491,17 @@ export function OwnerDashboard() {
       {/* Service Order Form */}
       <ServiceOrderForm
         open={showServiceOrderForm}
-        onOpenChange={setShowServiceOrderForm}
+        onOpenChange={(open) => {
+          setShowServiceOrderForm(open);
+          // Clear newly created customer ID when closing the form
+          if (!open) {
+            setNewlyCreatedCustomerId(undefined);
+          }
+        }}
         onSave={handleAddServiceOrder}
         customers={customers || []}
         onCreateCustomer={handleCreateCustomerFromOrder}
+        initialCustomerId={newlyCreatedCustomerId}
       />
 
       {/* Customer Form (for creating customer from order form) */}
@@ -501,11 +511,20 @@ export function OwnerDashboard() {
           setShowCustomerForm(open);
           if (!open) {
             setShowServiceOrderForm(true);
+            // Clear the newly created customer ID when closing
+            setNewlyCreatedCustomerId(undefined);
           }
         }}
-        onSave={(customerData) => {
-          handleAddCustomer(customerData);
-          handleCustomerSaved();
+        onSave={async (customerData) => {
+          try {
+            const newCustomer = await handleAddCustomer(customerData);
+            // Store the newly created customer ID
+            setNewlyCreatedCustomerId(newCustomer.id);
+            console.log('[OwnerDashboard] New customer created, ID:', newCustomer.id);
+            handleCustomerSaved();
+          } catch (error) {
+            console.error('[OwnerDashboard] Failed to create customer:', error);
+          }
         }}
       />
 

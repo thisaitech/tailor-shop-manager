@@ -11,8 +11,53 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Vendor } from '@/lib/types';
+import { sendTailorCredentialsEmail } from '@/lib/emailService';
 
 const VENDORS_COLLECTION = 'vendors';
+
+/**
+ * Generate a random password
+ * Format: 8 characters with uppercase, lowercase, numbers
+ */
+function generatePassword(): string {
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const allChars = uppercase + lowercase + numbers;
+
+  let password = '';
+  // Ensure at least one of each type
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+
+  // Fill remaining characters
+  for (let i = 3; i < 8; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+/**
+ * Simple password encryption (base64 encoding)
+ * Note: In production, use proper encryption like bcrypt
+ */
+function encryptPassword(password: string): string {
+  return btoa(password);
+}
+
+/**
+ * Decrypt password (base64 decoding)
+ */
+export function decryptPassword(encryptedPassword: string): string {
+  try {
+    return atob(encryptedPassword);
+  } catch {
+    return '';
+  }
+}
 
 /**
  * Generate auto-incrementing tailor code
@@ -43,11 +88,17 @@ export async function addVendor(
   companyDocId: string,
   companyId: string,
   createdBy: string,
-  vendorData: Omit<Vendor, 'id' | 'tailorCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt'>
-): Promise<Vendor> {
+  vendorData: Omit<Vendor, 'id' | 'tailorCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'password' | 'passwordHistory' | 'isFirstLogin' | 'lastPasswordChange'>,
+  companyName?: string
+): Promise<{ vendor: Vendor; plainPassword: string }> {
   try {
     // Generate tailor code
     const tailorCode = await generateTailorCode(companyId);
+
+    // Generate auto password
+    const autoPassword = generatePassword();
+    const encryptedPassword = encryptPassword(autoPassword);
+    const now = Date.now();
 
     const vendor: Vendor = {
       id: tailorCode,
@@ -65,11 +116,16 @@ export async function addVendor(
       country: vendorData.country,
       contactNumber: vendorData.contactNumber,
       whatsappNumber: vendorData.whatsappNumber,
+      email: vendorData.email,
+      password: encryptedPassword,
+      passwordHistory: [{ password: encryptedPassword, changedAt: now }],
+      isFirstLogin: true,
+      lastPasswordChange: now,
       companyId,
       companyDocId,
       createdBy,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     };
 
     // Save to Firestore
@@ -77,7 +133,23 @@ export async function addVendor(
     await setDoc(vendorRef, vendor);
 
     console.log('Vendor added successfully:', tailorCode);
-    return vendor;
+
+    // Send credentials email to vendor
+    try {
+      await sendTailorCredentialsEmail({
+        to: vendorData.email,
+        employeeName: vendorData.tailorName,
+        loginId: vendorData.contactNumber,
+        temporaryPassword: autoPassword,
+        companyName,
+      });
+      console.log('Login credentials email sent to:', vendorData.email);
+    } catch (emailError) {
+      console.error('Failed to send credentials email:', emailError);
+      // Don't throw error - vendor is created successfully
+    }
+
+    return { vendor, plainPassword: autoPassword };
   } catch (error) {
     console.error('Error adding vendor:', error);
     throw new Error('Failed to add vendor. Please try again.');
@@ -158,5 +230,87 @@ export async function deleteVendor(vendorId: string): Promise<void> {
   } catch (error) {
     console.error('Error deleting vendor:', error);
     throw new Error('Failed to delete vendor. Please try again.');
+  }
+}
+
+/**
+ * Change vendor password
+ * @param vendorId - Vendor ID (tailor code)
+ * @param currentPassword - Current password (plain text)
+ * @param newPassword - New password (plain text)
+ */
+export async function changeVendorPassword(
+  vendorId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  try {
+    const vendor = await getVendor(vendorId);
+    if (!vendor) {
+      throw new Error('Vendor not found');
+    }
+
+    // Verify current password
+    const decryptedPassword = decryptPassword(vendor.password);
+    if (decryptedPassword !== currentPassword) {
+      throw new Error('Current password is incorrect');
+    }
+
+    // Encrypt new password
+    const encryptedPassword = encryptPassword(newPassword);
+    const now = Date.now();
+
+    // Update password and history
+    const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
+    await updateDoc(vendorRef, {
+      password: encryptedPassword,
+      passwordHistory: [
+        ...vendor.passwordHistory,
+        { password: encryptedPassword, changedAt: now }
+      ],
+      isFirstLogin: false,
+      lastPasswordChange: now,
+      updatedAt: now,
+    });
+
+    console.log('Vendor password changed successfully:', vendorId);
+  } catch (error) {
+    console.error('Error changing vendor password:', error);
+    throw error;
+  }
+}
+
+/**
+ * Authenticate vendor with phone number and password
+ * @param contactNumber - Vendor contact number (phone)
+ * @param password - Password (plain text)
+ * @returns Vendor data if authentication successful, null otherwise
+ */
+export async function authenticateVendor(
+  contactNumber: string,
+  password: string
+): Promise<Vendor | null> {
+  try {
+    const vendorsRef = collection(db, VENDORS_COLLECTION);
+    const q = query(vendorsRef, where('contactNumber', '==', contactNumber));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const vendorDoc = snapshot.docs[0];
+    const vendor = vendorDoc.data() as Vendor;
+
+    // Verify password
+    const decryptedPassword = decryptPassword(vendor.password);
+    if (decryptedPassword === password) {
+      return vendor;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error authenticating vendor:', error);
+    return null;
   }
 }

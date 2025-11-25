@@ -70,17 +70,22 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
   const [showDialog, setShowDialog] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [companyId, setCompanyId] = useState<string>('');
+  const [companyName, setCompanyName] = useState<string>('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState<string>('');
+  const [newVendorInfo, setNewVendorInfo] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
 
   const [formData, setFormData] = useState<Partial<Vendor>>({
     tailorName: '',
     aliasName: '',
     gender: 'male',
     businessType: 'stitching',
+    email: '',
     address1: '',
     address2: '',
     city: '',
     pincode: '',
-    region: 'NaN',
+    region: 'none',
     state: '',
     country: 'India',
     contactNumber: '',
@@ -101,6 +106,7 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
       const companyProfile = await getCompanyProfile(user.id);
       if (companyProfile) {
         setCompanyId(companyProfile.id);
+        setCompanyName(companyProfile.companyName || 'Tailor Shop');
       }
 
       // Load vendors
@@ -121,11 +127,12 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
       aliasName: '',
       gender: 'male',
       businessType: 'stitching',
+      email: '',
       address1: '',
       address2: '',
       city: '',
       pincode: '',
-      region: 'NaN',
+      region: 'none',
       state: '',
       country: 'India',
       contactNumber: '',
@@ -165,6 +172,17 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
       return;
     }
 
+    // Email validation - mandatory
+    if (!formData.email || !formData.email.trim()) {
+      toast.error('Email address is required');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
     // Validate pincode (6 digits)
     if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
       toast.error('Pincode must be exactly 6 digits');
@@ -191,14 +209,22 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
         toast.success('Vendor updated successfully');
       } else {
         // Add new vendor
-        const newVendor = await addVendor(
+        const result = await addVendor(
           user.id,
           companyId,
           user.id, // createdBy
-          formData as Omit<Vendor, 'id' | 'tailorCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt'>
+          formData as Omit<Vendor, 'id' | 'tailorCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'password' | 'passwordHistory' | 'isFirstLogin' | 'lastPasswordChange'>,
+          companyName
         );
-        setVendors([...vendors, newVendor]);
-        toast.success(`Vendor added successfully! Tailor Code: ${newVendor.tailorCode}`);
+        setVendors([...vendors, result.vendor]);
+
+        // Show password dialog
+        setGeneratedPassword(result.plainPassword);
+        setNewVendorInfo({
+          name: result.vendor.tailorName,
+          phone: result.vendor.contactNumber
+        });
+        setShowPasswordDialog(true);
       }
       setShowDialog(false);
     } catch (error) {
@@ -461,6 +487,19 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
               />
             </div>
 
+            {/* Email */}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="vendor@example.com"
+                required
+              />
+            </div>
+
             {/* Contact Number */}
             <div className="space-y-2">
               <Label htmlFor="contactNumber">Contact Number *</Label>
@@ -492,6 +531,81 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
             </Button>
             <Button onClick={handleSave}>
               {editingVendor ? 'Update Vendor' : 'Save Vendor'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Display Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Job Work Tailor Created Successfully</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-green-50 dark:bg-green-950/30 p-4 rounded-lg border border-green-200 dark:border-green-800">
+              <p className="text-sm text-green-900 dark:text-green-100 mb-3">
+                <strong>{newVendorInfo.name}</strong> has been created successfully!
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs text-green-700 dark:text-green-300">Phone Number (Login ID)</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      value={newVendorInfo.phone}
+                      readOnly
+                      className="bg-white dark:bg-gray-900 font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newVendorInfo.phone);
+                        toast.success('Phone number copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-green-700 dark:text-green-300">Auto-Generated Password</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      value={generatedPassword}
+                      readOnly
+                      className="bg-white dark:bg-gray-900 font-mono text-lg font-bold"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedPassword);
+                        toast.success('Password copied!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+              <p className="text-xs text-blue-900 dark:text-blue-100">
+                <strong>📧 Email Sent:</strong> Login credentials have been sent to the vendor's email address.
+              </p>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md border border-amber-200 dark:border-amber-800">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                <strong>⚠️ Important:</strong> Please save these credentials securely. The vendor will be required to change their password on first login.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowPasswordDialog(false)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

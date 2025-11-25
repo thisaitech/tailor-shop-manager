@@ -11,6 +11,7 @@ import {
   generateEmployeePassword,
   EmployeeWithCompany,
   findEmployeeByContactNumber,
+  findEmployeeByWhatsAppNumber,
 } from '@/lib/firestore/employeeService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,6 +74,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   const { user } = useAuth();
   const [employees, setEmployees] = useState<EmployeeWithCompany[]>([]);
   const [companyId, setCompanyId] = useState<string>('');
+  const [companyName, setCompanyName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
@@ -80,10 +82,12 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   const [editingEmployee, setEditingEmployee] = useState<EmployeeWithCompany | null>(null);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateEmployee, setDuplicateEmployee] = useState<EmployeeWithCompany | null>(null);
+  const [phoneError, setPhoneError] = useState('');
+  const [whatsappError, setWhatsappError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     aliasName: '',
-    gender: 'male' as EmployeeGender,
+    gender: '' as EmployeeGender | '',
     profilePicture: '',
     email: '',
     contactNumber: '',
@@ -92,7 +96,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     address2: '',
     city: '',
     pincode: '',
-    region: 'NaN',
+    region: 'none',
     state: '',
     country: 'India',
     role: 'staff' as EmployeeRole,
@@ -111,10 +115,11 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
       setLoading(true);
       try {
-        // Get company profile to get company ID
+        // Get company profile to get company ID and name
         const profile = await getCompanyProfile(user.id);
         if (profile) {
           setCompanyId(profile.id);
+          setCompanyName(profile.companyName || '');
         }
 
         // Load employees
@@ -161,7 +166,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       setFormData({
         name: '',
         aliasName: '',
-        gender: 'male',
+        gender: '',
         profilePicture: '',
         email: '',
         contactNumber: '',
@@ -170,7 +175,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         address2: '',
         city: '',
         pincode: '',
-        region: 'NaN',
+        region: 'none',
         state: '',
         country: 'India',
         role: 'staff',
@@ -200,9 +205,18 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
+    // Reset errors
+    setPhoneError('');
+    setWhatsappError('');
+
     // Validation
     if (!formData.name) {
       toast.error('Employee name is required');
+      return;
+    }
+
+    if (!formData.gender || formData.gender === '') {
+      toast.error('Please select the gender');
       return;
     }
 
@@ -211,15 +225,17 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
-    // Validate contact number (up to 15 digits)
-    if (formData.contactNumber && !/^\d{1,15}$/.test(formData.contactNumber)) {
-      toast.error('Contact number must be up to 15 digits');
+    // Validate contact number (exactly 10 digits)
+    if (!/^\d{10}$/.test(formData.contactNumber)) {
+      setPhoneError('Enter correct number');
+      toast.error('Phone Number: Enter correct number');
       return;
     }
 
-    // Validate whatsapp number (up to 15 digits)
-    if (formData.whatsappNumber && !/^\d{1,15}$/.test(formData.whatsappNumber)) {
-      toast.error('WhatsApp number must be up to 15 digits');
+    // Validate whatsapp number (exactly 10 digits if provided)
+    if (formData.whatsappNumber && !/^\d{10}$/.test(formData.whatsappNumber)) {
+      setWhatsappError('Enter correct number');
+      toast.error('WhatsApp Number: Enter correct number');
       return;
     }
 
@@ -229,7 +245,13 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    // Email validation - mandatory
+    if (!formData.email || !formData.email.trim()) {
+      toast.error('Email address is required');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       toast.error('Please enter a valid email address');
       return;
     }
@@ -252,20 +274,36 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         const existingEmployee = await findEmployeeByContactNumber(formData.contactNumber, user.id);
 
         if (existingEmployee) {
-          // Show duplicate dialog
-          setDuplicateEmployee(existingEmployee);
-          setShowDuplicateDialog(true);
+          setPhoneError('This number already exists');
+          toast.error('Phone Number: This number already exists');
           return;
         }
 
+        // Check for duplicate WhatsApp number (if provided)
+        if (formData.whatsappNumber) {
+          const existingWhatsAppEmployee = await findEmployeeByWhatsAppNumber(formData.whatsappNumber, user.id);
+
+          if (existingWhatsAppEmployee) {
+            setWhatsappError('This number already exists');
+            toast.error('WhatsApp Number: This number already exists');
+            return;
+          }
+        }
+
         // Add new employee
-        const newEmployee = await addEmployee(user.id, companyId, user.id, formData);
+        const newEmployee = await addEmployee(user.id, companyId, user.id, formData as any, companyName);
         setEmployees([...employees, newEmployee]);
 
         // Show password dialog
         setNewEmployeePassword(newEmployee.password);
         setShowPasswordDialog(true);
-        toast.success('Employee added successfully!');
+
+        // Show success message with email notification status
+        if (formData.role === 'tailor' && formData.email) {
+          toast.success('Tailor added successfully! Login credentials sent to email.');
+        } else {
+          toast.success('Employee added successfully!');
+        }
         handleCloseDialog();
       }
     } catch (error) {
@@ -537,11 +575,11 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
               <div className="space-y-2">
                 <Label htmlFor="empGender">Gender *</Label>
                 <Select
-                  value={formData.gender}
+                  value={formData.gender || undefined}
                   onValueChange={(value: EmployeeGender) => handleChange('gender', value)}
                 >
                   <SelectTrigger id="empGender">
-                    <SelectValue />
+                    <SelectValue placeholder="Gender" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
@@ -553,36 +591,69 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
               {/* Contact Number */}
               <div className="space-y-2">
                 <Label htmlFor="empContact">Contact Number (Login ID) *</Label>
-                <Input
-                  id="empContact"
-                  maxLength={15}
-                  value={formData.contactNumber}
-                  onChange={(e) => handleChange('contactNumber', e.target.value.replace(/\D/g, ''))}
-                  placeholder="Up to 15 digits"
-                />
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
+                    +91
+                  </div>
+                  <Input
+                    id="empContact"
+                    maxLength={10}
+                    value={formData.contactNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      handleChange('contactNumber', value);
+                      if (phoneError) setPhoneError('');
+                    }}
+                    placeholder="Enter a Number"
+                    className={`pl-12 ${phoneError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  />
+                </div>
+                {phoneError && (
+                  <p className="text-xs text-red-500 font-medium">{phoneError}</p>
+                )}
+                {formData.contactNumber && !phoneError && formData.contactNumber.length === 10 && (
+                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
+                )}
               </div>
 
               {/* WhatsApp Number */}
               <div className="space-y-2">
                 <Label htmlFor="empWhatsapp">WhatsApp Number</Label>
-                <Input
-                  id="empWhatsapp"
-                  maxLength={15}
-                  value={formData.whatsappNumber}
-                  onChange={(e) => handleChange('whatsappNumber', e.target.value.replace(/\D/g, ''))}
-                  placeholder="Up to 15 digits"
-                />
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
+                    +91
+                  </div>
+                  <Input
+                    id="empWhatsapp"
+                    maxLength={10}
+                    value={formData.whatsappNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      handleChange('whatsappNumber', value);
+                      if (whatsappError) setWhatsappError('');
+                    }}
+                    placeholder="Enter a Number"
+                    className={`pl-12 ${whatsappError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  />
+                </div>
+                {whatsappError && (
+                  <p className="text-xs text-red-500 font-medium">{whatsappError}</p>
+                )}
+                {formData.whatsappNumber && !whatsappError && formData.whatsappNumber.length === 10 && (
+                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
+                )}
               </div>
 
               {/* Email */}
               <div className="space-y-2">
-                <Label htmlFor="empEmail">Email</Label>
+                <Label htmlFor="empEmail">Email *</Label>
                 <Input
                   id="empEmail"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
                   placeholder="employee@example.com"
+                  required
                 />
               </div>
 
@@ -608,6 +679,27 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                   onChange={(e) => handleChange('address2', e.target.value)}
                   placeholder="Enter address"
                 />
+              </div>
+
+              {/* State */}
+              <div className="space-y-2">
+                <Label htmlFor="empState">State</Label>
+                <Select
+                  value={formData.state}
+                  onValueChange={(value) => {
+                    handleChange('state', value);
+                    handleChange('city', ''); // Clear city when state changes
+                  }}
+                >
+                  <SelectTrigger id="empState">
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INDIAN_STATES.map((state) => (
+                      <SelectItem key={state} value={state}>{state}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* City */}
@@ -650,27 +742,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                   disabled
                   className="bg-muted"
                 />
-              </div>
-
-              {/* State */}
-              <div className="space-y-2">
-                <Label htmlFor="empState">State</Label>
-                <Select
-                  value={formData.state}
-                  onValueChange={(value) => {
-                    handleChange('state', value);
-                    handleChange('city', ''); // Clear city when state changes
-                  }}
-                >
-                  <SelectTrigger id="empState">
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDIAN_STATES.map((state) => (
-                      <SelectItem key={state} value={state}>{state}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               {/* Country */}

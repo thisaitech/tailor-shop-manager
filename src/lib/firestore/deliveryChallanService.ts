@@ -23,6 +23,7 @@ export interface DeliveryChallan {
   jobWorkTailorName?: string; // Denormalized for display
   shipmentType: ShipmentType;
   consignmentNo: string; // Max 20 chars
+  imageUrl?: string; // Firebase Storage URL for captured image
   companyId: string;
   adminId: string;
   createdAt: number;
@@ -56,6 +57,7 @@ export async function createDeliveryChallan(
     jobWorkTailorName?: string;
     shipmentType: ShipmentType;
     consignmentNo: string;
+    imageUrl?: string;
   },
   companyId: string,
   adminId: string
@@ -71,6 +73,7 @@ export async function createDeliveryChallan(
       jobWorkTailorName: data.jobWorkTailorName,
       shipmentType: data.shipmentType,
       consignmentNo: data.consignmentNo.slice(0, 20), // Max 20 chars
+      imageUrl: data.imageUrl,
       companyId,
       adminId,
       createdAt: Date.now(),
@@ -117,6 +120,7 @@ export async function getDeliveryChallansByCompany(companyId: string): Promise<D
         jobWorkTailorName: data.jobWorkTailorName,
         shipmentType: data.shipmentType || 'direct',
         consignmentNo: data.consignmentNo || '',
+        imageUrl: data.imageUrl,
         companyId: data.companyId || '',
         adminId: data.adminId || '',
         createdAt: data.createdAt?.toMillis?.() || data.createdAt || Date.now(),

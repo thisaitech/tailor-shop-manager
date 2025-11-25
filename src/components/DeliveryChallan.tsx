@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Truck } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Truck, Camera, Trash } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import {
   DeliveryChallan as DeliveryChallanType,
@@ -29,6 +29,8 @@ import {
 } from '@/lib/firestore/deliveryChallanService';
 import { getVendorsByCompany, Vendor } from '@/lib/firestore/vendorService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { WebcamCapture } from '@/components/WebcamCapture';
+import { uploadImageToStorage } from '@/lib/firebase/storageService';
 
 interface DeliveryChallanProps {
   onBack: () => void;
@@ -45,8 +47,10 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
   const [showDialog, setShowDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [jobWorkNo, setJobWorkNo] = useState('');
-  const [shipmentType, setShipmentType] = useState<ShipmentType>('direct');
+  const [shipmentType, setShipmentType] = useState<ShipmentType | ''>('');
   const [consignmentNo, setConsignmentNo] = useState('');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [showWebcam, setShowWebcam] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -79,14 +83,29 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
 
   const handleOpenDialog = () => {
     setJobWorkNo('');
-    setShipmentType('direct');
+    setShipmentType('');
     setConsignmentNo('');
+    setCapturedImage(null);
     setShowDialog(true);
+  };
+
+  const handleCaptureImage = (imageDataUrl: string) => {
+    setCapturedImage(imageDataUrl);
+    setShowWebcam(false);
+  };
+
+  const handleRemoveImage = () => {
+    setCapturedImage(null);
   };
 
   const handleSave = async () => {
     if (!jobWorkNo) {
       toast.error('Please select a Job Work No');
+      return;
+    }
+
+    if (!shipmentType) {
+      toast.error('Please select the shipment type');
       return;
     }
 
@@ -99,12 +118,26 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
     try {
       const selectedVendor = vendors.find(v => v.tailorCode === jobWorkNo);
 
+      // Upload image if captured
+      let imageUrl: string | undefined;
+      if (capturedImage) {
+        try {
+          const imagePath = `delivery-challans/${companyId}/${Date.now()}.jpg`;
+          imageUrl = await uploadImageToStorage(capturedImage, imagePath);
+          console.log('Image uploaded successfully:', imageUrl);
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          toast.error('Failed to upload image. Creating DC without image.');
+        }
+      }
+
       const newDC = await createDeliveryChallan(
         {
           jobWorkNo: jobWorkNo, // This is now the tailorCode (TAL0001, etc.)
           jobWorkTailorName: selectedVendor?.tailorName,
-          shipmentType,
+          shipmentType: shipmentType as ShipmentType,
           consignmentNo: consignmentNo.trim(),
+          imageUrl,
         },
         companyId,
         user.id
@@ -248,13 +281,13 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
             {/* Shipment Type */}
             <div className="space-y-2">
               <Label htmlFor="shipmentType">Shipment Type *</Label>
-              <Select value={shipmentType} onValueChange={(v) => setShipmentType(v as ShipmentType)}>
+              <Select value={shipmentType} onValueChange={setShipmentType}>
                 <SelectTrigger id="shipmentType">
-                  <SelectValue placeholder="Select shipment type" />
+                  <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="courier">Courier</SelectItem>
                   <SelectItem value="direct">Direct</SelectItem>
+                  <SelectItem value="courier">Courier</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -273,6 +306,39 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
                 {consignmentNo.length}/20 characters
               </p>
             </div>
+
+            {/* Image Capture */}
+            <div className="space-y-2">
+              <Label>Capture Image (Optional)</Label>
+              {!capturedImage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowWebcam(true)}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <Camera size={20} weight="duotone" />
+                  Capture Image
+                </Button>
+              ) : (
+                <div className="relative">
+                  <img
+                    src={capturedImage}
+                    alt="Captured"
+                    className="w-full h-40 object-cover rounded-lg border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2"
+                  >
+                    <Trash size={16} />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)} disabled={saving}>
@@ -284,6 +350,14 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Webcam Capture Modal */}
+      {showWebcam && (
+        <WebcamCapture
+          onCapture={handleCaptureImage}
+          onClose={() => setShowWebcam(false)}
+        />
+      )}
     </div>
   );
 }

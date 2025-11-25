@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Employee } from '@/lib/types';
+import { sendTailorCredentialsEmail } from '@/lib/emailService';
 
 const EMPLOYEES_COLLECTION = 'employees';
 
@@ -84,18 +85,50 @@ export async function findEmployeeByContactNumber(
 }
 
 /**
+ * Check if employee with WhatsApp number already exists
+ * @param whatsappNumber - WhatsApp number to check
+ * @param companyDocId - Company document ID
+ * @returns Employee if exists, null otherwise
+ */
+export async function findEmployeeByWhatsAppNumber(
+  whatsappNumber: string,
+  companyDocId: string
+): Promise<EmployeeWithCompany | null> {
+  try {
+    const employeesRef = collection(db, EMPLOYEES_COLLECTION);
+    const q = query(
+      employeesRef,
+      where('whatsappNumber', '==', whatsappNumber),
+      where('companyDocId', '==', companyDocId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    return snapshot.docs[0].data() as EmployeeWithCompany;
+  } catch (error) {
+    console.error('Error finding employee by WhatsApp number:', error);
+    return null;
+  }
+}
+
+/**
  * Add new employee
  * @param companyDocId - Document ID of the company (user ID)
  * @param companyId - Company ID (COMP0001, etc.)
  * @param createdBy - Admin user ID who created employee
  * @param employeeData - Employee data
+ * @param companyName - Optional company name for email
  * @returns Created employee with password
  */
 export async function addEmployee(
   companyDocId: string,
   companyId: string,
   createdBy: string,
-  employeeData: Omit<Employee, 'id' | 'employeeCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt'>
+  employeeData: Omit<Employee, 'id' | 'employeeCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt'>,
+  companyName?: string
 ): Promise<EmployeeWithCompany> {
   try {
     // Generate employee ID and password
@@ -126,6 +159,7 @@ export async function addEmployee(
       accessPermissionEnabled: employeeData.accessPermissionEnabled,
       isActive: employeeData.isActive,
       firstLogin: true, // Set to true by default for new employees
+      passwordHistory: [], // Initialize empty password history
       companyId,
       companyDocId,
       createdBy,
@@ -138,10 +172,31 @@ export async function addEmployee(
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await setDoc(employeeRef, employee);
 
-    console.log('Employee added successfully:', employeeId);
+    console.log('[Employee Service] Employee added successfully:', employeeId);
+
+    // Send email to tailor if role is 'tailor' and email is provided
+    if (employeeData.role === 'tailor' && employeeData.email) {
+      console.log('[Employee Service] Sending credentials email to tailor...');
+      const emailSent = await sendTailorCredentialsEmail({
+        to: employeeData.email,
+        employeeName: employeeData.name,
+        loginId: employeeData.contactNumber,
+        temporaryPassword: password,
+        companyName: companyName,
+      });
+
+      if (emailSent) {
+        console.log('[Employee Service] ✅ Credentials email sent successfully to:', employeeData.email);
+      } else {
+        console.warn('[Employee Service] ⚠️ Failed to send credentials email to:', employeeData.email);
+      }
+    } else if (employeeData.role === 'tailor' && !employeeData.email) {
+      console.warn('[Employee Service] ⚠️ Tailor created but no email provided. Credentials not sent.');
+    }
+
     return employee;
   } catch (error) {
-    console.error('Error adding employee:', error);
+    console.error('[Employee Service] Error adding employee:', error);
     throw new Error('Failed to add employee. Please try again.');
   }
 }
@@ -293,20 +348,40 @@ export async function resetEmployeePassword(employeeId: string): Promise<string>
 /**
  * Change employee password after first login
  * @param employeeId - Employee ID
+ * @param oldPassword - Current password for verification
  * @param newPassword - New password set by employee
  */
 export async function changeEmployeePassword(
   employeeId: string,
+  oldPassword: string,
   newPassword: string
 ): Promise<void> {
   try {
+    // Get current employee data
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
+    const employeeDoc = await getDoc(employeeRef);
+
+    if (!employeeDoc.exists()) {
+      throw new Error('Employee not found');
+    }
+
+    const employeeData = employeeDoc.data() as EmployeeWithCompany;
+
+    // Initialize password history if it doesn't exist
+    const passwordHistory = employeeData.passwordHistory || [];
+
+    // Add old password to history
+    passwordHistory.push(oldPassword);
+
+    // Update with new password and history
     await updateDoc(employeeRef, {
       password: newPassword,
+      passwordHistory: passwordHistory,
       firstLogin: false,
       updatedAt: Date.now(),
     });
-    console.log('Employee password changed:', employeeId);
+
+    console.log(`[Employee Service] Password changed for employee ${employeeId}. Password added to history.`);
   } catch (error) {
     console.error('Error changing employee password:', error);
     throw new Error('Failed to change password. Please try again.');

@@ -54,6 +54,16 @@ export async function addOrderAllotment(
       updatedAt: Date.now(),
     };
 
+    // If this is a vendor allotment, initialize vendor-specific fields
+    if (allotmentData.stitchingAllotment === 'vendor') {
+      newAllotment.status = 'allotted'; // Initialize status for job work tailor
+      newAllotment.assignedDate = Date.now(); // Set assignment date
+      newAllotment.jobWorkNo = jobWorkId; // Set job work number for reference
+      newAllotment.jobWorkTailorId = allotmentData.assignedTo; // Set job work tailor ID
+      newAllotment.jobWorkTailorName = allotmentData.assignedName; // Set job work tailor name
+      newAllotment.orderNumber = allotmentData.serviceOrderNo; // Set order number for reference
+    }
+
     console.log('[orderAllotmentService] Adding order allotment:', newAllotment);
 
     await setDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, jobWorkId), {
@@ -169,6 +179,53 @@ export async function updateOrderAllotmentStatus(
 }
 
 /**
+ * Update both order allotment status and service order status
+ */
+export async function updateOrderAllotmentWithServiceStatus(
+  allotmentId: string,
+  orderStatus: 'open' | 'in-progress' | 'closed',
+  serviceOrderStatus: ServiceOrderStatus
+): Promise<void> {
+  try {
+    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${orderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
+
+    await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
+      orderStatus: orderStatus,
+      serviceOrderStatus: serviceOrderStatus,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`[orderAllotmentService] Order allotment ${allotmentId} updated successfully`);
+  } catch (error) {
+    console.error('[orderAllotmentService] Error updating order allotment:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update vendor/job work tailor status (for Job Work Tailor Dashboard)
+ * This updates the 'status' field used by job work tailors to track their work
+ */
+export async function updateVendorOrderStatus(
+  allotmentId: string,
+  status: 'allotted' | 'in_progress' | 'stitched' | 'rejected'
+): Promise<void> {
+  try {
+    console.log(`[orderAllotmentService] Updating vendor order ${allotmentId} status to ${status}`);
+
+    await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
+      status: status,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`[orderAllotmentService] Vendor order ${allotmentId} status updated to ${status}`);
+  } catch (error) {
+    console.error('[orderAllotmentService] Error updating vendor order status:', error);
+    throw error;
+  }
+}
+
+/**
  * Delete an order allotment
  */
 export async function deleteOrderAllotment(allotmentId: string): Promise<void> {
@@ -206,6 +263,65 @@ export async function getOrderAllotmentsByServiceOrder(serviceOrderNo: string): 
     return allotments;
   } catch (error) {
     console.error('[orderAllotmentService] Error getting allotments by service order:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get order allotments by tailor/employee ID
+ */
+export async function getOrderAllotmentsByTailor(employeeId: string): Promise<OrderAllotment[]> {
+  try {
+    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
+    const q = query(allotmentsRef, where('assignedTo', '==', employeeId));
+    const snapshot = await getDocs(q);
+
+    const allotments: OrderAllotment[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt,
+      } as OrderAllotment;
+    });
+
+    console.log(`[orderAllotmentService] Found ${allotments.length} allotments for tailor ${employeeId}`);
+    return allotments;
+  } catch (error) {
+    console.error('[orderAllotmentService] Error getting allotments by tailor:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get order allotments by vendor/job work tailor ID
+ * Queries for allotments where stitchingAllotment is 'vendor' and assignedTo matches vendorId
+ */
+export async function getOrderAllotmentsByVendor(vendorId: string): Promise<OrderAllotment[]> {
+  try {
+    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
+    // Query for vendor allotments where assignedTo matches the vendor ID
+    const q = query(
+      allotmentsRef,
+      where('stitchingAllotment', '==', 'vendor'),
+      where('assignedTo', '==', vendorId)
+    );
+    const snapshot = await getDocs(q);
+
+    const allotments: OrderAllotment[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt,
+        assignedDate: data.assignedDate instanceof Timestamp ? data.assignedDate.toMillis() : data.assignedDate || data.jobWorkDate,
+      } as OrderAllotment;
+    });
+
+    console.log(`[orderAllotmentService] Found ${allotments.length} allotments for vendor ${vendorId}`);
+    return allotments;
+  } catch (error) {
+    console.error('[orderAllotmentService] Error getting allotments by vendor:', error);
     throw error;
   }
 }

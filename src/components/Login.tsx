@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useStorage } from '@/hooks/use-storage';
-import { User, Customer } from '@/lib/types';
+import { User, Customer, Vendor } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,19 +12,23 @@ import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { DebugPanel } from './DebugPanel';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
+import { VendorChangePasswordDialog } from './VendorChangePasswordDialog';
+import { decryptPassword } from '@/lib/firestore/vendorService';
 
 export function Login() {
-  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee } = useAuth();
+  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor } = useAuth();
   const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [showEmployeePasswordSetup, setShowEmployeePasswordSetup] = useState(false);
+  const [showVendorPasswordSetup, setShowVendorPasswordSetup] = useState(false);
   const [showCustomerRegistration, setShowCustomerRegistration] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [tempEmployee, setTempEmployee] = useState<any>(null); // Temporary employee storage for first login
+  const [tempVendor, setTempVendor] = useState<Vendor | null>(null); // Temporary vendor storage for first login
 
   const [customerForm, setCustomerForm] = useState({
     name: '',
@@ -52,14 +56,19 @@ export function Login() {
     if (result.success) {
       console.log('[Login] Login successful');
       if (result.needsPasswordSetup) {
-        console.log('[Login] Password setup needed. isEmployee:', result.isEmployee);
+        console.log('[Login] Password setup needed. isEmployee:', result.isEmployee, 'isVendor:', result.isVendor);
         if (result.isEmployee) {
           console.log('[Login] ✅ Setting showEmployeePasswordSetup to TRUE');
           console.log('[Login] Employee data from login:', result.employeeData);
           setTempEmployee(result.employeeData); // Store employee data temporarily
           setShowEmployeePasswordSetup(true);
+        } else if (result.isVendor) {
+          console.log('[Login] ✅ Setting showVendorPasswordSetup to TRUE');
+          console.log('[Login] Vendor data from login:', result.vendorData);
+          setTempVendor(result.vendorData || null); // Store vendor data temporarily
+          setShowVendorPasswordSetup(true);
         } else {
-          console.log('[Login] Setting showPasswordSetup to TRUE (non-employee)');
+          console.log('[Login] Setting showPasswordSetup to TRUE (non-employee/non-vendor)');
           setShowPasswordSetup(true);
         }
       } else {
@@ -385,6 +394,7 @@ export function Login() {
             <ChangePasswordDialog
               employeeId={tempEmployee.id}
               employeeName={tempEmployee.name}
+              currentPassword={tempEmployee.password}
               onSuccess={() => {
                 console.log('[Login] Password change successful - redirecting to dashboard');
                 setShowEmployeePasswordSetup(false);
@@ -397,6 +407,33 @@ export function Login() {
           );
         }
         console.log('[Login] ❌ NOT rendering ChangePasswordDialog');
+        return null;
+      })()}
+
+      {/* Vendor First Login Password Change */}
+      {(() => {
+        console.log('[Login] Modal render check - showVendorPasswordSetup:', showVendorPasswordSetup);
+        console.log('[Login] Modal render check - tempVendor:', tempVendor);
+        if (showVendorPasswordSetup && tempVendor) {
+          console.log('[Login] ✅ RENDERING VendorChangePasswordDialog');
+          const currentPassword = decryptPassword(tempVendor.password);
+          return (
+            <VendorChangePasswordDialog
+              vendorId={tempVendor.tailorCode}
+              vendorName={tempVendor.tailorName}
+              currentPassword={currentPassword}
+              onSuccess={() => {
+                console.log('[Login] Vendor password change successful - redirecting to dashboard');
+                setShowVendorPasswordSetup(false);
+                setTempVendor(null); // Clear temp storage
+                toast.success('Password changed successfully! Redirecting...');
+                // Reload the page to trigger login with new password
+                window.location.reload();
+              }}
+            />
+          );
+        }
+        console.log('[Login] ❌ NOT rendering VendorChangePasswordDialog');
         return null;
       })()}
 

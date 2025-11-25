@@ -220,14 +220,17 @@ export function OrderAllotmentForm({
         return false;
       }
 
-      if (materialCost < 0) {
-        toast.error('Material cost cannot be negative');
-        return false;
-      }
+      // Only validate material cost and job work cost for vendors (Job Work Tailor)
+      if (stitchingAllotment === 'vendor') {
+        if (materialCost < 0) {
+          toast.error('Material cost cannot be negative');
+          return false;
+        }
 
-      if (jobWorkCost < 0) {
-        toast.error('Job work cost cannot be negative');
-        return false;
+        if (jobWorkCost < 0) {
+          toast.error('Job work cost cannot be negative');
+          return false;
+        }
       }
     }
 
@@ -342,6 +345,7 @@ export function OrderAllotmentForm({
                 <p>Category: {selectedOrder.orderCategory}</p>
                 <p>Quantity: {selectedOrder.orderQty} {selectedOrder.uom}</p>
                 <p>Stitching Cost: ₹{selectedOrder.stitchingCost.toFixed(2)}</p>
+                <p>Expected Date: {format(new Date(selectedOrder.expectedDeliveryDate), 'dd MMM yyyy')}</p>
               </div>
             )}
           </div>
@@ -534,43 +538,48 @@ export function OrderAllotmentForm({
                 </Select>
               </div>
 
-              {/* Material Cost */}
-              <div className="space-y-2">
-                <Label htmlFor="materialCost">Material Cost (₹) *</Label>
-                <Input
-                  id="materialCost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={materialCost}
-                  onChange={(e) => setMaterialCost(parseFloat(e.target.value) || 0)}
-                  placeholder="0.00"
-                />
-              </div>
+              {/* Material Cost and Job Work Cost - Only for Job Work Tailor */}
+              {stitchingAllotment === 'vendor' && (
+                <>
+                  {/* Material Cost */}
+                  <div className="space-y-2">
+                    <Label htmlFor="materialCost">Material Cost (₹) *</Label>
+                    <Input
+                      id="materialCost"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={materialCost}
+                      onChange={(e) => setMaterialCost(parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                    />
+                  </div>
 
-              {/* Job Work Cost */}
-              <div className="space-y-2">
-                <Label htmlFor="jobWorkCost">Job Work Cost (₹) *</Label>
-                <Input
-                  id="jobWorkCost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={jobWorkCost}
-                  onChange={(e) => setJobWorkCost(parseFloat(e.target.value) || 0)}
-                  placeholder="0.00"
-                />
-              </div>
+                  {/* Job Work Cost */}
+                  <div className="space-y-2">
+                    <Label htmlFor="jobWorkCost">Job Work Cost (₹) *</Label>
+                    <Input
+                      id="jobWorkCost"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={jobWorkCost}
+                      onChange={(e) => setJobWorkCost(parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                    />
+                  </div>
 
-              {/* Total Cost Display */}
-              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md border border-green-200 dark:border-green-800">
-                <p className="text-base font-semibold text-green-800 dark:text-green-300">
-                  Total Cost: ₹{totalJobCost.toFixed(2)}
-                </p>
-                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                  Material (₹{materialCost.toFixed(2)}) + Job Work (₹{jobWorkCost.toFixed(2)})
-                </p>
-              </div>
+                  {/* Total Cost Display */}
+                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md border border-green-200 dark:border-green-800">
+                    <p className="text-base font-semibold text-green-800 dark:text-green-300">
+                      Total Cost: ₹{totalJobCost.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                      Material (₹{materialCost.toFixed(2)}) + Job Work (₹{jobWorkCost.toFixed(2)})
+                    </p>
+                  </div>
+                </>
+              )}
             </>
           )}
 

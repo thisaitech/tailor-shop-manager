@@ -24,6 +24,8 @@ import { toast } from 'sonner';
 import { TShirt, Pants, Hoodie, Dress } from '@phosphor-icons/react';
 import { generateCustomerId } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 // State to Cities/Districts mapping
 const STATE_CITIES: Record<string, string[]> = {
@@ -167,8 +169,11 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [aliasName, setAliasName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [phone, setPhone] = useState(''); // Only the 10 digits
+  const [email, setEmail] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState(''); // Only the 10 digits
+  const [phoneError, setPhoneError] = useState('');
+  const [whatsappError, setWhatsappError] = useState('');
   const [place, setPlace] = useState('');
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
@@ -176,7 +181,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   const [region, setRegion] = useState('NaN');
   const [state, setState] = useState('');
   const [country, setCountry] = useState('India');
-  const [gender, setGender] = useState<Gender>('male');
+  const [gender, setGender] = useState<Gender | ''>('');
   const [measurements, setMeasurements] = useState<Measurements>({});
   const [activeCategory, setActiveCategory] = useState<MeasurementCategory>('shirt');
   const [nextCustomerId, setNextCustomerId] = useState<string>('');
@@ -204,12 +209,56 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     fetchNextId();
   }, [open, customer, user]);
 
+  // Helper functions for phone number formatting
+  const extractDigits = (phoneStr: string): string => {
+    // Extract 10 digits from formats like "+91 9876543210" or "+919876543210"
+    const digits = phoneStr.replace(/\D/g, '');
+    // If it starts with 91, remove it
+    if (digits.startsWith('91') && digits.length === 12) {
+      return digits.substring(2);
+    }
+    return digits.length === 10 ? digits : '';
+  };
+
+  const formatDisplay = (digits: string): string => {
+    return digits.length === 10 ? `+91 ${digits}` : '';
+  };
+
+  const normalize = (digits: string): string => {
+    return digits.length === 10 ? `+91${digits}` : '';
+  };
+
+  const onlyDigits = (str: string): boolean => {
+    return /^\d+$/.test(str);
+  };
+
+  // Check if phone number exists in Firestore
+  const checkPhoneExists = async (normalizedPhone: string, currentCustomerId?: string): Promise<boolean> => {
+    try {
+      const customersRef = collection(db, 'newcustomers');
+      const q = query(customersRef, where('phoneNormalized', '==', normalizedPhone));
+      const snapshot = await getDocs(q);
+
+      // If editing, exclude the current customer from the check
+      if (currentCustomerId) {
+        return snapshot.docs.some(doc => doc.id !== currentCustomerId);
+      }
+
+      return !snapshot.empty;
+    } catch (error) {
+      console.error('[CustomerForm] Error checking phone existence:', error);
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (customer) {
       setName(customer.name);
       setAliasName(customer.aliasName || '');
-      setPhone(customer.phone);
-      setWhatsappNumber(customer.whatsappNumber || '');
+      // Extract 10 digits from stored phone numbers
+      setPhone(extractDigits(customer.phone));
+      setEmail(customer.email || '');
+      setWhatsappNumber(customer.whatsappNumber ? extractDigits(customer.whatsappNumber) : '');
       setPlace(customer.place);
       setAddress1(customer.address1 || '');
       setAddress2(customer.address2 || '');
@@ -219,16 +268,40 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       setCountry(customer.country || '');
       setGender(customer.gender);
       setMeasurements(customer.measurements || {});
+      setPhoneError('');
+      setWhatsappError('');
     } else {
       resetForm();
     }
   }, [customer, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim() || !phone.trim() || !place.trim()) {
-      toast.error('Customer Name, Contact Number, and City are required');
+    // Clear previous errors
+    setPhoneError('');
+    setWhatsappError('');
+
+    // Basic validations
+    if (!name.trim() || !phone.trim() || !place.trim() || !state.trim()) {
+      toast.error('Customer Name, Contact Number, State, and City are required');
+      return;
+    }
+
+    // Email validation
+    if (!email.trim()) {
+      toast.error('Email address is required');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    // Gender validation
+    if (!gender) {
+      toast.error('Please select the gender');
       return;
     }
 
@@ -242,14 +315,41 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       return;
     }
 
-    if (phone.trim().length > 15) {
-      toast.error('Contact Number must be max 15 characters');
+    // Phone number validation
+    const phoneRaw = phone.trim();
+    if (!onlyDigits(phoneRaw) || phoneRaw.length !== 10) {
+      setPhoneError('Enter correct number');
+      toast.error('Phone Number: Enter correct number');
       return;
     }
 
-    if (whatsappNumber.trim() && whatsappNumber.trim().length > 15) {
-      toast.error('WhatsApp Number must be max 15 characters');
+    // WhatsApp number validation (optional but if provided must be valid)
+    const whatsappRaw = whatsappNumber.trim();
+    if (whatsappRaw && (!onlyDigits(whatsappRaw) || whatsappRaw.length !== 10)) {
+      setWhatsappError('Enter correct number');
+      toast.error('WhatsApp Number: Enter correct number');
       return;
+    }
+
+    // Format for storage
+    const phoneNorm = normalize(phoneRaw);
+    const whatsappNorm = whatsappRaw ? normalize(whatsappRaw) : '';
+
+    // Check uniqueness
+    const phoneExists = await checkPhoneExists(phoneNorm, customer?.id);
+    if (phoneExists) {
+      setPhoneError('This number is already registered');
+      toast.error('This number is already registered. Phone/WhatsApp number must be unique.');
+      return;
+    }
+
+    if (whatsappNorm) {
+      const whatsappExists = await checkPhoneExists(whatsappNorm, customer?.id);
+      if (whatsappExists) {
+        setWhatsappError('This number is already registered');
+        toast.error('This number is already registered. Phone/WhatsApp number must be unique.');
+        return;
+      }
     }
 
     if (pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
@@ -267,11 +367,15 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       return;
     }
 
+    // Save with formatted phone numbers
     onSave({
       name: name.trim(),
       aliasName: aliasName.trim() || undefined,
-      phone: phone.trim(),
-      whatsappNumber: whatsappNumber.trim() || undefined,
+      phone: formatDisplay(phoneRaw), // Store as "+91 9876543210"
+      phoneNormalized: phoneNorm as any, // Store as "+919876543210" for queries
+      email: email.trim(),
+      whatsappNumber: whatsappRaw ? formatDisplay(whatsappRaw) : undefined,
+      whatsappNormalized: whatsappNorm || undefined as any,
       place: place.trim(),
       address1: address1.trim() || undefined,
       address2: address2.trim() || undefined,
@@ -291,15 +395,18 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     setName('');
     setAliasName('');
     setPhone('');
+    setEmail('');
     setWhatsappNumber('');
+    setPhoneError('');
+    setWhatsappError('');
     setPlace('');
     setAddress1('');
     setAddress2('');
     setPincode('');
-    setRegion('NaN');
+    setRegion('none');
     setState('');
     setCountry('India');
-    setGender('male');
+    setGender('');
     setMeasurements({});
     setActiveCategory('shirt');
   };
@@ -380,7 +487,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                 <Label htmlFor="gender">Gender *</Label>
                 <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
                   <SelectTrigger id="gender">
-                    <SelectValue />
+                    <SelectValue placeholder="Gender" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
@@ -391,25 +498,69 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
               <div className="space-y-2">
                 <Label htmlFor="phone">Contact Number *</Label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
+                    +91
+                  </div>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      setPhone(value);
+                      if (phoneError) setPhoneError('');
+                    }}
+                    maxLength={10}
+                    placeholder="Enter a Number"
+                    className={`pl-12 ${phoneError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                    required
+                  />
+                </div>
+                {phoneError && (
+                  <p className="text-xs text-red-500 font-medium">{phoneError}</p>
+                )}
+                {phone && !phoneError && phone.length === 10 && (
+                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address *</Label>
                 <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                  maxLength={15}
-                  placeholder="Primary contact number"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="customer@example.com"
                   required
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="whatsappNumber">WhatsApp Number</Label>
-                <Input
-                  id="whatsappNumber"
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))}
-                  maxLength={15}
-                  placeholder="Optional WhatsApp number"
-                />
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
+                    +91
+                  </div>
+                  <Input
+                    id="whatsappNumber"
+                    value={whatsappNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      setWhatsappNumber(value);
+                      if (whatsappError) setWhatsappError('');
+                    }}
+                    maxLength={10}
+                    placeholder="Enter a Number"
+                    className={`pl-12 ${whatsappError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                  />
+                </div>
+                {whatsappError && (
+                  <p className="text-xs text-red-500 font-medium">{whatsappError}</p>
+                )}
+                {whatsappNumber && !whatsappError && whatsappNumber.length === 10 && (
+                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
+                )}
               </div>
             </div>
 
@@ -611,7 +762,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               {/* Measurement Summary - Shows what's been entered */}
               <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
                 <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-2">
-                  Saved Measurements Summary
+                  Total Measurements
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {(Object.keys(MEASUREMENT_FIELDS) as MeasurementCategory[]).map((category) => {

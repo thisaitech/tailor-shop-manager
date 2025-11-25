@@ -23,14 +23,48 @@ const ADVANCE_PAYMENTS_COLLECTION = 'advancePayments';
  */
 export async function generateProformaInvoiceId(companyId: string): Promise<string> {
   try {
+    console.log('[advancePaymentService] ==========================================');
+    console.log('[advancePaymentService] Generating proforma invoice ID for companyId:', companyId);
+    console.log('[advancePaymentService] Collection name:', ADVANCE_PAYMENTS_COLLECTION);
+
     const paymentsRef = collection(db, ADVANCE_PAYMENTS_COLLECTION);
     const q = query(paymentsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
-    const count = snapshot.size + 1;
-    return `PI${count.toString().padStart(4, '0')}`;
+
+    console.log('[advancePaymentService] Total documents found:', snapshot.size);
+
+    // Log all documents for debugging
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      console.log(`[advancePaymentService] Document ID: ${doc.id}, companyId: ${data.companyId}`);
+    });
+
+    // Get all existing IDs and find the highest number
+    const existingIds = snapshot.docs.map(doc => doc.id);
+    console.log('[advancePaymentService] Existing proforma invoice IDs:', existingIds);
+
+    let maxNum = 0;
+
+    existingIds.forEach(id => {
+      const match = id.match(/^PI(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        console.log(`[advancePaymentService] Found invoice ${id} with number ${num}`);
+        if (num > maxNum) maxNum = num;
+      } else {
+        console.warn(`[advancePaymentService] Invalid proforma invoice ID format: ${id}`);
+      }
+    });
+
+    const count = maxNum + 1;
+    const newCode = `PI${count.toString().padStart(4, '0')}`;
+    console.log(`[advancePaymentService] Max number found: ${maxNum}, Generated new code: ${newCode}`);
+    console.log('[advancePaymentService] ==========================================');
+
+    return newCode;
   } catch (error) {
     console.error('[advancePaymentService] Error generating proforma invoice ID:', error);
-    return `PI${Date.now()}`;
+    return `PI${Date.now().toString().slice(-4)}`;
   }
 }
 
@@ -40,14 +74,38 @@ export async function generateProformaInvoiceId(companyId: string): Promise<stri
  */
 async function generateInvoiceNumber(companyId: string): Promise<string> {
   try {
+    console.log('[advancePaymentService] Generating invoice number for companyId:', companyId);
+
     const paymentsRef = collection(db, ADVANCE_PAYMENTS_COLLECTION);
     const q = query(paymentsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
-    const count = snapshot.size + 1;
-    return `INV${count.toString().padStart(4, '0')}`;
+
+    console.log('[advancePaymentService] Total documents found for invoice number:', snapshot.size);
+
+    // Get all existing invoice numbers and find the highest number
+    let maxNum = 0;
+
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const invoiceNo = data.invoiceNo;
+      if (invoiceNo) {
+        const match = invoiceNo.match(/^INV(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          console.log(`[advancePaymentService] Found invoice ${invoiceNo} with number ${num}`);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+
+    const count = maxNum + 1;
+    const newCode = `INV${count.toString().padStart(4, '0')}`;
+    console.log(`[advancePaymentService] Generated invoice number: ${newCode}`);
+
+    return newCode;
   } catch (error) {
     console.error('[advancePaymentService] Error generating invoice number:', error);
-    return `INV${Date.now()}`;
+    return `INV${Date.now().toString().slice(-4)}`;
   }
 }
 

@@ -69,6 +69,7 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
     state: '',
     country: 'India',
     contactNumber: '',
+    email: '',
     panNumber: '',
     udhyamMsmeNo: '',
     gstinNumber: '',
@@ -160,6 +161,18 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
 
     if (!formData.contactNumber || formData.contactNumber.length > 20) {
       toast.error('Contact number is required (max 20 digits)');
+      return;
+    }
+
+    if (!formData.email) {
+      toast.error('Email is required');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error('Please enter a valid email address');
       return;
     }
 
@@ -406,6 +419,18 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
                   value={formData.contactNumber}
                   onChange={(e) => handleChange('contactNumber', e.target.value.replace(/\D/g, ''))}
                   placeholder="Enter contact number"
+                  disabled={saving}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="Enter company email"
                   disabled={saving}
                 />
               </div>

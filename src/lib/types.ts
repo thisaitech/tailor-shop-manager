@@ -97,8 +97,11 @@ export interface Customer {
   id: string; // Auto-generated customer code
   name: string; // Customer Name (max 40 chars, required)
   aliasName?: string; // Alias Name (max 40 chars, optional)
-  phone: string; // Contact Number (max 15 chars, required)
-  whatsappNumber?: string; // WhatsApp Number (max 15 chars, optional)
+  phone: string; // Contact Number (display format: "+91 9876543210")
+  phoneNormalized?: string; // Normalized for queries ("+919876543210")
+  email: string; // Email address (mandatory)
+  whatsappNumber?: string; // WhatsApp Number (display format: "+91 9876543210")
+  whatsappNormalized?: string; // Normalized for queries ("+919876543210")
   place: string; // City (required)
   address1?: string; // Address 1 (max 40 chars)
   address2?: string; // Address 2 (max 40 chars)
@@ -165,11 +168,20 @@ export interface OrderAllotment {
   serviceOrderNo: string; // Reference to Service Order ID
   dressItemId?: string; // Reference to specific dress item ID (new)
   dressItemName?: string; // Dress item name for display (new)
+  dressType?: string; // Dress type for display (shirt, pant, etc.)
   customerName: string; // Denormalized from service order
   customerId: string; // Customer ID reference
   stitchingAllotment: StitchingAllotmentType; // Employee or Vendor
   assignedTo: string; // Employee ID or Vendor ID
   assignedName: string; // Employee/Vendor name (denormalized)
+  // Job Work Tailor specific fields (when stitchingAllotment === 'vendor')
+  jobWorkNo?: string; // Job work number for vendor orders
+  jobWorkTailorId?: string; // Vendor/Job Work Tailor ID (TAL0001, etc.)
+  jobWorkTailorName?: string; // Vendor name (denormalized)
+  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected'; // Job work status
+  assignedDate?: number; // Date when allotted to job work tailor
+  orderNumber?: string; // Service order number for job work reference
+  // End of Job Work Tailor fields
   materialCost: number; // Material cost in INR
   jobWorkCost: number; // Job work cost in INR
   expectedDeliveryDate: number; // Delivery date timestamp
@@ -329,6 +341,7 @@ export interface CompanyProfile {
   state: string;
   country: string;
   contactNumber: string; // max 20 digits
+  email: string; // Company email address (mandatory)
   panNumber: string; // 15 chars, uppercase
   udhyamMsmeNo?: string; // 15 chars, optional
   gstinNumber: string; // 15 chars
@@ -353,7 +366,7 @@ export interface Employee {
   aliasName?: string; // max 40 chars
   gender: EmployeeGender;
   profilePicture?: string; // URL or base64 string for profile picture
-  email?: string;
+  email: string; // Email address (mandatory)
   contactNumber: string; // max 15 digits, used as login ID
   whatsappNumber?: string; // max 15 digits
   address1?: string; // max 40 chars
@@ -370,6 +383,7 @@ export interface Employee {
   accessPermissionEnabled: boolean; // If true, employee can login and appears in list
   isActive: boolean;
   firstLogin: boolean; // true by default, set to false after password change
+  passwordHistory?: string[]; // Array of previous passwords for history tracking
   companyId: string; // Company unique ID
   companyDocId: string; // Firestore document ID of company
   createdBy: string; // Admin user ID who created employee
@@ -388,6 +402,7 @@ export interface Vendor {
   aliasName?: string; // max 40 chars
   gender: VendorGender;
   businessType: VendorBusinessType;
+  email: string; // Email address (mandatory)
   address1: string; // max 40 chars
   address2?: string; // max 40 chars
   city: string;
@@ -397,6 +412,10 @@ export interface Vendor {
   country: string;
   contactNumber: string; // max 15 digits
   whatsappNumber: string; // max 15 digits
+  password: string; // Encrypted password for login
+  passwordHistory: Array<{ password: string; changedAt: number }>; // Password change history
+  isFirstLogin: boolean; // Flag to force password change on first login
+  lastPasswordChange: number; // Timestamp of last password change
   companyId: string; // Company unique ID
   companyDocId: string; // Firestore document ID of company
   createdBy: string; // Admin user ID who created vendor

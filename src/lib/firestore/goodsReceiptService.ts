@@ -14,6 +14,9 @@ const GOODS_RECEIPT_COLLECTION = 'goodsReceipts';
 // Shipment Type
 export type ShipmentType = 'courier' | 'direct';
 
+// Goods Receipt Status
+export type GoodsReceiptStatus = 'move_to_stitching' | 'ready_to_dispatch';
+
 // Goods Receipt interface
 export interface GoodsReceipt {
   id: string; // GRN001, GRN002, etc.
@@ -22,6 +25,8 @@ export interface GoodsReceipt {
   dcNo: string; // Reference to Delivery Challan
   shipmentType: ShipmentType;
   consignmentNo: string; // Max 20 chars
+  status: GoodsReceiptStatus; // Status of goods receipt
+  imageUrl?: string; // Firebase Storage URL for captured image
   companyId: string;
   adminId: string;
   createdAt: number;
@@ -54,6 +59,8 @@ export async function createGoodsReceipt(
     dcNo: string;
     shipmentType: ShipmentType;
     consignmentNo: string;
+    status: GoodsReceiptStatus;
+    imageUrl?: string;
   },
   companyId: string,
   adminId: string
@@ -68,6 +75,8 @@ export async function createGoodsReceipt(
       dcNo: data.dcNo,
       shipmentType: data.shipmentType,
       consignmentNo: data.consignmentNo.slice(0, 20), // Max 20 chars
+      status: data.status,
+      imageUrl: data.imageUrl,
       companyId,
       adminId,
       createdAt: Date.now(),
@@ -112,6 +121,8 @@ export async function getGoodsReceiptsByCompany(companyId: string): Promise<Good
         dcNo: data.dcNo || '',
         shipmentType: data.shipmentType || 'direct',
         consignmentNo: data.consignmentNo || '',
+        status: data.status || 'move_to_stitching',
+        imageUrl: data.imageUrl,
         companyId: data.companyId || '',
         adminId: data.adminId || '',
         createdAt: data.createdAt?.toMillis?.() || data.createdAt || Date.now(),

@@ -5,7 +5,9 @@ import { Login } from '@/components/Login';
 import { Header } from '@/components/Header';
 import { OwnerDashboard } from '@/components/OwnerDashboard';
 import { TailorDashboard } from '@/components/TailorDashboard';
+import { TailorDashboardFirestore } from '@/components/TailorDashboardFirestore';
 import { CustomerDashboard } from '@/components/CustomerDashboard';
+import { JobWorkTailorDashboard } from '@/components/JobWorkTailorDashboard';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { SeedData } from '@/components/SeedData';
 import { CompanyProfileFirestore as CompanyProfile } from '@/components/CompanyProfileFirestore';
@@ -20,13 +22,15 @@ import { Toaster } from '@/components/ui/sonner';
 
 type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt';
 type EmployeeView = 'dashboard' | 'profile';
+type VendorView = 'dashboard' | 'profile';
 
 function AppContent() {
-  const { user, employee, isAuthenticated } = useAuth();
+  const { user, employee, vendor, isAuthenticated } = useAuth();
   const [adminView, setAdminView] = useState<AdminView>('dashboard');
   const [employeeView, setEmployeeView] = useState<EmployeeView>('dashboard');
+  const [vendorView, setVendorView] = useState<VendorView>('dashboard');
 
-  if (!isAuthenticated || (!user && !employee)) {
+  if (!isAuthenticated || (!user && !employee && !vendor)) {
     return <Login />;
   }
 
@@ -98,8 +102,10 @@ function AppContent() {
       )}
       {user?.role === 'tailor' && <TailorDashboard />}
       {user?.role === 'customer' && <CustomerDashboard />}
-      {employee && employeeView === 'dashboard' && <OwnerDashboard />}
+      {employee && employeeView === 'dashboard' && employee.role === 'tailor' && <TailorDashboardFirestore />}
+      {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <OwnerDashboard />}
       {employee && employeeView === 'profile' && <EmployeeProfile onBack={handleEmployeeBackToDashboard} />}
+      {vendor && vendorView === 'dashboard' && <JobWorkTailorDashboard />}
       <InstallPrompt />
     </div>
   );

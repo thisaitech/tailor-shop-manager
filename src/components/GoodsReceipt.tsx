@@ -19,11 +19,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Package } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Package, Camera, Trash } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import {
   GoodsReceipt as GoodsReceiptType,
   ShipmentType,
+  GoodsReceiptStatus,
   createGoodsReceipt,
   getGoodsReceiptsByCompany,
   getUsedDCNumbers,
@@ -33,6 +34,8 @@ import {
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { WebcamCapture } from '@/components/WebcamCapture';
+import { uploadImageToStorage } from '@/lib/firebase/storageService';
 
 interface GoodsReceiptProps {
   onBack: () => void;
@@ -50,8 +53,11 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
   const [showDialog, setShowDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dcNo, setDcNo] = useState('');
-  const [shipmentType, setShipmentType] = useState<ShipmentType>('direct');
+  const [shipmentType, setShipmentType] = useState<ShipmentType | ''>('');
   const [consignmentNo, setConsignmentNo] = useState('');
+  const [status, setStatus] = useState<GoodsReceiptStatus | ''>('');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [showWebcam, setShowWebcam] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -88,14 +94,35 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
 
   const handleOpenDialog = () => {
     setDcNo('');
-    setShipmentType('direct');
+    setShipmentType('');
     setConsignmentNo('');
+    setStatus('');
+    setCapturedImage(null);
     setShowDialog(true);
+  };
+
+  const handleCaptureImage = (imageDataUrl: string) => {
+    setCapturedImage(imageDataUrl);
+    setShowWebcam(false);
+  };
+
+  const handleRemoveImage = () => {
+    setCapturedImage(null);
   };
 
   const handleSave = async () => {
     if (!dcNo) {
       toast.error('Please select a DC No');
+      return;
+    }
+
+    if (!shipmentType) {
+      toast.error('Please select the shipment type');
+      return;
+    }
+
+    if (!status) {
+      toast.error('Please select the status');
       return;
     }
 
@@ -106,11 +133,26 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
 
     setSaving(true);
     try {
+      // Upload image if captured
+      let imageUrl: string | undefined;
+      if (capturedImage) {
+        try {
+          const imagePath = `goods-receipts/${companyId}/${Date.now()}.jpg`;
+          imageUrl = await uploadImageToStorage(capturedImage, imagePath);
+          console.log('Image uploaded successfully:', imageUrl);
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          toast.error('Failed to upload image. Creating GRN without image.');
+        }
+      }
+
       const newGRN = await createGoodsReceipt(
         {
           dcNo,
-          shipmentType,
+          shipmentType: shipmentType as ShipmentType,
           consignmentNo: consignmentNo.trim(),
+          status: status as GoodsReceiptStatus,
+          imageUrl,
         },
         companyId,
         user.id
@@ -185,6 +227,15 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
                       <p className="text-sm text-muted-foreground">
                         {format(grn.grnDate, 'dd MMM yyyy')} • DC: {grn.dcNo}
                       </p>
+                      <div className="mt-2">
+                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          grn.status === 'ready_to_dispatch'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          {grn.status === 'ready_to_dispatch' ? 'Ready to Dispatch' : 'Move to Stitching'}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-right">
                       <span className={`inline-block px-2 py-1 text-xs rounded-full ${
@@ -251,13 +302,13 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
             {/* Shipment Type */}
             <div className="space-y-2">
               <Label htmlFor="shipmentType">Shipment Type *</Label>
-              <Select value={shipmentType} onValueChange={(v) => setShipmentType(v as ShipmentType)}>
+              <Select value={shipmentType} onValueChange={setShipmentType}>
                 <SelectTrigger id="shipmentType">
-                  <SelectValue placeholder="Select shipment type" />
+                  <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="courier">Courier</SelectItem>
                   <SelectItem value="direct">Direct</SelectItem>
+                  <SelectItem value="courier">Courier</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -276,6 +327,53 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
                 {consignmentNo.length}/20 characters
               </p>
             </div>
+
+            {/* Status */}
+            <div className="space-y-2">
+              <Label htmlFor="status">Status *</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="move_to_stitching">Move to Stitching</SelectItem>
+                  <SelectItem value="ready_to_dispatch">Ready to Dispatch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Image Capture */}
+            <div className="space-y-2">
+              <Label>Capture Image (Optional)</Label>
+              {!capturedImage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowWebcam(true)}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <Camera size={20} weight="duotone" />
+                  Capture Image
+                </Button>
+              ) : (
+                <div className="relative">
+                  <img
+                    src={capturedImage}
+                    alt="Captured"
+                    className="w-full h-40 object-cover rounded-lg border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2"
+                  >
+                    <Trash size={16} />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)} disabled={saving}>
@@ -287,6 +385,14 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Webcam Capture Modal */}
+      {showWebcam && (
+        <WebcamCapture
+          onCapture={handleCaptureImage}
+          onClose={() => setShowWebcam(false)}
+        />
+      )}
     </div>
   );
 }
