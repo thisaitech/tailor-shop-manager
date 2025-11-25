@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, ClockCountdown, CheckCircle, ListChecks, UserCircle, XCircle } from '@phosphor-icons/react';
+import { Package, ClockCountdown, CheckCircle, ListChecks, XCircle } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { OrderAllotment } from '@/lib/types';
 import {
@@ -13,6 +13,8 @@ import { getCustomerById } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { sendOrderRejectionEmail } from '@/lib/emailService';
 import { format } from 'date-fns';
+import { JobWorkFilteredOrders } from './JobWorkFilteredOrders';
+import { JobWorkOrderDetailsDialog } from './JobWorkOrderDetailsDialog';
 
 interface OrderWithCustomer extends OrderAllotment {
   customerName?: string;
@@ -22,6 +24,9 @@ export function JobWorkTailorDashboard() {
   const { vendor } = useAuth();
   const [orders, setOrders] = useState<OrderWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterView, setFilterView] = useState<'all' | 'assigned' | 'in_progress' | 'stitched' | 'rejected' | null>(null);
+  const [selectedOrderNo, setSelectedOrderNo] = useState<string | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   // Summary counts
   const assignedOrders = orders.filter(o => (o.status === 'allotted' || o.orderStatus === 'open')).length;
@@ -127,6 +132,27 @@ export function JobWorkTailorDashboard() {
     }
   };
 
+  const handleCardClick = (filterType: 'all' | 'assigned' | 'in_progress' | 'stitched' | 'rejected') => {
+    setFilterView(filterType);
+  };
+
+  const handleOrderRowClick = (order: OrderWithCustomer) => {
+    setSelectedOrderNo(order.serviceOrderNo);
+    setShowOrderDetails(true);
+  };
+
+  // If filter view is active, show filtered orders page
+  if (filterView) {
+    return (
+      <JobWorkFilteredOrders
+        orders={orders}
+        filterType={filterView}
+        onBack={() => setFilterView(null)}
+        onOrderUpdate={loadOrders}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="p-4 sm:p-6">
@@ -137,9 +163,14 @@ export function JobWorkTailorDashboard() {
     );
   }
 
-  // Filter recent orders (show allotted and in_progress orders first)
+  // Filter recent orders (only show allotted and in_progress orders, exclude rejected, stitched, and delivered)
   const recentOrders = orders
-    .filter(o => o.status !== 'rejected')
+    .filter(o =>
+      o.status !== 'rejected' &&
+      o.status !== 'stitched' &&
+      o.status !== 'delivered' &&
+      (o.status === 'allotted' || o.status === 'in_progress' || o.orderStatus === 'open' || o.orderStatus === 'in-progress')
+    )
     .sort((a, b) => {
       const aDate = a.assignedDate || a.jobWorkDate || a.createdAt;
       const bDate = b.assignedDate || b.jobWorkDate || b.createdAt;
@@ -158,7 +189,10 @@ export function JobWorkTailorDashboard() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Assigned Orders */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => handleCardClick('assigned')}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -173,7 +207,10 @@ export function JobWorkTailorDashboard() {
         </Card>
 
         {/* In Progress */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => handleCardClick('in_progress')}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-100 rounded-lg">
@@ -188,7 +225,10 @@ export function JobWorkTailorDashboard() {
         </Card>
 
         {/* Stitched Orders */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => handleCardClick('stitched')}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 rounded-lg">
@@ -203,7 +243,10 @@ export function JobWorkTailorDashboard() {
         </Card>
 
         {/* Rejected Orders */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => handleCardClick('rejected')}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-100 rounded-lg">
@@ -218,7 +261,10 @@ export function JobWorkTailorDashboard() {
         </Card>
 
         {/* Total Orders */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => handleCardClick('all')}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -251,7 +297,6 @@ export function JobWorkTailorDashboard() {
                   <tr>
                     <th className="text-left p-3 text-sm font-medium">Order No</th>
                     <th className="text-left p-3 text-sm font-medium">Customer Name</th>
-                    <th className="text-left p-3 text-sm font-medium">Dress Type</th>
                     <th className="text-left p-3 text-sm font-medium">Assigned Date</th>
                     <th className="text-left p-3 text-sm font-medium">Status</th>
                     <th className="text-left p-3 text-sm font-medium">Actions</th>
@@ -264,12 +309,32 @@ export function JobWorkTailorDashboard() {
                     const displayDate = order.assignedDate || order.jobWorkDate || order.createdAt;
 
                     return (
-                      <tr key={order.id} className="hover:bg-muted/30">
-                        <td className="p-3 text-sm font-medium">{order.jobWorkNo || order.id}</td>
-                        <td className="p-3 text-sm">{order.customerName}</td>
-                        <td className="p-3 text-sm">{order.dressType || order.dressItemName || 'N/A'}</td>
-                        <td className="p-3 text-sm">{format(displayDate, 'dd MMM yyyy')}</td>
-                        <td className="p-3">
+                      <tr
+                        key={order.id}
+                        className="hover:bg-muted/30"
+                      >
+                        <td
+                          className="p-3 text-sm font-medium cursor-pointer hover:text-primary"
+                          onClick={() => handleOrderRowClick(order)}
+                        >
+                          {order.jobWorkNo || order.id}
+                        </td>
+                        <td
+                          className="p-3 text-sm cursor-pointer"
+                          onClick={() => handleOrderRowClick(order)}
+                        >
+                          {order.customerName}
+                        </td>
+                        <td
+                          className="p-3 text-sm cursor-pointer"
+                          onClick={() => handleOrderRowClick(order)}
+                        >
+                          {format(displayDate, 'dd MMM yyyy')}
+                        </td>
+                        <td
+                          className="p-3 cursor-pointer"
+                          onClick={() => handleOrderRowClick(order)}
+                        >
                           <span className={`inline-block px-2 py-1 text-xs rounded-full ${
                             currentStatus === 'allotted'
                               ? 'bg-blue-100 text-blue-700'
@@ -286,12 +351,12 @@ export function JobWorkTailorDashboard() {
                         </td>
                         <td className="p-3">
                           {currentStatus === 'allotted' && (
-                            <div className="flex gap-2">
+                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 size="sm"
-                                variant="default"
+                                variant="outline"
                                 onClick={() => handleAccept(order.id)}
-                                className="text-xs"
+                                className="text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                               >
                                 Accept
                               </Button>
@@ -299,14 +364,32 @@ export function JobWorkTailorDashboard() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleReject(order.id)}
-                                className="text-xs"
+                                className="text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
                               >
                                 Reject
                               </Button>
                             </div>
                           )}
                           {currentStatus === 'in_progress' && (
-                            <span className="text-xs text-muted-foreground">Working on it...</span>
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    await updateVendorOrderStatus(order.id, 'stitched');
+                                    toast.success('Order marked as stitched!');
+                                    loadOrders();
+                                  } catch (error) {
+                                    console.error('Error marking as stitched:', error);
+                                    toast.error('Failed to mark as stitched');
+                                  }
+                                }}
+                                className="text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
+                              >
+                                Mark as Stitched
+                              </Button>
+                            </div>
                           )}
                           {currentStatus === 'stitched' && (
                             <span className="text-xs text-green-600">Completed</span>
@@ -321,6 +404,16 @@ export function JobWorkTailorDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Order Details Dialog */}
+      {selectedOrderNo && (
+        <JobWorkOrderDetailsDialog
+          serviceOrderNo={selectedOrderNo}
+          open={showOrderDetails}
+          onOpenChange={setShowOrderDetails}
+          onStatusUpdate={loadOrders}
+        />
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { OrderAllotment, ServiceOrder, StitchingAllotmentType, Employee, Vendor,
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { reassignStitchedOrder } from '@/lib/firestore/orderAllotmentService';
 
 // Per-item assignment state
 interface DressItemAssignment {
@@ -42,6 +43,7 @@ interface OrderAllotmentFormProps {
   serviceOrders: ServiceOrder[];
   employees: Employee[];
   vendors: Vendor[];
+  reassignOrder?: OrderAllotment | null; // Order to reassign (pre-populate form)
 }
 
 export function OrderAllotmentForm({
@@ -52,6 +54,7 @@ export function OrderAllotmentForm({
   serviceOrders,
   employees,
   vendors,
+  reassignOrder,
 }: OrderAllotmentFormProps) {
   const { t } = useLanguage();
 
@@ -138,6 +141,26 @@ export function OrderAllotmentForm({
       resetForm();
     }
   }, [open]);
+
+  // Pre-populate form when reassigning a stitched order
+  useEffect(() => {
+    if (reassignOrder && open) {
+      setServiceOrderNo(reassignOrder.serviceOrderNo);
+      setExpectedDeliveryDate(
+        reassignOrder.expectedDeliveryDate
+          ? format(reassignOrder.expectedDeliveryDate, 'yyyy-MM-dd')
+          : ''
+      );
+
+      // Pre-populate legacy fields if dressItemId is not present
+      if (!reassignOrder.dressItemId) {
+        setStitchingAllotment(reassignOrder.stitchingAllotment);
+        setAssignedTo(reassignOrder.assignedTo);
+        setMaterialCost(reassignOrder.materialCost);
+        setJobWorkCost(reassignOrder.jobWorkCost);
+      }
+    }
+  }, [reassignOrder, open]);
 
   // Reset assigned to when switching between employee/vendor (legacy)
   useEffect(() => {
@@ -237,10 +260,31 @@ export function OrderAllotmentForm({
     return true;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     const deliveryDateMs = new Date(expectedDeliveryDate).getTime();
+
+    // Handle reassignment of stitched order
+    if (reassignOrder) {
+      try {
+        await reassignStitchedOrder(reassignOrder.id, {
+          stitchingAllotment,
+          assignedTo,
+          assignedName: getAssignedName(stitchingAllotment, assignedTo),
+          materialCost,
+          jobWorkCost,
+          expectedDeliveryDate: deliveryDateMs,
+        });
+        toast.success('Stitched order reassigned successfully!');
+        onOpenChange(false);
+        return;
+      } catch (error) {
+        console.error('[OrderAllotmentForm] Error reassigning order:', error);
+        toast.error('Failed to reassign order');
+        return;
+      }
+    }
 
     if (hasDressItems && onSaveMultiple) {
       // Submit multiple allotments (one per assigned dress item)
@@ -299,7 +343,14 @@ export function OrderAllotmentForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Job Allotment</DialogTitle>
+          <DialogTitle>
+            {reassignOrder ? 'Re-assign Stitched Order' : 'Job Allotment'}
+          </DialogTitle>
+          {reassignOrder && (
+            <p className="text-sm text-orange-600 mt-2">
+              Re-assigning Stitched Order: {reassignOrder.stitchedId || reassignOrder.jobWorkNo}
+            </p>
+          )}
         </DialogHeader>
 
         <div className="space-y-4">

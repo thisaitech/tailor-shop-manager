@@ -16,6 +16,8 @@ import { TailorManagement } from '@/components/TailorManagement';
 import { ServiceOrderForm } from '@/components/ServiceOrderForm';
 import { CustomerForm } from '@/components/CustomerForm';
 import { OrderAllotmentForm } from '@/components/OrderAllotmentForm';
+import { RejectedOrdersList } from '@/components/RejectedOrdersList';
+import { StitchedOrdersList } from '@/components/StitchedOrdersList';
 import { toast } from 'sonner';
 import {
   addCustomer,
@@ -55,13 +57,14 @@ export function OwnerDashboard() {
   const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
   const [tailors] = useStorage<Tailor[]>('tailors', []);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed'>('all');
+  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched'>('all');
   const [showServiceOrderForm, setShowServiceOrderForm] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
   const [newlyCreatedCustomerId, setNewlyCreatedCustomerId] = useState<string | undefined>();
+  const [reassignOrder, setReassignOrder] = useState<OrderAllotment | null>(null);
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';
@@ -284,9 +287,23 @@ export function OwnerDashboard() {
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 
-  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed') => {
+  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => {
     setOrderFilter(filter);
-    setActiveTab('track');
+    if (filter === 'rejected' || filter === 'stitched') {
+      // Keep on dashboard tab to show the list
+      setActiveTab('dashboard');
+    } else {
+      setActiveTab('track');
+    }
+  };
+
+  const handleReassignOrder = (order: OrderAllotment) => {
+    setReassignOrder(order);
+    setShowOrderAllotmentForm(true);
+  };
+
+  const handleBackToDashboard = () => {
+    setOrderFilter('all');
   };
 
   const handleAddServiceOrder = async (
@@ -417,50 +434,67 @@ export function OwnerDashboard() {
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-6">
-          <DashboardStats
-            totalCustomers={(customers || []).length}
-            orders={orders || []}
-            serviceOrders={serviceOrders || []}
-            onStatClick={handleStatClick}
-          />
-
-          <div className="grid grid-cols-2 gap-3 md:gap-6">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center h-9">
-                <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('customers')}</h2>
-              </div>
-              <CustomerList
-                customers={customers || []}
-                onAddCustomer={handleAddCustomer}
-                onUpdateCustomer={handleUpdateCustomer}
-                onDeleteCustomer={handleDeleteCustomer}
-              />
-            </div>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center h-9">
-                <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowOrderAllotmentForm(true)}
-                  className="text-xs sm:text-sm"
-                >
-                  Job Allotment
-                </Button>
-              </div>
-              <OrderList
+          {orderFilter === 'rejected' ? (
+            <RejectedOrdersList
+              orders={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              onReassign={handleReassignOrder}
+            />
+          ) : orderFilter === 'stitched' ? (
+            <StitchedOrdersList
+              orders={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              onReassign={handleReassignOrder}
+            />
+          ) : (
+            <>
+              <DashboardStats
+                totalCustomers={(customers || []).length}
                 orders={orders || []}
                 serviceOrders={serviceOrders || []}
-                customers={customers || []}
-                tailors={tailors || []}
-                inventory={inventory || []}
-                onAddOrder={handleAddOrder}
-                onUpdateStatus={handleUpdateOrderStatus}
-                onAddServiceOrder={handleAddServiceOrder}
-                onCreateCustomer={handleCreateCustomerFromOrder}
+                orderAllotments={orderAllotments || []}
+                onStatClick={handleStatClick}
               />
-            </div>
-          </div>
+
+              <div className="grid grid-cols-2 gap-3 md:gap-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center h-9">
+                    <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('customers')}</h2>
+                  </div>
+                  <CustomerList
+                    customers={customers || []}
+                    onAddCustomer={handleAddCustomer}
+                    onUpdateCustomer={handleUpdateCustomer}
+                    onDeleteCustomer={handleDeleteCustomer}
+                  />
+                </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center h-9">
+                    <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowOrderAllotmentForm(true)}
+                      className="text-xs sm:text-sm"
+                    >
+                      Job Allotment
+                    </Button>
+                  </div>
+                  <OrderList
+                    orders={orders || []}
+                    serviceOrders={serviceOrders || []}
+                    customers={customers || []}
+                    tailors={tailors || []}
+                    inventory={inventory || []}
+                    onAddOrder={handleAddOrder}
+                    onUpdateStatus={handleUpdateOrderStatus}
+                    onAddServiceOrder={handleAddServiceOrder}
+                    onCreateCustomer={handleCreateCustomerFromOrder}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="tailors">
@@ -531,11 +565,17 @@ export function OwnerDashboard() {
       {/* Order Allotment Form */}
       <OrderAllotmentForm
         open={showOrderAllotmentForm}
-        onOpenChange={setShowOrderAllotmentForm}
+        onOpenChange={(open) => {
+          setShowOrderAllotmentForm(open);
+          if (!open) {
+            setReassignOrder(null); // Clear reassign order when dialog closes
+          }
+        }}
         onSave={handleAddOrderAllotment}
         serviceOrders={serviceOrders || []}
         employees={employees || []}
         vendors={vendors || []}
+        reassignOrder={reassignOrder}
       />
     </main>
   );

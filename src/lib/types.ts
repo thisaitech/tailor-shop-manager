@@ -178,9 +178,12 @@ export interface OrderAllotment {
   jobWorkNo?: string; // Job work number for vendor orders
   jobWorkTailorId?: string; // Vendor/Job Work Tailor ID (TAL0001, etc.)
   jobWorkTailorName?: string; // Vendor name (denormalized)
-  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected'; // Job work status
+  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected' | 'delivered'; // Job work status
   assignedDate?: number; // Date when allotted to job work tailor
   orderNumber?: string; // Service order number for job work reference
+  stitchedId?: string; // Unique stitched ID (ST0001, ST0002, etc.)
+  stitchedDate?: number; // Date when marked as stitched
+  deliveredDate?: number; // Date when marked as delivered
   // End of Job Work Tailor fields
   materialCost: number; // Material cost in INR
   jobWorkCost: number; // Job work cost in INR
@@ -191,6 +194,30 @@ export interface OrderAllotment {
   adminId: string; // Admin user ID who created allotment
   createdAt: number;
   updatedAt: number;
+  // History tracking for reassignments and status changes
+  history?: OrderAllotmentHistoryEntry[];
+}
+
+// History entry for order allotment changes
+export interface OrderAllotmentHistoryEntry {
+  timestamp: number;
+  action: 'created' | 'reassigned' | 'status_changed' | 'delivered';
+  previousStatus?: string;
+  newStatus?: string;
+  previousAssignedTo?: string;
+  previousAssignedName?: string;
+  newAssignedTo?: string;
+  newAssignedName?: string;
+  previousStitchingAllotment?: StitchingAllotmentType;
+  newStitchingAllotment?: StitchingAllotmentType;
+  previousMaterialCost?: number;
+  newMaterialCost?: number;
+  previousJobWorkCost?: number;
+  newJobWorkCost?: number;
+  stitchedId?: string; // Preserved stitched ID if reassigning from stitched status
+  stitchedDate?: number; // Preserved stitched date if reassigning from stitched status
+  notes?: string;
+  performedBy?: string; // Admin/user who performed the action
 }
 
 // Advance Payment

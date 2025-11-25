@@ -1,16 +1,17 @@
 import { useLanguage } from '@/hooks/use-language';
 import { Card } from '@/components/ui/card';
-import { Users, Scissors, Package, CheckCircle } from '@phosphor-icons/react';
-import { Order, ServiceOrder } from '@/lib/types';
+import { Users, Scissors, Package, CheckCircle, XCircle, Checks } from '@phosphor-icons/react';
+import { Order, ServiceOrder, OrderAllotment } from '@/lib/types';
 
 interface DashboardStatsProps {
   totalCustomers: number;
   orders: Order[];
   serviceOrders?: ServiceOrder[];
-  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed') => void;
+  orderAllotments?: OrderAllotment[];
+  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => void;
 }
 
-export function DashboardStats({ totalCustomers, orders, serviceOrders, onStatClick }: DashboardStatsProps) {
+export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAllotments, onStatClick }: DashboardStatsProps) {
   const { t } = useLanguage();
 
   // Use serviceOrders if available, otherwise fall back to old orders array
@@ -25,6 +26,15 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, onStatCl
   const completedOrders = serviceOrders
     ? serviceOrders.filter((o) => o.orderStatus === 'delivered').length
     : (orders || []).filter((o) => o.status === 'delivered').length;
+
+  // Count rejected and stitched orders from order allotments
+  const rejectedOrders = orderAllotments
+    ? orderAllotments.filter((o) => o.status === 'rejected').length
+    : 0;
+
+  const stitchedOrders = orderAllotments
+    ? orderAllotments.filter((o) => o.status === 'stitched').length
+    : 0;
 
   const stats = [
     {
@@ -59,14 +69,31 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, onStatCl
       bgColor: 'bg-green-50',
       filter: 'completed' as const,
     },
+    {
+      label: 'Rejected Orders',
+      value: rejectedOrders,
+      icon: XCircle,
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      filter: 'rejected' as const,
+    },
+    {
+      label: 'Stitched Orders',
+      value: stitchedOrders,
+      icon: Checks,
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      filter: 'stitched' as const,
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
       {stats.map((stat, index) => (
         <Card
           key={index}
-          className="p-3 sm:p-6 transition-all duration-200"
+          className="p-3 sm:p-6 transition-all duration-200 cursor-pointer hover:shadow-lg hover:scale-105"
+          onClick={() => onStatClick && onStatClick(stat.filter)}
         >
           <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
             <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>

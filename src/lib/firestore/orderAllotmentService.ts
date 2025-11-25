@@ -10,6 +10,7 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
+  deleteField,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { OrderAllotment, ServiceOrderStatus } from '@/lib/types';
@@ -45,6 +46,20 @@ export async function addOrderAllotment(
   try {
     const jobWorkId = await generateJobWorkId(companyId);
 
+    // Create initial history entry
+    const initialHistoryEntry = {
+      timestamp: Date.now(),
+      action: 'created' as const,
+      newStatus: allotmentData.stitchingAllotment === 'vendor' ? 'allotted' : 'open',
+      newAssignedTo: allotmentData.assignedTo,
+      newAssignedName: allotmentData.assignedName,
+      newStitchingAllotment: allotmentData.stitchingAllotment,
+      newMaterialCost: allotmentData.materialCost,
+      newJobWorkCost: allotmentData.jobWorkCost,
+      notes: `Order allotment created. Job Work ID: ${jobWorkId}. Assigned to ${allotmentData.assignedName}`,
+      performedBy: adminId,
+    };
+
     const newAllotment: OrderAllotment = {
       ...allotmentData,
       id: jobWorkId,
@@ -52,6 +67,7 @@ export async function addOrderAllotment(
       adminId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      history: [initialHistoryEntry],
     };
 
     // If this is a vendor allotment, initialize vendor-specific fields
@@ -76,7 +92,7 @@ export async function addOrderAllotment(
     await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'pending');
     console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} status to 'pending'`);
 
-    console.log(`[orderAllotmentService] Order allotment ${jobWorkId} added successfully`);
+    console.log(`[orderAllotmentService] Order allotment ${jobWorkId} added successfully with initial history`);
     return newAllotment;
   } catch (error) {
     console.error('[orderAllotmentService] Error adding order allotment:', error);
@@ -203,24 +219,241 @@ export async function updateOrderAllotmentWithServiceStatus(
 }
 
 /**
+ * Generate unique stitched ID
+ * Format: ST0001, ST0002, etc.
+ */
+async function generateStitchedId(companyId: string): Promise<string> {
+  try {
+    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
+    const q = query(
+      allotmentsRef,
+      where('companyId', '==', companyId),
+      where('status', '==', 'stitched')
+    );
+    const snapshot = await getDocs(q);
+    const count = snapshot.size + 1;
+    return `ST${count.toString().padStart(4, '0')}`;
+  } catch (error) {
+    console.error('[orderAllotmentService] Error generating stitched ID:', error);
+    return `ST${Date.now()}`;
+  }
+}
+
+/**
  * Update vendor/job work tailor status (for Job Work Tailor Dashboard)
  * This updates the 'status' field used by job work tailors to track their work
+ * When status is 'stitched', it generates a stitched ID and updates both collections
  */
 export async function updateVendorOrderStatus(
   allotmentId: string,
-  status: 'allotted' | 'in_progress' | 'stitched' | 'rejected'
+  status: 'allotted' | 'in_progress' | 'stitched' | 'rejected',
+  performedBy?: string
 ): Promise<void> {
   try {
     console.log(`[orderAllotmentService] Updating vendor order ${allotmentId} status to ${status}`);
 
-    await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
+    // Get the order allotment to access serviceOrderNo and companyId
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    if (!allotmentDoc.exists()) {
+      throw new Error('Order allotment not found');
+    }
+
+    const allotmentData = allotmentDoc.data();
+    const currentHistory = allotmentData.history || [];
+
+    const updateData: any = {
       status: status,
       updatedAt: serverTimestamp(),
-    });
+    };
 
-    console.log(`[orderAllotmentService] Vendor order ${allotmentId} status updated to ${status}`);
+    // Create history entry for status change
+    const historyEntry: any = {
+      timestamp: Date.now(),
+      action: 'status_changed',
+      previousStatus: allotmentData.status,
+      newStatus: status,
+      notes: `Status changed from ${allotmentData.status || 'unknown'} to ${status}`,
+      performedBy: performedBy || allotmentData.assignedName || 'vendor',
+    };
+
+    // If status is stitched, generate stitched ID and update service order
+    if (status === 'stitched') {
+      const stitchedId = await generateStitchedId(allotmentData.companyId);
+      updateData.stitchedId = stitchedId;
+      updateData.stitchedDate = serverTimestamp();
+
+      // Update orderStatus to 'closed' when stitched
+      updateData.orderStatus = 'closed';
+
+      // Add stitched ID to history entry
+      historyEntry.stitchedId = stitchedId;
+      historyEntry.notes = `Order stitched. Stitched ID: ${stitchedId}`;
+
+      console.log(`[orderAllotmentService] Generated stitched ID: ${stitchedId}`);
+
+      // Update the service order status in newOrder collection
+      if (allotmentData.serviceOrderNo) {
+        try {
+          const { updateServiceOrderStatus } = await import('./serviceOrderService');
+          await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'ready');
+          console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} to 'ready'`);
+        } catch (serviceOrderError) {
+          console.error('[orderAllotmentService] Error updating service order:', serviceOrderError);
+          // Continue with the allotment update even if service order update fails
+        }
+      }
+    }
+
+    // Add history entry to update data
+    updateData.history = [...currentHistory, historyEntry];
+
+    // Update the order allotment
+    await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
+
+    console.log(`[orderAllotmentService] Vendor order ${allotmentId} status updated to ${status} with history`);
   } catch (error) {
     console.error('[orderAllotmentService] Error updating vendor order status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reassign a stitched order to a new employee or vendor
+ * This resets the status from 'stitched' back to 'allotted' and updates assignment details
+ * Preserves all history including previous stitched details
+ */
+export async function reassignStitchedOrder(
+  allotmentId: string,
+  newAssignment: {
+    stitchingAllotment: 'employee' | 'vendor';
+    assignedTo: string;
+    assignedName: string;
+    materialCost: number;
+    jobWorkCost: number;
+    expectedDeliveryDate: number;
+  },
+  performedBy?: string
+): Promise<void> {
+  try {
+    console.log(`[orderAllotmentService] Reassigning stitched order ${allotmentId}`);
+
+    // Get current order data to preserve in history
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    if (!allotmentDoc.exists()) {
+      throw new Error('Order allotment not found');
+    }
+
+    const currentData = allotmentDoc.data();
+    const currentHistory = currentData.history || [];
+
+    // Create history entry for this reassignment
+    const historyEntry: any = {
+      timestamp: Date.now(),
+      action: 'reassigned',
+      previousStatus: currentData.status ?? 'unknown',
+      newStatus: 'rejected', // Mark as rejected when reassigned from stitched
+      previousAssignedTo: currentData.assignedTo ?? '',
+      previousAssignedName: currentData.assignedName ?? '',
+      newAssignedTo: newAssignment.assignedTo,
+      newAssignedName: newAssignment.assignedName,
+      previousStitchingAllotment: currentData.stitchingAllotment ?? '',
+      newStitchingAllotment: newAssignment.stitchingAllotment,
+      previousMaterialCost: currentData.materialCost ?? 0,
+      newMaterialCost: newAssignment.materialCost ?? 0,
+      previousJobWorkCost: currentData.jobWorkCost ?? 0,
+      newJobWorkCost: newAssignment.jobWorkCost ?? 0,
+      stitchedId: currentData.stitchedId ?? '', // Preserve stitched ID
+      stitchedDate: currentData.stitchedDate ?? null, // Preserve stitched date
+      notes: `Stitched order reassigned from ${currentData.assignedName ?? 'previous tailor'} to ${newAssignment.assignedName}`,
+      performedBy: performedBy || 'admin',
+    };
+
+    const updateData: any = {
+      status: 'rejected', // Mark as rejected so it appears in Rejected Orders section
+      stitchingAllotment: newAssignment.stitchingAllotment,
+      assignedTo: newAssignment.assignedTo,
+      assignedName: newAssignment.assignedName,
+      materialCost: newAssignment.materialCost ?? 0,
+      jobWorkCost: newAssignment.jobWorkCost ?? 0,
+      orderStatus: 'open', // Reset to open so tailor can accept
+      assignedDate: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      rejectedDate: serverTimestamp(), // Add rejected date timestamp
+      // Keep stitchedId and stitchedDate for reference/history
+      // Add history entry
+      history: [...currentHistory, historyEntry],
+    };
+
+    // Only add expectedDeliveryDate if it's defined
+    if (newAssignment.expectedDeliveryDate !== undefined) {
+      updateData.expectedDeliveryDate = newAssignment.expectedDeliveryDate;
+    }
+
+    // If reassigning to vendor, set vendor-specific fields
+    if (newAssignment.stitchingAllotment === 'vendor') {
+      updateData.jobWorkTailorId = newAssignment.assignedTo;
+      updateData.jobWorkTailorName = newAssignment.assignedName;
+    } else {
+      // If reassigning to employee, remove vendor-specific fields
+      updateData.jobWorkTailorId = deleteField();
+      updateData.jobWorkTailorName = deleteField();
+    }
+
+    await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
+
+    console.log(`[orderAllotmentService] Stitched order ${allotmentId} reassigned successfully with history preserved`);
+  } catch (error) {
+    console.error('[orderAllotmentService] Error reassigning stitched order:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reject an order allotment (called by tailor/vendor)
+ * Updates status to 'rejected' and adds history entry
+ */
+export async function rejectOrderAllotment(
+  allotmentId: string,
+  rejectedBy?: string
+): Promise<void> {
+  try {
+    console.log(`[orderAllotmentService] Rejecting order allotment ${allotmentId}`);
+
+    // Get current order data
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    if (!allotmentDoc.exists()) {
+      throw new Error('Order allotment not found');
+    }
+
+    const currentData = allotmentDoc.data();
+    const currentHistory = currentData.history || [];
+
+    // Create history entry for rejection
+    const historyEntry: any = {
+      timestamp: Date.now(),
+      action: 'rejected',
+      previousStatus: currentData.status ?? 'unknown',
+      newStatus: 'rejected',
+      notes: `Order rejected by ${rejectedBy || currentData.assignedName || 'tailor'}`,
+      performedBy: rejectedBy || currentData.assignedTo || 'tailor',
+      rejectedBy: rejectedBy || currentData.assignedName || 'tailor',
+      rejectedDate: Date.now(),
+    };
+
+    // Update the order allotment
+    const updateData: any = {
+      status: 'rejected',
+      orderStatus: 'open', // Reset to open so it can be reassigned
+      rejectedDate: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      history: [...currentHistory, historyEntry],
+    };
+
+    await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
+
+    console.log(`[orderAllotmentService] Order allotment ${allotmentId} rejected successfully`);
+  } catch (error) {
+    console.error('[orderAllotmentService] Error rejecting order allotment:', error);
     throw error;
   }
 }
@@ -322,6 +555,38 @@ export async function getOrderAllotmentsByVendor(vendorId: string): Promise<Orde
     return allotments;
   } catch (error) {
     console.error('[orderAllotmentService] Error getting allotments by vendor:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get stitched orders by company
+ * Returns orders with status 'stitched'
+ */
+export async function getStitchedOrdersByCompany(companyId: string): Promise<OrderAllotment[]> {
+  try {
+    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
+    const q = query(
+      allotmentsRef,
+      where('companyId', '==', companyId),
+      where('status', '==', 'stitched')
+    );
+    const snapshot = await getDocs(q);
+
+    const allotments: OrderAllotment[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt,
+        stitchedDate: data.stitchedDate instanceof Timestamp ? data.stitchedDate.toMillis() : data.stitchedDate,
+      } as OrderAllotment;
+    });
+
+    console.log(`[orderAllotmentService] Found ${allotments.length} stitched orders for company ${companyId}`);
+    return allotments;
+  } catch (error) {
+    console.error('[orderAllotmentService] Error getting stitched orders:', error);
     throw error;
   }
 }

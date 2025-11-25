@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Package, Camera, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Package } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import {
   GoodsReceipt as GoodsReceiptType,
@@ -34,8 +34,6 @@ import {
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
-import { WebcamCapture } from '@/components/WebcamCapture';
-import { uploadImageToStorage } from '@/lib/firebase/storageService';
 
 interface GoodsReceiptProps {
   onBack: () => void;
@@ -56,8 +54,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
   const [shipmentType, setShipmentType] = useState<ShipmentType | ''>('');
   const [consignmentNo, setConsignmentNo] = useState('');
   const [status, setStatus] = useState<GoodsReceiptStatus | ''>('');
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [showWebcam, setShowWebcam] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -97,17 +93,7 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
     setShipmentType('');
     setConsignmentNo('');
     setStatus('');
-    setCapturedImage(null);
     setShowDialog(true);
-  };
-
-  const handleCaptureImage = (imageDataUrl: string) => {
-    setCapturedImage(imageDataUrl);
-    setShowWebcam(false);
-  };
-
-  const handleRemoveImage = () => {
-    setCapturedImage(null);
   };
 
   const handleSave = async () => {
@@ -133,26 +119,12 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
 
     setSaving(true);
     try {
-      // Upload image if captured
-      let imageUrl: string | undefined;
-      if (capturedImage) {
-        try {
-          const imagePath = `goods-receipts/${companyId}/${Date.now()}.jpg`;
-          imageUrl = await uploadImageToStorage(capturedImage, imagePath);
-          console.log('Image uploaded successfully:', imageUrl);
-        } catch (uploadError) {
-          console.error('Error uploading image:', uploadError);
-          toast.error('Failed to upload image. Creating GRN without image.');
-        }
-      }
-
       const newGRN = await createGoodsReceipt(
         {
           dcNo,
           shipmentType: shipmentType as ShipmentType,
           consignmentNo: consignmentNo.trim(),
           status: status as GoodsReceiptStatus,
-          imageUrl,
         },
         companyId,
         user.id
@@ -341,39 +313,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Image Capture */}
-            <div className="space-y-2">
-              <Label>Capture Image (Optional)</Label>
-              {!capturedImage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowWebcam(true)}
-                  className="w-full flex items-center justify-center gap-2"
-                >
-                  <Camera size={20} weight="duotone" />
-                  Capture Image
-                </Button>
-              ) : (
-                <div className="relative">
-                  <img
-                    src={capturedImage}
-                    alt="Captured"
-                    className="w-full h-40 object-cover rounded-lg border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleRemoveImage}
-                    className="absolute top-2 right-2"
-                  >
-                    <Trash size={16} />
-                  </Button>
-                </div>
-              )}
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)} disabled={saving}>
@@ -385,14 +324,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Webcam Capture Modal */}
-      {showWebcam && (
-        <WebcamCapture
-          onCapture={handleCaptureImage}
-          onClose={() => setShowWebcam(false)}
-        />
-      )}
     </div>
   );
 }

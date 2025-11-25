@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Truck, Camera, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Truck } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import {
   DeliveryChallan as DeliveryChallanType,
@@ -27,10 +27,8 @@ import {
   createDeliveryChallan,
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
-import { getVendorsByCompany, Vendor } from '@/lib/firestore/vendorService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
-import { WebcamCapture } from '@/components/WebcamCapture';
-import { uploadImageToStorage } from '@/lib/firebase/storageService';
+import { getOrderAllotmentsByCompany, OrderAllotment } from '@/lib/firestore/orderAllotmentService';
 
 interface DeliveryChallanProps {
   onBack: () => void;
@@ -39,7 +37,7 @@ interface DeliveryChallanProps {
 export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
   const { user } = useAuth();
   const [challans, setChallans] = useState<DeliveryChallanType[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [stitchedOrders, setStitchedOrders] = useState<OrderAllotment[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
 
@@ -49,8 +47,6 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
   const [jobWorkNo, setJobWorkNo] = useState('');
   const [shipmentType, setShipmentType] = useState<ShipmentType | ''>('');
   const [consignmentNo, setConsignmentNo] = useState('');
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [showWebcam, setShowWebcam] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -69,9 +65,10 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
         // Load delivery challans
         const dcList = await getDeliveryChallansByCompany(company.id);
         setChallans(dcList);
-        // Load vendors (Job Work Tailors) for dropdown - use user.id as companyDocId
-        const vendorList = await getVendorsByCompany(user.id);
-        setVendors(vendorList);
+        // Load stitched orders for Job Work No dropdown
+        const allotments = await getOrderAllotmentsByCompany(company.id);
+        const stitched = allotments.filter(o => o.status === 'stitched' && o.stitchedId);
+        setStitchedOrders(stitched);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -85,22 +82,12 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
     setJobWorkNo('');
     setShipmentType('');
     setConsignmentNo('');
-    setCapturedImage(null);
     setShowDialog(true);
-  };
-
-  const handleCaptureImage = (imageDataUrl: string) => {
-    setCapturedImage(imageDataUrl);
-    setShowWebcam(false);
-  };
-
-  const handleRemoveImage = () => {
-    setCapturedImage(null);
   };
 
   const handleSave = async () => {
     if (!jobWorkNo) {
-      toast.error('Please select a Job Work No');
+      toast.error('Please select a Stitched Order ID');
       return;
     }
 
@@ -116,28 +103,14 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
 
     setSaving(true);
     try {
-      const selectedVendor = vendors.find(v => v.tailorCode === jobWorkNo);
-
-      // Upload image if captured
-      let imageUrl: string | undefined;
-      if (capturedImage) {
-        try {
-          const imagePath = `delivery-challans/${companyId}/${Date.now()}.jpg`;
-          imageUrl = await uploadImageToStorage(capturedImage, imagePath);
-          console.log('Image uploaded successfully:', imageUrl);
-        } catch (uploadError) {
-          console.error('Error uploading image:', uploadError);
-          toast.error('Failed to upload image. Creating DC without image.');
-        }
-      }
+      const selectedOrder = stitchedOrders.find(o => o.stitchedId === jobWorkNo);
 
       const newDC = await createDeliveryChallan(
         {
-          jobWorkNo: jobWorkNo, // This is now the tailorCode (TAL0001, etc.)
-          jobWorkTailorName: selectedVendor?.tailorName,
+          jobWorkNo: jobWorkNo, // This is now the stitched order ID
+          jobWorkTailorName: selectedOrder?.assignedName,
           shipmentType: shipmentType as ShipmentType,
           consignmentNo: consignmentNo.trim(),
-          imageUrl,
         },
         companyId,
         user.id
@@ -255,22 +228,22 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
               />
             </div>
 
-            {/* Job Work No */}
+            {/* Stitched Order ID */}
             <div className="space-y-2">
-              <Label htmlFor="jobWorkNo">Job Work No *</Label>
+              <Label htmlFor="jobWorkNo">Stitched Order ID *</Label>
               <Select value={jobWorkNo} onValueChange={setJobWorkNo}>
                 <SelectTrigger id="jobWorkNo">
-                  <SelectValue placeholder="Select Job Work No" />
+                  <SelectValue placeholder="Select Stitched Order ID" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vendors.length === 0 ? (
+                  {stitchedOrders.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      No Job Work Tailors available
+                      No stitched orders available
                     </div>
                   ) : (
-                    vendors.map(vendor => (
-                      <SelectItem key={vendor.id} value={vendor.tailorCode}>
-                        {vendor.tailorCode} - {vendor.tailorName}
+                    stitchedOrders.map(order => (
+                      <SelectItem key={order.id} value={order.stitchedId!}>
+                        {order.stitchedId} - {order.customerName} ({order.assignedName})
                       </SelectItem>
                     ))
                   )}
@@ -306,39 +279,6 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
                 {consignmentNo.length}/20 characters
               </p>
             </div>
-
-            {/* Image Capture */}
-            <div className="space-y-2">
-              <Label>Capture Image (Optional)</Label>
-              {!capturedImage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowWebcam(true)}
-                  className="w-full flex items-center justify-center gap-2"
-                >
-                  <Camera size={20} weight="duotone" />
-                  Capture Image
-                </Button>
-              ) : (
-                <div className="relative">
-                  <img
-                    src={capturedImage}
-                    alt="Captured"
-                    className="w-full h-40 object-cover rounded-lg border"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleRemoveImage}
-                    className="absolute top-2 right-2"
-                  >
-                    <Trash size={16} />
-                  </Button>
-                </div>
-              )}
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)} disabled={saving}>
@@ -350,14 +290,6 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Webcam Capture Modal */}
-      {showWebcam && (
-        <WebcamCapture
-          onCapture={handleCaptureImage}
-          onClose={() => setShowWebcam(false)}
-        />
-      )}
     </div>
   );
 }

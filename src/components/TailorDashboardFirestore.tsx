@@ -28,6 +28,7 @@ import {
   getOrderAllotmentsByTailor,
   updateOrderAllotmentStatus,
   updateOrderAllotmentWithServiceStatus,
+  rejectOrderAllotment,
 } from '@/lib/firestore/orderAllotmentService';
 import {
   updateServiceOrderStatus,
@@ -35,7 +36,8 @@ import {
 } from '@/lib/firestore/serviceOrderService';
 import { notifyOrderReady } from '@/lib/notificationService';
 import { getCustomerById } from '@/lib/firestore/customerService';
-import { sendOrderReadyEmail } from '@/lib/emailService';
+import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { sendOrderReadyEmail, sendOrderRejectionEmail } from '@/lib/emailService';
 
 interface DashboardStats {
   assignedOrders: number;
@@ -150,11 +152,40 @@ export function TailorDashboardFirestore() {
     try {
       setRejectingOrder(allotment.id);
 
-      // For now, we'll just show a message
-      // You can implement rejection logic here if needed
-      toast.info('Order rejection feature coming soon');
+      // Reject the order in Firestore
+      await rejectOrderAllotment(allotment.id, employee?.name);
 
-      setRejectingOrder(null);
+      // Get company profile to send email to admin
+      if (employee?.companyDocId) {
+        try {
+          const companyProfile = await getCompanyProfile(employee.companyDocId);
+
+          if (companyProfile?.email) {
+            // Send email notification to admin
+            await sendOrderRejectionEmail({
+              to: companyProfile.email,
+              adminName: companyProfile.companyName || 'Admin',
+              orderNumber: allotment.serviceOrderNo,
+              jobWorkNo: allotment.jobWorkNo || allotment.id,
+              vendorName: employee?.name || 'Tailor',
+              vendorPhone: employee?.phone || 'N/A',
+              customerName: allotment.customerName,
+              dressType: allotment.dressItemName,
+              rejectionDate: format(new Date(), 'dd MMM yyyy, hh:mm a'),
+              companyName: companyProfile.companyName,
+            });
+            console.log('[TailorDashboard] Rejection email sent to admin');
+          }
+        } catch (emailError) {
+          console.error('[TailorDashboard] Error sending rejection email:', emailError);
+          // Don't fail the rejection if email fails
+        }
+      }
+
+      toast.success('Order rejected successfully. Admin has been notified.');
+
+      // Reload dashboard data to update the list
+      await loadDashboardData();
     } catch (error) {
       console.error('Error rejecting order:', error);
       toast.error('Failed to reject order');
@@ -397,10 +428,9 @@ export function TailorDashboardFirestore() {
                   <TableRow>
                     <TableHead>Order No</TableHead>
                     <TableHead>Customer Name</TableHead>
-                    <TableHead>Dress Type</TableHead>
                     <TableHead>Assigned Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -416,67 +446,48 @@ export function TailorDashboardFirestore() {
                       </TableCell>
                       <TableCell>{order.customerName}</TableCell>
                       <TableCell>
-                        {order.dressItemName || 'Standard Order'}
-                      </TableCell>
-                      <TableCell>
                         {format(new Date(order.createdAt), 'dd MMM yyyy')}
                       </TableCell>
                       <TableCell>{getStatusBadge(order.orderStatus)}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell>
                         {order.orderStatus === 'open' && (
-                          <div className="flex justify-end gap-2">
+                          <div className="flex gap-2">
                             <Button
                               size="sm"
-                              variant="default"
+                              variant="outline"
                               onClick={() => handleAcceptOrder(order)}
                               disabled={acceptingOrder === order.id}
+                              className="text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                             >
-                              {acceptingOrder === order.id ? (
-                                'Accepting...'
-                              ) : (
-                                <>
-                                  <Check size={16} className="mr-1" />
-                                  Accept
-                                </>
-                              )}
+                              <Check size={14} className="mr-1" />
+                              {acceptingOrder === order.id ? 'Accepting...' : 'Accept'}
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => handleRejectOrder(order)}
                               disabled={rejectingOrder === order.id}
+                              className="text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
                             >
-                              {rejectingOrder === order.id ? (
-                                'Rejecting...'
-                              ) : (
-                                <>
-                                  <X size={16} className="mr-1" />
-                                  Reject
-                                </>
-                              )}
+                              <X size={14} className="mr-1" />
+                              {rejectingOrder === order.id ? 'Rejecting...' : 'Reject'}
                             </Button>
                           </div>
                         )}
                         {order.orderStatus === 'in-progress' && (
                           <Button
                             size="sm"
-                            variant="default"
-                            className="bg-green-600 hover:bg-green-700"
+                            variant="outline"
                             onClick={() => handleMarkAsReady(order)}
                             disabled={markingReady === order.id}
+                            className="text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                           >
-                            {markingReady === order.id ? (
-                              'Marking Ready...'
-                            ) : (
-                              <>
-                                <Package size={16} className="mr-1" />
-                                Mark as Ready
-                              </>
-                            )}
+                            <CheckCircle size={14} className="mr-1" weight="duotone" />
+                            {markingReady === order.id ? 'Updating...' : 'Mark as Ready'}
                           </Button>
                         )}
-                        {order.orderStatus === 'closed' && (
-                          <Badge className="bg-green-500">Completed</Badge>
+                        {order.serviceOrderStatus === 'ready' && (
+                          <span className="text-xs text-green-600 font-medium">Completed</span>
                         )}
                       </TableCell>
                     </TableRow>
