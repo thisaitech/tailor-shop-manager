@@ -21,6 +21,7 @@ import {
   ListChecks,
   Check,
   X,
+  XCircle,
 } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -43,10 +44,11 @@ interface DashboardStats {
   assignedOrders: number;
   inProgress: number;
   readyToDeliver: number;
+  rejectedOrders: number;
   totalOrders: number;
 }
 
-type TailorView = 'dashboard' | 'assigned' | 'in-progress' | 'ready' | 'all-orders' | 'profile';
+type TailorView = 'dashboard' | 'assigned' | 'in-progress' | 'ready' | 'rejected' | 'all-orders' | 'profile';
 
 export function TailorDashboardFirestore() {
   const { employee } = useAuth();
@@ -55,6 +57,7 @@ export function TailorDashboardFirestore() {
     assignedOrders: 0,
     inProgress: 0,
     readyToDeliver: 0,
+    rejectedOrders: 0,
     totalOrders: 0,
   });
   const [recentOrders, setRecentOrders] = useState<OrderAllotment[]>([]);
@@ -99,12 +102,18 @@ export function TailorDashboardFirestore() {
         (a) => a.serviceOrderStatus === 'ready'
       ).length;
 
+      // Count rejected orders
+      const rejectedOrders = allotments.filter(
+        (a) => a.status === 'rejected'
+      ).length;
+
       const totalOrders = allotments.length;
 
       setStats({
         assignedOrders,
         inProgress,
         readyToDeliver,
+        rejectedOrders,
         totalOrders,
       });
 
@@ -272,6 +281,8 @@ export function TailorDashboardFirestore() {
         return allOrders.filter((a) => a.orderStatus === 'in-progress');
       case 'ready':
         return allOrders.filter((a) => a.serviceOrderStatus === 'ready');
+      case 'rejected':
+        return allOrders.filter((a) => a.status === 'rejected');
       case 'all-orders':
         return allOrders;
       default:
@@ -287,6 +298,8 @@ export function TailorDashboardFirestore() {
         return 'In Progress Orders';
       case 'ready':
         return 'Ready to Deliver Orders';
+      case 'rejected':
+        return 'Rejected Orders';
       case 'all-orders':
         return 'All Orders';
       default:
@@ -331,6 +344,14 @@ export function TailorDashboardFirestore() {
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       view: 'ready' as TailorView,
+    },
+    {
+      label: 'Rejected Orders',
+      value: stats.rejectedOrders,
+      icon: XCircle,
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      view: 'rejected' as TailorView,
     },
     {
       label: 'Total Orders',
@@ -383,7 +404,7 @@ export function TailorDashboardFirestore() {
 
       {/* Summary Cards - Only show on dashboard view */}
       {currentView === 'dashboard' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {dashStats.map((stat, index) => (
             <Card
               key={index}
