@@ -30,8 +30,9 @@ import {
 } from '@/lib/firestore/paymentService';
 import { getServiceOrdersByCompany, updateServiceOrderStatus } from '@/lib/firestore/serviceOrderService';
 import { getAdvancePaymentsByCompany } from '@/lib/firestore/advancePaymentService';
+import { getOrderAllotmentsByCompany } from '@/lib/firestore/orderAllotmentService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
-import { ServiceOrder, AdvancePayment } from '@/lib/types';
+import { ServiceOrder, AdvancePayment, OrderAllotment } from '@/lib/types';
 import jsPDF from 'jspdf';
 
 interface PaymentProps {
@@ -42,6 +43,7 @@ export function Payment({ onBack }: PaymentProps) {
   const { user } = useAuth();
   const [payments, setPayments] = useState<PaymentType[]>([]);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
+  const [orderAllotments, setOrderAllotments] = useState<OrderAllotment[]>([]);
   const [availableOrders, setAvailableOrders] = useState<ServiceOrder[]>([]);
   const [advancePayments, setAdvancePayments] = useState<AdvancePayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,29 @@ export function Payment({ onBack }: PaymentProps) {
     loadData();
   }, [user]);
 
+  /**
+   * Check if a service order has 'Delivered' status based on its allotment
+   * Delivered status means:
+   * - Job work tailor: status='stitched' or 'delivered' or serviceOrderStatus='ready'
+   * - Employee tailor: serviceOrderStatus='ready'
+   */
+  const isDeliveredStatus = (serviceOrder: ServiceOrder, allotments: OrderAllotment[]): boolean => {
+    // Find the allotment for this service order (exclude reassigned)
+    const allotment = allotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
+
+    if (!allotment) {
+      return false; // No allotment means not assigned yet
+    }
+
+    const allotmentStatus = allotment.status;
+    const serviceOrderStatus = allotment.serviceOrderStatus;
+
+    // Ready to deliver or ready to dispatch → Delivered
+    // Job work: status='stitched' or 'delivered'
+    // Employee: serviceOrderStatus='ready'
+    return allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready';
+  };
+
   const loadData = async () => {
     if (!user?.id) return;
 
@@ -80,15 +105,25 @@ export function Payment({ onBack }: PaymentProps) {
         const orders = await getServiceOrdersByCompany(company.id);
         setServiceOrders(orders);
         console.log('[Payment] Loaded service orders:', orders.length);
+        // Load order allotments to check delivery status
+        const allotments = await getOrderAllotmentsByCompany(company.id);
+        setOrderAllotments(allotments);
+        console.log('[Payment] Loaded order allotments:', allotments.length);
         // Load advance payments using company.id
         const advances = await getAdvancePaymentsByCompany(company.id);
         setAdvancePayments(advances);
         console.log('[Payment] Loaded advance payments:', advances.length);
-        // Filter available orders (exclude orders that already have a payment)
+        // Filter available orders:
+        // 1. Exclude orders that already have a payment
+        // 2. Only include orders with 'Delivered' status (stitched/ready to dispatch)
         const paidOrderIds = paymentList.map(p => p.serviceOrderNo);
-        const available = orders.filter(o => !paidOrderIds.includes(o.id));
+        const available = orders.filter(o =>
+          !paidOrderIds.includes(o.id) && // Not yet paid
+          o.orderStatus !== 'delivered' && // Not already completed
+          isDeliveredStatus(o, allotments) // Has 'Delivered' status
+        );
         setAvailableOrders(available);
-        console.log('[Payment] Available orders for payment:', available.length);
+        console.log('[Payment] Available orders for payment (Delivered status only):', available.length);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -363,15 +398,19 @@ export function Payment({ onBack }: PaymentProps) {
         user.id
       );
 
-      // Update service order status to 'closed' after payment
-      await updateServiceOrderStatus(selectedOrderId, 'closed');
-      console.log(`[Payment] Updated service order ${selectedOrderId} status to 'closed'`);
+      // Update service order status to 'delivered' after payment (marks as Completed)
+      await updateServiceOrderStatus(selectedOrderId, 'delivered');
+      console.log(`[Payment] Updated service order ${selectedOrderId} status to 'delivered' (Completed)`);
 
       setPayments(prev => [newPayment, ...prev]);
       // Remove paid order from available orders
       setAvailableOrders(prev => prev.filter(o => o.id !== selectedOrderId));
+      // Update local service orders state
+      setServiceOrders(prev => prev.map(o =>
+        o.id === selectedOrderId ? { ...o, orderStatus: 'delivered' as const } : o
+      ));
       setShowDialog(false);
-      toast.success(`Payment ${newPayment.paymentNo} created successfully. Service Order marked as Closed.`);
+      toast.success(`Payment ${newPayment.paymentNo} created successfully. Order marked as Completed.`);
     } catch (error) {
       console.error('Error creating payment:', error);
       toast.error('Failed to create payment');

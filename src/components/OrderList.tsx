@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLanguage } from '@/hooks/use-language';
-import { Order, OrderStatus, InventoryItem, ServiceOrder, AdvancePayment } from '@/lib/types';
+import { Order, OrderStatus, InventoryItem, ServiceOrder, AdvancePayment, OrderAllotment } from '@/lib/types';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,9 @@ import { PhotoGallery } from './PhotoGallery';
 import { Customer, Tailor } from '@/lib/types';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
-type ServiceOrderFilter = 'all' | 'in-progress' | 'pending' | 'ready' | 'delivered' | 'overdue';
+// Display status type for combined status from both collections
+type DisplayStatus = 'pending' | 'in-progress' | 'delivered' | 'completed';
+type ServiceOrderFilter = 'all' | 'in-progress' | 'pending' | 'delivered' | 'completed' | 'overdue';
 type DateFilter = 'all' | 'exact' | 'range';
 
 const ITEMS_PER_PAGE = 3;
@@ -33,6 +35,7 @@ const ITEMS_PER_PAGE = 3;
 interface OrderListProps {
   orders: Order[];
   serviceOrders?: ServiceOrder[];
+  orderAllotments?: OrderAllotment[];
   customers: Customer[];
   tailors: Tailor[];
   inventory: InventoryItem[];
@@ -61,6 +64,7 @@ interface OrderListProps {
 export function OrderList({
   orders,
   serviceOrders = [],
+  orderAllotments = [],
   customers,
   tailors,
   inventory,
@@ -82,6 +86,63 @@ export function OrderList({
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  /**
+   * Get the display status for a service order based on allotment status
+   * Status logic:
+   * - Not assigned → 'Pending'
+   * - In progress → 'In Progress'
+   * - Ready to deliver / Ready to dispatch → 'Delivered'
+   * - Reassigned → 'Pending'
+   * - Final payment completed → 'Completed'
+   */
+  const getDisplayStatus = (serviceOrder: ServiceOrder): DisplayStatus => {
+    // Find the allotment for this service order (exclude reassigned orders)
+    const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
+
+    // If no allotment exists or order is reassigned → Pending
+    if (!allotment) {
+      return 'pending';
+    }
+
+    // Check allotment status fields
+    // - status: used by job work tailors (vendors) - values: 'allotted', 'in_progress', 'stitched', 'rejected', 'delivered'
+    // - orderStatus: used by employee tailors - values: 'open', 'in-progress', 'closed'
+    // - serviceOrderStatus: status synced to service order - values: 'pending', 'in-progress', 'ready', 'delivered'
+    const allotmentStatus = allotment.status; // Job work tailor status
+    const orderTicketStatus = allotment.orderStatus; // Employee tailor status
+    const serviceOrderStatus = allotment.serviceOrderStatus;
+
+    // If final payment is completed → Completed
+    // Check if serviceOrder.orderStatus is 'delivered' and payment is complete
+    if (serviceOrder.orderStatus === 'delivered') {
+      return 'completed';
+    }
+
+    // Ready to deliver or ready to dispatch → Delivered
+    // Job work: status='stitched' or 'delivered'
+    // Employee: serviceOrderStatus='ready'
+    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
+      return 'delivered';
+    }
+
+    // In progress
+    // Job work: status='in_progress'
+    // Employee: orderStatus='in-progress'
+    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress') {
+      return 'in-progress';
+    }
+
+    // Allotted but not started → Pending
+    // Job work: status='allotted'
+    // Employee: orderStatus='open'
+    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
+      return 'pending';
+    }
+
+    // Default to pending
+    return 'pending';
+  };
 
   const filteredOrders = (orders || []).filter((o) => {
     const matchesSearch =
@@ -132,10 +193,10 @@ export function OrderList({
   };
 
   // Check if service order is overdue
-  const isServiceOrderOverdue = (order: ServiceOrder) => {
-    return order.expectedDeliveryDate &&
+  const isServiceOrderOverdue = (order: ServiceOrder): boolean => {
+    return !!(order.expectedDeliveryDate &&
            order.orderStatus !== 'delivered' &&
-           isPast(new Date(order.expectedDeliveryDate));
+           isPast(new Date(order.expectedDeliveryDate)));
   };
 
   // Filter service orders based on search, status, and date
@@ -149,13 +210,14 @@ export function OrderList({
       o.orderCategory.toLowerCase().includes(searchLower) ||
       hasMeasurementMatch(o.measurements, searchLower);
 
-    // Status filter
+    // Status filter using display status
     let matchesStatus = true;
     if (serviceOrderFilter !== 'all') {
       if (serviceOrderFilter === 'overdue') {
         matchesStatus = isServiceOrderOverdue(o);
       } else {
-        matchesStatus = o.orderStatus === serviceOrderFilter;
+        // Use getDisplayStatus for filtering
+        matchesStatus = getDisplayStatus(o) === serviceOrderFilter;
       }
     }
 
@@ -166,21 +228,22 @@ export function OrderList({
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // Get count for each filter
+  // Get count for each filter based on display status
   const getServiceOrderFilterCount = (filter: ServiceOrderFilter) => {
     if (filter === 'all') return (serviceOrders || []).length;
     if (filter === 'overdue') {
       return (serviceOrders || []).filter(o => isServiceOrderOverdue(o)).length;
     }
-    return (serviceOrders || []).filter(o => o.orderStatus === filter).length;
+    // Use getDisplayStatus for filtering counts
+    return (serviceOrders || []).filter(o => getDisplayStatus(o) === filter).length;
   };
 
   const serviceOrderFilterOptions: { value: ServiceOrderFilter; label: string }[] = [
     { value: 'all', label: 'All' },
-    { value: 'in-progress', label: 'In-Progress' },
     { value: 'pending', label: 'Pending' },
-    { value: 'ready', label: 'Ready' },
+    { value: 'in-progress', label: 'In Progress' },
     { value: 'delivered', label: 'Delivered' },
+    { value: 'completed', label: 'Completed' },
     { value: 'overdue', label: 'Overdue' },
   ];
 
@@ -440,12 +503,26 @@ export function OrderList({
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-      case 'ready':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
       case 'delivered':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+      case 'completed':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
       default:
         return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Get display status label for UI
+  const getDisplayStatusLabel = (status: DisplayStatus): string => {
+    switch (status) {
+      case 'pending':
+        return 'PENDING';
+      case 'in-progress':
+        return 'IN PROGRESS';
+      case 'delivered':
+        return 'DELIVERED';
+      case 'completed':
+        return 'COMPLETED';
     }
   };
 
@@ -527,8 +604,8 @@ export function OrderList({
                   <div className="flex-1 min-h-0 flex flex-col">
                     <div className="flex items-start justify-between mb-1">
                       <p className="text-[10px] sm:text-xs font-bold text-primary">{serviceOrder.id}</p>
-                      <Badge className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold ${getServiceOrderStatusColor(serviceOrder.orderStatus)}`}>
-                        {serviceOrder.orderStatus.toUpperCase()}
+                      <Badge className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold ${getServiceOrderStatusColor(getDisplayStatus(serviceOrder))}`}>
+                        {getDisplayStatusLabel(getDisplayStatus(serviceOrder))}
                       </Badge>
                     </div>
                     <p className="text-xs sm:text-sm font-semibold text-foreground truncate mb-2">{serviceOrder.customerName}</p>

@@ -483,6 +483,7 @@ export function OwnerDashboard() {
                   <OrderList
                     orders={orders || []}
                     serviceOrders={serviceOrders || []}
+                    orderAllotments={orderAllotments || []}
                     customers={customers || []}
                     tailors={tailors || []}
                     inventory={inventory || []}
