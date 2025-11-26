@@ -66,12 +66,14 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
         const dcList = await getDeliveryChallansByCompany(company.id);
         setChallans(dcList);
         // Load stitched orders for Job Work No dropdown
+        // Include: Only job-work tailor orders (stitchingAllotment === 'vendor')
         // Include: status='stitched' OR (status='delivered' AND serviceOrderStatus='ready')
-        // Exclude: reassigned orders
+        // Include: reassigned orders to job-work tailors
         const allotments = await getOrderAllotmentsByCompany(company.id);
         const stitched = allotments.filter(o =>
           o.stitchedId &&
-          !o.reassigned &&
+          o.stitchingAllotment === 'vendor' &&
+          o.jobWorkNo &&
           (o.status === 'stitched' || (o.status === 'delivered' && o.serviceOrderStatus === 'ready'))
         );
         setStitchedOrders(stitched);
@@ -93,7 +95,7 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
 
   const handleSave = async () => {
     if (!jobWorkNo) {
-      toast.error('Please select a Stitched Order ID');
+      toast.error('Please select an Order ID');
       return;
     }
 
@@ -234,22 +236,22 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
               />
             </div>
 
-            {/* Stitched Order ID */}
+            {/* Order ID */}
             <div className="space-y-2">
-              <Label htmlFor="jobWorkNo">Stitched Order ID *</Label>
+              <Label htmlFor="jobWorkNo">Order ID *</Label>
               <Select value={jobWorkNo} onValueChange={setJobWorkNo}>
                 <SelectTrigger id="jobWorkNo">
-                  <SelectValue placeholder="Select Stitched Order ID" />
+                  <SelectValue placeholder="Select Order ID" />
                 </SelectTrigger>
                 <SelectContent>
                   {stitchedOrders.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      No stitched orders available
+                      No orders available
                     </div>
                   ) : (
                     stitchedOrders.map(order => (
                       <SelectItem key={order.id} value={order.stitchedId!}>
-                        {order.stitchedId} - {order.customerName} ({order.assignedName})
+                        {order.jobWorkNo} - {order.customerName} ({order.assignedName})
                       </SelectItem>
                     ))
                   )}

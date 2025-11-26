@@ -20,11 +20,18 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
   const [markingReady, setMarkingReady] = useState<string | null>(null);
 
   // Filter stitched orders: status='stitched' AND not reassigned AND not ready to dispatch
-  const stitchedOrders = orders.filter(o =>
-    o.status === 'stitched' &&
-    !o.reassigned &&
-    o.serviceOrderStatus !== 'ready'
-  );
+  const stitchedOrders = orders.filter(o => {
+    const isStitched = o.status === 'stitched';
+    const isNotReassigned = !o.reassigned;
+    const isNotReady = o.serviceOrderStatus !== 'ready';
+
+    // Debug logging
+    if (isStitched) {
+      console.log(`[StitchedOrdersList] Order ${o.id} - status: ${o.status}, reassigned: ${o.reassigned}, serviceOrderStatus: ${o.serviceOrderStatus}`);
+    }
+
+    return isStitched && isNotReassigned && isNotReady;
+  });
 
   const handleMarkAsReadyToDispatch = async (order: OrderAllotment) => {
     try {

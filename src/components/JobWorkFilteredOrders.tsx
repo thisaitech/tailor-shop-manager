@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Package } from '@phosphor-icons/react';
+import { ArrowLeft, Package, Check, X } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { updateVendorOrderStatus } from '@/lib/firestore/orderAllotmentService';
@@ -42,12 +42,14 @@ export function JobWorkFilteredOrders({
   const filteredOrders = orders.filter(order => {
     if (filterType === 'all') return true;
     if (filterType === 'assigned') {
-      // Only show allotted/open orders, exclude rejected, stitched, and delivered
+      // Only show allotted/reassigned orders, exclude in_progress, rejected, stitched, and delivered
       return (
         order.status !== 'rejected' &&
         order.status !== 'stitched' &&
         order.status !== 'delivered' &&
-        (order.status === 'allotted' || order.orderStatus === 'open')
+        order.status !== 'in_progress' &&
+        order.orderStatus !== 'in-progress' &&
+        (order.status === 'allotted' || order.status === 'reassigned' || order.orderStatus === 'open')
       );
     }
     if (filterType === 'in_progress') return order.status === 'in_progress' || order.orderStatus === 'in-progress';
@@ -70,6 +72,36 @@ export function JobWorkFilteredOrders({
   const handleOrderClick = (order: OrderWithCustomer) => {
     setSelectedOrderNo(order.serviceOrderNo);
     setShowOrderDetails(true);
+  };
+
+  const handleAcceptOrder = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setUpdatingOrder(orderId);
+      await updateVendorOrderStatus(orderId, 'in_progress');
+      toast.success('Order accepted! Status updated to In Progress');
+      onOrderUpdate();
+    } catch (error) {
+      console.error('Error accepting order:', error);
+      toast.error('Failed to accept order');
+    } finally {
+      setUpdatingOrder(null);
+    }
+  };
+
+  const handleRejectOrder = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setUpdatingOrder(orderId);
+      await updateVendorOrderStatus(orderId, 'rejected');
+      toast.success('Order rejected');
+      onOrderUpdate();
+    } catch (error) {
+      console.error('Error rejecting order:', error);
+      toast.error('Failed to reject order');
+    } finally {
+      setUpdatingOrder(null);
+    }
   };
 
   const handleMarkAsStitched = async (orderId: string) => {
@@ -132,13 +164,17 @@ export function JobWorkFilteredOrders({
                         className="hover:bg-muted/30 cursor-pointer"
                         onClick={() => handleOrderClick(order)}
                       >
-                        <td className="p-3 text-sm font-medium">{order.jobWorkNo || order.id}</td>
+                        <td className="p-3 text-sm font-medium">
+                          {order.jobWorkNo || order.id}
+                        </td>
                         <td className="p-3 text-sm">{order.customerName}</td>
                         <td className="p-3 text-sm">{format(displayDate, 'dd MMM yyyy')}</td>
                         <td className="p-3">
                           <span className={`inline-block px-2 py-1 text-xs rounded-full ${
                             currentStatus === 'allotted'
                               ? 'bg-blue-100 text-blue-700'
+                              : currentStatus === 'reassigned'
+                              ? 'bg-purple-100 text-purple-700'
                               : currentStatus === 'in_progress'
                               ? 'bg-orange-100 text-orange-700'
                               : currentStatus === 'stitched'
@@ -148,6 +184,7 @@ export function JobWorkFilteredOrders({
                               : 'bg-gray-100 text-gray-700'
                           }`}>
                             {currentStatus === 'allotted' ? 'Assigned' :
+                             currentStatus === 'reassigned' ? 'Reassigned' :
                              currentStatus === 'in_progress' ? 'In Progress' :
                              currentStatus === 'stitched' ? 'Stitched' :
                              currentStatus === 'rejected' ? 'Rejected' : currentStatus}

@@ -26,14 +26,20 @@ export interface TailorCredentialsEmail {
 
 // EmailJS Configuration
 // TODO: Move these to environment variables (.env file)
-const EMAILJS_SERVICE_ID = 'service_mcafiwp'; // EmailJS Service ID
-const EMAILJS_TEMPLATE_ID = 'template_m9e5s77'; // EmailJS Template ID for Login Credentials
-const EMAILJS_ORDER_READY_TEMPLATE_ID = 'template_mplk0h5'; // EmailJS Template ID for Order Ready
-const EMAILJS_ORDER_REJECTION_TEMPLATE_ID = 'template_rbb1in8'; // EmailJS Template ID for Order Rejection
-const EMAILJS_PUBLIC_KEY = 'TxNnIT-hcwiT9E4p7'; // EmailJS Public Key
 
-// Initialize EmailJS with public key
-emailjs.init(EMAILJS_PUBLIC_KEY);
+// Account Details & Order Ready Configuration
+const EMAILJS_SERVICE_ID_ACCOUNT = 'service_ht4eaid'; // Service ID for account details and order ready
+const EMAILJS_TEMPLATE_ID = 'template_m9e5s77'; // Template ID for Login Credentials
+const EMAILJS_ORDER_READY_TEMPLATE_ID = 'template_mplk0h5'; // Template ID for Order Ready
+const EMAILJS_PUBLIC_KEY_ACCOUNT_DETAILS = 'F8J6cBceIuPl-P8K_'; // Public key for account details and order ready
+
+// Rejection Email Configuration
+const EMAILJS_SERVICE_ID_REJECTION = 'service_mcafiwp'; // Service ID for rejection emails
+const EMAILJS_ORDER_REJECTION_TEMPLATE_ID = 'template_rbb1in8'; // Template ID for Order Rejection
+const EMAILJS_PUBLIC_KEY_REJECTION = 'TxNnIT-hcwiT9E4p7'; // Public key for rejected mail
+
+// Initialize EmailJS with default public key (will be overridden per email type)
+emailjs.init(EMAILJS_PUBLIC_KEY_ACCOUNT_DETAILS);
 
 /**
  * Send login credentials email to tailor using EmailJS
@@ -94,11 +100,12 @@ export async function sendTailorCredentialsEmail(
       company_name: data.companyName || 'Tailor Management System',
     };
 
-    // Send email using EmailJS
+    // Send email using EmailJS with account details service and public key
     const response = await emailjs.send(
-      EMAILJS_SERVICE_ID,
+      EMAILJS_SERVICE_ID_ACCOUNT,
       EMAILJS_TEMPLATE_ID,
-      templateParams
+      templateParams,
+      EMAILJS_PUBLIC_KEY_ACCOUNT_DETAILS
     );
 
     if (response.status === 200) {
@@ -109,8 +116,13 @@ export async function sendTailorCredentialsEmail(
       console.error('[Email Service] ❌ EmailJS returned non-200 status:', response.status);
       return false;
     }
-  } catch (error) {
-    console.error('[Email Service] ❌ Error sending email via EmailJS:', error);
+  } catch (error: any) {
+    // Suppress console errors for missing templates (EmailJS not configured)
+    if (error?.status === 400 && error?.text?.includes('template ID not found')) {
+      console.log('[Email Service] ℹ️ Email not sent - EmailJS template not configured');
+    } else {
+      console.error('[Email Service] ❌ Error sending email via EmailJS:', error);
+    }
     return false;
   }
 }
@@ -119,10 +131,12 @@ export async function sendTailorCredentialsEmail(
  * Order Ready Email Interface
  */
 export interface OrderReadyEmail {
-  to: string; // Customer email
+  to: string; // Customer or admin email
   customerName: string;
   orderNumber: string;
   companyName?: string;
+  jobWorkNo?: string; // Job work number (for admin emails)
+  tailorName?: string; // Tailor name (for admin emails)
 }
 
 /**
@@ -184,18 +198,27 @@ export async function sendOrderReadyEmail(
     }
 
     // Prepare template parameters for EmailJS
-    const templateParams = {
+    const templateParams: any = {
       to_email: data.to,
       customer_name: data.customerName,
       order_number: data.orderNumber,
       company_name: data.companyName || 'Tailor Shop',
     };
 
-    // Send email using EmailJS with Order Ready Template
+    // Add optional fields if provided (for admin emails)
+    if (data.jobWorkNo) {
+      templateParams.job_work_no = data.jobWorkNo;
+    }
+    if (data.tailorName) {
+      templateParams.tailor_name = data.tailorName;
+    }
+
+    // Send email using EmailJS with Order Ready Template, account service and public key
     const response = await emailjs.send(
-      EMAILJS_SERVICE_ID,
+      EMAILJS_SERVICE_ID_ACCOUNT,
       EMAILJS_ORDER_READY_TEMPLATE_ID, // Use separate template for order ready
-      templateParams
+      templateParams,
+      EMAILJS_PUBLIC_KEY_ACCOUNT_DETAILS
     );
 
     if (response.status === 200) {
@@ -206,8 +229,13 @@ export async function sendOrderReadyEmail(
       console.error('[Email Service] ❌ EmailJS returned non-200 status:', response.status);
       return false;
     }
-  } catch (error) {
-    console.error('[Email Service] ❌ Error sending order ready email via EmailJS:', error);
+  } catch (error: any) {
+    // Suppress console errors for missing templates (EmailJS not configured)
+    if (error?.status === 400 && error?.text?.includes('template ID not found')) {
+      console.log('[Email Service] ℹ️ Email not sent - EmailJS template not configured');
+    } else {
+      console.error('[Email Service] ❌ Error sending order ready email via EmailJS:', error);
+    }
     return false;
   }
 }
@@ -311,11 +339,12 @@ export async function sendOrderRejectionEmail(
       company_name: data.companyName || 'Tailor Shop',
     };
 
-    // Send email using EmailJS with Order Rejection Template
+    // Send email using EmailJS with Order Rejection Template, rejection service and public key
     const response = await emailjs.send(
-      EMAILJS_SERVICE_ID,
+      EMAILJS_SERVICE_ID_REJECTION,
       EMAILJS_ORDER_REJECTION_TEMPLATE_ID,
-      templateParams
+      templateParams,
+      EMAILJS_PUBLIC_KEY_REJECTION
     );
 
     if (response.status === 200) {
@@ -326,8 +355,13 @@ export async function sendOrderRejectionEmail(
       console.error('[Email Service] ❌ EmailJS returned non-200 status:', response.status);
       return false;
     }
-  } catch (error) {
-    console.error('[Email Service] ❌ Error sending order rejection email via EmailJS:', error);
+  } catch (error: any) {
+    // Suppress console errors for missing templates (EmailJS not configured)
+    if (error?.status === 400 && error?.text?.includes('template ID not found')) {
+      console.log('[Email Service] ℹ️ Email not sent - EmailJS template not configured');
+    } else {
+      console.error('[Email Service] ❌ Error sending order rejection email via EmailJS:', error);
+    }
     return false;
   }
 }

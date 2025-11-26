@@ -37,7 +37,9 @@ export function JobWorkTailorDashboard() {
     o.status !== 'rejected' &&
     o.status !== 'stitched' &&
     o.status !== 'delivered' &&
-    (o.status === 'allotted' || o.orderStatus === 'open')
+    o.status !== 'in_progress' &&
+    o.orderStatus !== 'in-progress' &&
+    (o.status === 'allotted' || o.status === 'reassigned' || o.orderStatus === 'open')
   ).length;
   const inProgressOrders = orders.filter(o => (o.status === 'in_progress' || o.orderStatus === 'in-progress')).length;
   const stitchedOrders = orders.filter(o => o.status === 'stitched').length;
@@ -190,13 +192,13 @@ export function JobWorkTailorDashboard() {
     );
   }
 
-  // Filter recent orders (only show allotted and in_progress orders, exclude rejected, stitched, and delivered)
+  // Filter recent orders (only show allotted, reassigned and in_progress orders, exclude rejected, stitched, and delivered)
   const recentOrders = orders
     .filter(o =>
       o.status !== 'rejected' &&
       o.status !== 'stitched' &&
       o.status !== 'delivered' &&
-      (o.status === 'allotted' || o.status === 'in_progress' || o.orderStatus === 'open' || o.orderStatus === 'in-progress')
+      (o.status === 'allotted' || o.status === 'reassigned' || o.status === 'in_progress' || o.orderStatus === 'open' || o.orderStatus === 'in-progress')
     )
     .sort((a, b) => {
       const aDate = a.assignedDate || a.jobWorkDate || a.createdAt;
@@ -381,6 +383,8 @@ export function JobWorkTailorDashboard() {
                           <span className={`inline-block px-2 py-1 text-xs rounded-full ${
                             currentStatus === 'allotted'
                               ? 'bg-blue-100 text-blue-700'
+                              : currentStatus === 'reassigned'
+                              ? 'bg-purple-100 text-purple-700'
                               : currentStatus === 'in_progress'
                               ? 'bg-orange-100 text-orange-700'
                               : currentStatus === 'stitched'
@@ -388,12 +392,13 @@ export function JobWorkTailorDashboard() {
                               : 'bg-gray-100 text-gray-700'
                           }`}>
                             {currentStatus === 'allotted' ? 'Assigned' :
+                             currentStatus === 'reassigned' ? 'Reassigned' :
                              currentStatus === 'in_progress' ? 'In Progress' :
                              currentStatus === 'stitched' ? 'Stitched' : currentStatus}
                           </span>
                         </td>
                         <td className="p-3">
-                          {currentStatus === 'allotted' && (
+                          {(currentStatus === 'allotted' || currentStatus === 'reassigned') && (
                             <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                               <Button
                                 size="sm"

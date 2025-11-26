@@ -203,9 +203,9 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
     try {
       if (editingVendor) {
-        // Update existing vendor
-        await updateVendor(editingVendor.id, formData);
-        setVendors(vendors.map(v => v.id === editingVendor.id ? { ...v, ...formData, updatedAt: Date.now() } : v));
+        // Update existing vendor - use tailorCode as the document ID
+        await updateVendor(editingVendor.tailorCode, formData);
+        setVendors(vendors.map(v => v.tailorCode === editingVendor.tailorCode ? { ...v, ...formData, updatedAt: Date.now() } : v));
         toast.success('Vendor updated successfully');
       } else {
         // Add new vendor

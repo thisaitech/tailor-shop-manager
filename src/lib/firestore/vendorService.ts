@@ -136,14 +136,18 @@ export async function addVendor(
 
     // Send credentials email to vendor
     try {
-      await sendTailorCredentialsEmail({
+      const emailSent = await sendTailorCredentialsEmail({
         to: vendorData.email,
         employeeName: vendorData.tailorName,
         loginId: vendorData.contactNumber,
         temporaryPassword: autoPassword,
         companyName,
       });
-      console.log('Login credentials email sent to:', vendorData.email);
+      if (emailSent) {
+        console.log('Login credentials email sent to:', vendorData.email);
+      } else {
+        console.log('Email not sent - EmailJS not configured');
+      }
     } catch (emailError) {
       console.error('Failed to send credentials email:', emailError);
       // Don't throw error - vendor is created successfully
@@ -191,7 +195,14 @@ export async function getVendorsByCompany(
     const q = query(vendorsRef, where('companyDocId', '==', companyDocId));
     const snapshot = await getDocs(q);
 
-    return snapshot.docs.map((doc) => doc.data() as Vendor);
+    return snapshot.docs.map((doc) => {
+      const data = doc.data() as Vendor;
+      // Ensure id is set from tailorCode for consistency
+      return {
+        ...data,
+        id: data.tailorCode || doc.id,
+      };
+    });
   } catch (error) {
     console.error('Error fetching vendors:', error);
     return [];

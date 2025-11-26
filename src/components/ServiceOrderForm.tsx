@@ -208,6 +208,10 @@ export function ServiceOrderForm({
         const results = await searchCustomers(actualCompanyId || companyId, customerSearch);
         console.log('[ServiceOrderForm] Search results:', results.length, 'customers found');
         setSearchResults(results);
+        // Open dropdown when search results are available
+        if (results.length > 0) {
+          setShowCustomerDropdown(true);
+        }
       } catch (error) {
         console.error('[ServiceOrderForm] Error searching customers:', error);
         setSearchResults([]);
@@ -292,6 +296,10 @@ export function ServiceOrderForm({
     } else {
       resetForm();
     }
+    // Always ensure dropdown is closed when dialog opens
+    if (open) {
+      setShowCustomerDropdown(false);
+    }
   }, [order, open]);
 
   const resetForm = () => {
@@ -320,6 +328,8 @@ export function ServiceOrderForm({
     // Reset design selection
     setSelectedDesignCategory('');
     setSelectedDesigns([]);
+    // Reset customer dropdown
+    setShowCustomerDropdown(false);
   };
 
   // Loading state for PI number generation
@@ -1035,7 +1045,12 @@ export function ServiceOrderForm({
                   placeholder="Search by name or phone..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  onFocus={() => setShowCustomerDropdown(true)}
+                  onFocus={() => {
+                    // Only show dropdown if there are recent customers to display
+                    if (recentCustomers.length > 0) {
+                      setShowCustomerDropdown(true);
+                    }
+                  }}
                   onBlur={() => {
                     // Delay closing to allow clicking dropdown items
                     setTimeout(() => setShowCustomerDropdown(false), 200);
@@ -1051,88 +1066,10 @@ export function ServiceOrderForm({
 
               {/* Customer List - Recent or Search Results */}
               {showCustomerDropdown && (customerSearch.trim() || recentCustomers.length > 0) && (
-                <div className="border rounded-lg max-h-[240px] overflow-y-auto">
-                  {/* Show search results if searching */}
-                  {customerSearch.trim() && searchResults.length > 0 && (
-                    <div className="p-2 space-y-1">
-                      <p className="text-xs text-muted-foreground px-2 py-1">Search Results ({searchResults.length})</p>
-                      {searchResults.map((customer) => (
-                        <button
-                          key={customer.id}
-                          type="button"
-                          onClick={() => {
-                            setCustomerId(customer.id);
-                            setCustomerSearch('');
-                            handleCustomerChange(customer.id);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
-                            customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{customer.name}</p>
-                              <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
-                            </div>
-                            {customerId === customer.id && (
-                              <Check size={16} className="text-green-600" weight="bold" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Show "no results" if search returned nothing */}
-                  {customerSearch.trim() && !isSearching && searchResults.length === 0 && (
-                    <div className="p-4 text-center">
-                      <p className="text-sm text-muted-foreground mb-2">No customers found</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onCreateCustomer?.()}
-                        className="w-full"
-                      >
-                        <Plus size={16} weight="bold" className="mr-2" />
-                        Create New Customer
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Show recent customers when not searching */}
-                  {!customerSearch.trim() && recentCustomers.length > 0 && (
-                    <div className="p-2 space-y-1">
-                      <p className="text-xs text-muted-foreground px-2 py-1">Recent Customers (15)</p>
-                      {recentCustomers.map((customer) => (
-                        <button
-                          key={customer.id}
-                          type="button"
-                          onClick={() => {
-                            setCustomerId(customer.id);
-                            handleCustomerChange(customer.id);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
-                            customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium">{customer.name}</p>
-                              <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
-                            </div>
-                            {customerId === customer.id && (
-                              <Check size={16} className="text-green-600" weight="bold" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Create New Customer Button */}
+                <div className="border rounded-lg">
+                  {/* Create New Customer Button - Always at top */}
                   {!customerSearch.trim() && (
-                    <div className="p-2 border-t">
+                    <div className="p-2 border-b">
                       <Button
                         type="button"
                         variant="ghost"
@@ -1145,6 +1082,87 @@ export function ServiceOrderForm({
                       </Button>
                     </div>
                   )}
+
+                  {/* Scrollable customer list */}
+                  <div className="max-h-[240px] overflow-y-auto">
+                    {/* Show search results if searching */}
+                    {customerSearch.trim() && searchResults.length > 0 && (
+                      <div className="p-2 space-y-1">
+                        <p className="text-xs text-muted-foreground px-2 py-1">Search Results ({searchResults.length})</p>
+                        {searchResults.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => {
+                              setCustomerId(customer.id);
+                              setCustomerSearch('');
+                              handleCustomerChange(customer.id);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
+                              customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{customer.name}</p>
+                                <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
+                              </div>
+                              {customerId === customer.id && (
+                                <Check size={16} className="text-green-600" weight="bold" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Show "no results" if search returned nothing */}
+                    {customerSearch.trim() && !isSearching && searchResults.length === 0 && (
+                      <div className="p-4 text-center">
+                        <p className="text-sm text-muted-foreground mb-2">No customers found</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onCreateCustomer?.()}
+                          className="w-full"
+                        >
+                          <Plus size={16} weight="bold" className="mr-2" />
+                          Create New Customer
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Show recent customers when not searching */}
+                    {!customerSearch.trim() && recentCustomers.length > 0 && (
+                      <div className="p-2 space-y-1">
+                        <p className="text-xs text-muted-foreground px-2 py-1">Recent Customers (7)</p>
+                        {recentCustomers.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            onClick={() => {
+                              setCustomerId(customer.id);
+                              handleCustomerChange(customer.id);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
+                              customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{customer.name}</p>
+                                <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
+                              </div>
+                              {customerId === customer.id && (
+                                <Check size={16} className="text-green-600" weight="bold" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1173,7 +1191,7 @@ export function ServiceOrderForm({
                   onValueChange={(v) => setOrderCategory(v as OrderCategory)}
                 >
                   <SelectTrigger id="orderCategory">
-                    <SelectValue placeholder="Gender" />
+                    <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>

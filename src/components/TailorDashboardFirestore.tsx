@@ -89,17 +89,21 @@ export function TailorDashboardFirestore() {
 
       // Calculate stats
       const assignedOrders = allotments.filter(
-        (a) => a.orderStatus === 'open'
+        (a) => a.orderStatus === 'open' && a.status !== 'rejected'
       ).length;
 
       const inProgress = allotments.filter(
-        (a) => a.orderStatus === 'in-progress'
+        (a) => a.orderStatus === 'in-progress' &&
+               a.status !== 'rejected' &&
+               a.status !== 'delivered' &&
+               a.serviceOrderStatus !== 'ready'
       ).length;
 
       // For ready to deliver, we need to check the service orders
-      // Count orders that have been marked as ready
+      // Count orders that have been marked as ready (exclude rejected)
+      // Check multiple fields: status=delivered, serviceOrderStatus=ready, or old orderStatus=delivered
       const readyToDeliver = allotments.filter(
-        (a) => a.serviceOrderStatus === 'ready'
+        (a) => (a.status === 'delivered' || a.serviceOrderStatus === 'ready' || a.orderStatus === 'delivered') && a.status !== 'rejected'
       ).length;
 
       // Count rejected orders
@@ -118,10 +122,30 @@ export function TailorDashboardFirestore() {
       });
 
       // Get recent orders (last 10, sorted by creation date descending)
+      // Filter out delivered, rejected, and ready orders from recent orders
       const sortedRecent = [...allotments]
+        .filter((a) => {
+          // Only show orders that are:
+          // 1. Not rejected
+          // 2. Not delivered (check both status and orderStatus fields)
+          // 3. Not ready to deliver
+          // 4. Either open or in-progress
+          const shouldInclude =
+            a.status !== 'delivered' &&
+            a.status !== 'rejected' &&
+            a.orderStatus !== 'delivered' &&
+            a.serviceOrderStatus !== 'ready' &&
+            (a.orderStatus === 'open' || a.orderStatus === 'in-progress');
+
+          // Debug log ALL orders to understand their state
+          console.log(`[TailorDashboard] Order ${a.serviceOrderNo}: status="${a.status}", orderStatus="${a.orderStatus}", serviceOrderStatus="${a.serviceOrderStatus}", shouldInclude=${shouldInclude}`);
+
+          return shouldInclude;
+        })
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, 10);
 
+      console.log(`[TailorDashboard] Recent orders count after filter: ${sortedRecent.length}`);
       setRecentOrders(sortedRecent);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -212,13 +236,15 @@ export function TailorDashboardFirestore() {
     try {
       setMarkingReady(allotment.id);
 
-      // Update order allotment status to "closed" and serviceOrderStatus to "ready"
-      await updateOrderAllotmentWithServiceStatus(allotment.id, 'closed', 'ready');
+      console.log(`[TailorDashboard] Before update - Order ${allotment.serviceOrderNo} (${allotment.id}): status="${allotment.status}", orderStatus="${allotment.orderStatus}", serviceOrderStatus="${allotment.serviceOrderStatus}"`);
+
+      // Update order allotment with status "delivered" and serviceOrderStatus "ready"
+      await updateOrderAllotmentWithServiceStatus(allotment.id, 'delivered', 'ready');
 
       // Update the service order status to "ready"
       await updateServiceOrderStatus(allotment.serviceOrderNo, 'ready');
 
-      console.log(`[TailorDashboard] Order ${allotment.id} marked as ready. Service order ${allotment.serviceOrderNo} updated to ready status.`);
+      console.log(`[TailorDashboard] Order ${allotment.id} marked as delivered (ready to deliver). Service order ${allotment.serviceOrderNo} updated to ready status.`);
 
       // Send WhatsApp/SMS and Email notification to customer
       try {
@@ -248,7 +274,7 @@ export function TailorDashboardFirestore() {
               orderNumber: allotment.serviceOrderNo,
               companyName: employee?.companyId,
             });
-            console.log('[TailorDashboard] Email notification sent to:', customer.email);
+            console.log('[TailorDashboard] Email notification sent to customer:', customer.email);
           } else {
             console.warn('[TailorDashboard] Customer email not available for email notification');
           }
@@ -259,8 +285,33 @@ export function TailorDashboardFirestore() {
           console.warn('[TailorDashboard] Customer details not found');
         }
       } catch (notificationError) {
-        console.error('[TailorDashboard] Error sending notification:', notificationError);
+        console.error('[TailorDashboard] Error sending customer notification:', notificationError);
         toast.success('Order marked as Ready to Deliver!');
+      }
+
+      // Send email notification to admin/company
+      try {
+        if (employee?.companyDocId) {
+          const companyProfile = await getCompanyProfile(employee.companyDocId);
+
+          if (companyProfile?.email) {
+            // Get customer details for the email
+            const customer = await getCustomerById(allotment.customerId);
+
+            await sendOrderReadyEmail({
+              to: companyProfile.email,
+              customerName: customer?.name || 'Unknown Customer',
+              orderNumber: allotment.serviceOrderNo,
+              companyName: companyProfile.companyName || employee.companyId,
+              jobWorkNo: allotment.jobWorkNo || allotment.id,
+              tailorName: employee.name || 'Tailor',
+            });
+            console.log('[TailorDashboard] Order ready notification sent to admin:', companyProfile.email);
+          }
+        }
+      } catch (adminEmailError) {
+        console.error('[TailorDashboard] Error sending admin email notification:', adminEmailError);
+        // Don't fail the operation if admin email fails
       }
 
       // Reload dashboard data
@@ -276,11 +327,15 @@ export function TailorDashboardFirestore() {
   const getFilteredOrders = (): OrderAllotment[] => {
     switch (currentView) {
       case 'assigned':
-        return allOrders.filter((a) => a.orderStatus === 'open');
+        return allOrders.filter((a) => a.orderStatus === 'open' && a.status !== 'rejected');
       case 'in-progress':
-        return allOrders.filter((a) => a.orderStatus === 'in-progress');
+        return allOrders.filter((a) => a.orderStatus === 'in-progress' &&
+                                       a.status !== 'rejected' &&
+                                       a.status !== 'delivered' &&
+                                       a.serviceOrderStatus !== 'ready');
       case 'ready':
-        return allOrders.filter((a) => a.serviceOrderStatus === 'ready');
+        // Check multiple fields: status=delivered, serviceOrderStatus=ready, or old orderStatus=delivered
+        return allOrders.filter((a) => (a.status === 'delivered' || a.serviceOrderStatus === 'ready' || a.orderStatus === 'delivered') && a.status !== 'rejected');
       case 'rejected':
         return allOrders.filter((a) => a.status === 'rejected');
       case 'all-orders':
@@ -307,17 +362,22 @@ export function TailorDashboardFirestore() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'open':
-        return <Badge variant="secondary">Open</Badge>;
-      case 'in-progress':
-        return <Badge className="bg-blue-500">In Progress</Badge>;
-      case 'closed':
-        return <Badge className="bg-green-500">Closed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const getStatusBadge = (order: OrderAllotment) => {
+    // Determine status based on order state
+    if (order.status === 'rejected') {
+      return <Badge variant="destructive">Rejected</Badge>;
     }
+    // Check for delivered status in multiple fields (status, serviceOrderStatus, or old orderStatus field)
+    if (order.status === 'delivered' || order.serviceOrderStatus === 'ready' || order.orderStatus === 'delivered') {
+      return <Badge className="bg-green-500">Delivered</Badge>;
+    }
+    if (order.orderStatus === 'in-progress') {
+      return <Badge className="bg-blue-500">In Progress</Badge>;
+    }
+    if (order.orderStatus === 'open') {
+      return <Badge variant="secondary">Assigned</Badge>;
+    }
+    return <Badge variant="outline">{order.orderStatus || 'Unknown'}</Badge>;
   };
 
   const dashStats = [
@@ -454,7 +514,7 @@ export function TailorDashboardFirestore() {
                     <TableHead>Customer Name</TableHead>
                     <TableHead>Assigned Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    {currentView === 'dashboard' && <TableHead>Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -472,9 +532,9 @@ export function TailorDashboardFirestore() {
                       <TableCell>
                         {format(new Date(order.createdAt), 'dd MMM yyyy')}
                       </TableCell>
-                      <TableCell>{getStatusBadge(order.orderStatus)}</TableCell>
-                      <TableCell>
-                        {order.orderStatus === 'open' && (
+                      <TableCell>{getStatusBadge(order)}</TableCell>
+                      {currentView === 'dashboard' && <TableCell>
+                        {order.orderStatus === 'open' && order.status !== 'rejected' && (
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -510,10 +570,13 @@ export function TailorDashboardFirestore() {
                             {markingReady === order.id ? 'Updating...' : 'Mark as Ready'}
                           </Button>
                         )}
-                        {order.serviceOrderStatus === 'ready' && (
+                        {order.status === 'rejected' && (
+                          <Badge variant="destructive" className="text-xs">Rejected</Badge>
+                        )}
+                        {order.serviceOrderStatus === 'ready' && order.status !== 'rejected' && (
                           <span className="text-xs text-green-600 font-medium">Completed</span>
                         )}
-                      </TableCell>
+                      </TableCell>}
                     </TableRow>
                   ))}
                 </TableBody>

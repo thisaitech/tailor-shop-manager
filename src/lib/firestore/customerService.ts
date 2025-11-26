@@ -224,7 +224,7 @@ export async function deleteCustomer(customerId: string): Promise<void> {
 }
 
 /**
- * Get 15 most recently created customers for a company
+ * Get 7 most recently created customers for a company
  * Note: Sorts client-side to avoid requiring Firestore composite index
  */
 export async function getRecentCustomers(companyId: string): Promise<CustomerWithCompany[]> {
@@ -246,10 +246,10 @@ export async function getRecentCustomers(companyId: string): Promise<CustomerWit
       } as CustomerWithCompany;
     });
 
-    // Sort by createdAt descending and take first 15
+    // Sort by createdAt descending and take first 7
     const recentCustomers = customers
       .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 15);
+      .slice(0, 7);
 
     console.log(`Found ${recentCustomers.length} recent customers for company ${companyId}`);
     return recentCustomers;

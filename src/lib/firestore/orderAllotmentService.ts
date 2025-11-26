@@ -199,14 +199,14 @@ export async function updateOrderAllotmentStatus(
  */
 export async function updateOrderAllotmentWithServiceStatus(
   allotmentId: string,
-  orderStatus: 'open' | 'in-progress' | 'closed',
+  status: string,
   serviceOrderStatus: ServiceOrderStatus
 ): Promise<void> {
   try {
-    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${orderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
+    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - status: ${status}, serviceOrderStatus: ${serviceOrderStatus}`);
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
-      orderStatus: orderStatus,
+      status: status,
       serviceOrderStatus: serviceOrderStatus,
       updatedAt: serverTimestamp(),
     });
@@ -285,18 +285,44 @@ export async function updateVendorOrderStatus(
       // Update orderStatus to 'closed' when stitched
       updateData.orderStatus = 'closed';
 
+      // Set serviceOrderStatus to 'stitched' so it appears in admin's stitched orders section
+      updateData.serviceOrderStatus = 'stitched';
+
+      // Clear reassigned flag when order is stitched so it appears in admin's stitched orders
+      updateData.reassigned = false;
+
       // Add stitched ID to history entry
       historyEntry.stitchedId = stitchedId;
       historyEntry.notes = `Order stitched. Stitched ID: ${stitchedId}`;
 
       console.log(`[orderAllotmentService] Generated stitched ID: ${stitchedId}`);
 
-      // Update the service order status in newOrder collection
+      // Update the service order status in newOrder collection to 'stitched'
+      // Admin will later mark it as 'ready' when ready to dispatch
       if (allotmentData.serviceOrderNo) {
         try {
           const { updateServiceOrderStatus } = await import('./serviceOrderService');
-          await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'ready');
-          console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} to 'ready'`);
+          await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'stitched');
+          console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} to 'stitched'`);
+        } catch (serviceOrderError) {
+          console.error('[orderAllotmentService] Error updating service order:', serviceOrderError);
+          // Continue with the allotment update even if service order update fails
+        }
+      }
+    }
+
+    // If status is rejected, update service order back to job-network so admin can reassign
+    if (status === 'rejected') {
+      updateData.orderStatus = 'open'; // Reset to open for potential reassignment
+      updateData.rejectedDate = serverTimestamp();
+      historyEntry.notes = `Order rejected by vendor. Returned to admin for reassignment.`;
+
+      // Update the service order status in newOrder collection back to job-network
+      if (allotmentData.serviceOrderNo) {
+        try {
+          const { updateServiceOrderStatus } = await import('./serviceOrderService');
+          await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'job-network');
+          console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} to 'job-network' after rejection`);
         } catch (serviceOrderError) {
           console.error('[orderAllotmentService] Error updating service order:', serviceOrderError);
           // Continue with the allotment update even if service order update fails
@@ -351,7 +377,7 @@ export async function reassignStitchedOrder(
       timestamp: Date.now(),
       action: 'reassigned',
       previousStatus: currentData.status ?? 'unknown',
-      newStatus: currentData.status ?? 'stitched', // Keep the same status (stitched)
+      newStatus: 'reassigned', // Set status to reassigned
       previousAssignedTo: currentData.assignedTo ?? '',
       previousAssignedName: currentData.assignedName ?? '',
       newAssignedTo: newAssignment.assignedTo,
@@ -370,7 +396,7 @@ export async function reassignStitchedOrder(
     };
 
     const updateData: any = {
-      status: currentData.status ?? 'stitched', // Keep status as stitched, not rejected
+      status: 'reassigned', // Set status to reassigned
       stitchingAllotment: newAssignment.stitchingAllotment,
       assignedTo: newAssignment.assignedTo,
       assignedName: newAssignment.assignedName,
@@ -404,6 +430,14 @@ export async function reassignStitchedOrder(
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
 
     console.log(`[orderAllotmentService] Stitched order ${allotmentId} reassigned successfully with history preserved`);
+    console.log(`[orderAllotmentService] Reassignment details:`, {
+      status: updateData.status,
+      stitchingAllotment: updateData.stitchingAllotment,
+      assignedTo: updateData.assignedTo,
+      assignedName: updateData.assignedName,
+      orderStatus: updateData.orderStatus,
+      reassigned: updateData.reassigned,
+    });
   } catch (error) {
     console.error('[orderAllotmentService] Error reassigning stitched order:', error);
     throw error;
@@ -446,12 +480,25 @@ export async function rejectOrderAllotment(
     const updateData: any = {
       status: 'rejected',
       orderStatus: 'open', // Reset to open so it can be reassigned
+      serviceOrderStatus: 'rejected', // Update service order status so admin can see it
       rejectedDate: serverTimestamp(),
       updatedAt: serverTimestamp(),
       history: [...currentHistory, historyEntry],
     };
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
+
+    // Update the service order status to 'rejected' in newOrder collection
+    if (currentData.serviceOrderNo) {
+      try {
+        const { updateServiceOrderStatus } = await import('./serviceOrderService');
+        await updateServiceOrderStatus(currentData.serviceOrderNo, 'rejected');
+        console.log(`[orderAllotmentService] Service order ${currentData.serviceOrderNo} status updated to rejected`);
+      } catch (error) {
+        console.error('[orderAllotmentService] Error updating service order status:', error);
+        // Don't throw - rejection should still succeed even if service order update fails
+      }
+    }
 
     console.log(`[orderAllotmentService] Order allotment ${allotmentId} rejected successfully`);
   } catch (error) {
@@ -554,6 +601,14 @@ export async function getOrderAllotmentsByVendor(vendorId: string): Promise<Orde
     });
 
     console.log(`[orderAllotmentService] Found ${allotments.length} allotments for vendor ${vendorId}`);
+    console.log(`[orderAllotmentService] Allotments statuses:`, allotments.map(a => ({
+      id: a.id,
+      status: a.status,
+      orderStatus: a.orderStatus,
+      assignedTo: a.assignedTo,
+      stitchingAllotment: a.stitchingAllotment,
+      reassigned: a.reassigned
+    })));
     return allotments;
   } catch (error) {
     console.error('[orderAllotmentService] Error getting allotments by vendor:', error);
