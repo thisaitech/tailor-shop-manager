@@ -7,7 +7,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,14 +17,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Customer, Gender, Measurements } from '@/lib/types';
 import { toast } from 'sonner';
-import { TShirt, Pants, Hoodie, Dress } from '@phosphor-icons/react';
+import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle } from '@phosphor-icons/react';
 import { generateCustomerId } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { cn } from '@/lib/utils';
 
 // State to Cities/Districts mapping
 const STATE_CITIES: Record<string, string[]> = {
@@ -67,10 +67,9 @@ const STATE_CITIES: Record<string, string[]> = {
   'Puducherry': ['Puducherry', 'Karaikal', 'Mahe', 'Yanam', 'Ozhukarai', 'Villianur']
 };
 
-// Get all states (sorted)
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
 
-// Measurement field definitions with labels
+// Measurement field definitions
 const MEASUREMENT_FIELDS = {
   shirt: {
     label: 'Shirt',
@@ -89,7 +88,6 @@ const MEASUREMENT_FIELDS = {
       { key: 'waist', label: 'Waist' },
       { key: 'inseam', label: 'Inseam' },
       { key: 'outseam', label: 'Outseam' },
-      { key: 'rise', label: 'Rise' },
       { key: 'thigh', label: 'Thigh' },
       { key: 'hips', label: 'Hips' },
       { key: 'legOpening', label: 'Leg Opening' },
@@ -99,15 +97,25 @@ const MEASUREMENT_FIELDS = {
     label: 'Coat',
     icon: Hoodie,
     fields: [
-      { key: 'standardSize', label: 'Standard Size', type: 'text' },
       { key: 'chest', label: 'Chest' },
       { key: 'waist', label: 'Waist' },
       { key: 'length', label: 'Length' },
       { key: 'shoulder', label: 'Shoulder' },
     ],
   },
-  chuditharTop: {
-    label: 'Chudithar Top',
+  blouse: {
+    label: 'Blouse',
+    icon: Dress,
+    fields: [
+      { key: 'shoulder', label: 'Shoulder' },
+      { key: 'chest', label: 'Chest' },
+      { key: 'armhole', label: 'Armhole' },
+      { key: 'halfSleeve', label: 'Half Sleeve' },
+      { key: 'fullSleeve', label: 'Full Sleeve' },
+    ],
+  },
+  chudithar: {
+    label: 'Chudithar',
     icon: Dress,
     fields: [
       { key: 'shoulder', label: 'Shoulder' },
@@ -115,42 +123,6 @@ const MEASUREMENT_FIELDS = {
       { key: 'waist', label: 'Waist' },
       { key: 'hip', label: 'Hip' },
       { key: 'length', label: 'Length' },
-    ],
-  },
-  chuditharPant: {
-    label: 'Chudithar Pant',
-    icon: Pants,
-    fields: [
-      { key: 'waist', label: 'Waist' },
-      { key: 'hip', label: 'Hip' },
-      { key: 'inseam', label: 'In Seam' },
-      { key: 'fullLength', label: 'Full Length' },
-    ],
-  },
-  blouse: {
-    label: 'Blouse',
-    icon: TShirt,
-    fields: [
-      { key: 'shoulder', label: 'Shoulder' },
-      { key: 'chest', label: 'Chest' },
-      { key: 'neckDepthFront', label: 'Neck Depth Front' },
-      { key: 'neckDepthBack', label: 'Neck Depth Back' },
-      { key: 'armhole', label: 'Armhole' },
-      { key: 'halfSleeve', label: 'Half Sleeve' },
-      { key: 'fullSleeve', label: 'Full Sleeve' },
-    ],
-  },
-  trouser: {
-    label: 'Trouser',
-    icon: Pants,
-    fields: [
-      { key: 'waist', label: 'Waist' },
-      { key: 'inseam', label: 'Inseam' },
-      { key: 'outseam', label: 'Outseam' },
-      { key: 'rise', label: 'Rise' },
-      { key: 'thigh', label: 'Thigh' },
-      { key: 'hips', label: 'Hips' },
-      { key: 'legOpening', label: 'Leg Opening' },
     ],
   },
 };
@@ -167,26 +139,31 @@ interface CustomerFormProps {
 export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerFormProps) {
   const { t } = useLanguage();
   const { user } = useAuth();
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState('basic');
+
+  // Basic details
   const [name, setName] = useState('');
-  const [aliasName, setAliasName] = useState('');
-  const [phone, setPhone] = useState(''); // Only the 10 digits
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState(''); // Only the 10 digits
-  const [phoneError, setPhoneError] = useState('');
-  const [whatsappError, setWhatsappError] = useState('');
-  const [place, setPlace] = useState('');
-  const [address1, setAddress1] = useState('');
-  const [address2, setAddress2] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [region, setRegion] = useState('NaN');
-  const [state, setState] = useState('');
-  const [country, setCountry] = useState('India');
   const [gender, setGender] = useState<Gender | ''>('');
-  const [measurements, setMeasurements] = useState<Measurements>({});
-  const [activeCategory, setActiveCategory] = useState<MeasurementCategory>('shirt');
+  const [phoneError, setPhoneError] = useState('');
   const [nextCustomerId, setNextCustomerId] = useState<string>('');
 
-  // Fetch next customer ID when opening form for new customer
+  // Address details
+  const [address1, setAddress1] = useState('');
+  const [address2, setAddress2] = useState('');
+  const [state, setState] = useState('');
+  const [place, setPlace] = useState('');
+  const [pincode, setPincode] = useState('');
+
+  // Measurements
+  const [measurements, setMeasurements] = useState<Measurements>({});
+  const [activeCategory, setActiveCategory] = useState<MeasurementCategory>('shirt');
+  const [measurementUnit, setMeasurementUnit] = useState<'Inches' | 'Cms'>('Inches');
+
+  // Fetch next customer ID
   useEffect(() => {
     const fetchNextId = async () => {
       if (open && !customer && user?.id) {
@@ -195,25 +172,21 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
           if (company) {
             const nextId = await generateCustomerId(company.id);
             setNextCustomerId(nextId);
-            console.log('[CustomerForm] Generated next customer ID:', nextId);
           }
         } catch (error) {
           console.error('Error generating customer ID:', error);
           setNextCustomerId('TBD');
         }
       } else if (!open) {
-        // Reset when form closes
         setNextCustomerId('');
       }
     };
     fetchNextId();
   }, [open, customer, user]);
 
-  // Helper functions for phone number formatting
+  // Phone number helpers
   const extractDigits = (phoneStr: string): string => {
-    // Extract 10 digits from formats like "+91 9876543210" or "+919876543210"
     const digits = phoneStr.replace(/\D/g, '');
-    // If it starts with 91, remove it
     if (digits.startsWith('91') && digits.length === 12) {
       return digits.substring(2);
     }
@@ -228,162 +201,118 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     return digits.length === 10 ? `+91${digits}` : '';
   };
 
-  const onlyDigits = (str: string): boolean => {
-    return /^\d+$/.test(str);
-  };
-
-  // Check if phone number exists in Firestore
+  // Check if phone number exists
   const checkPhoneExists = async (normalizedPhone: string, currentCustomerId?: string): Promise<boolean> => {
     try {
       const customersRef = collection(db, 'newcustomers');
       const q = query(customersRef, where('phoneNormalized', '==', normalizedPhone));
       const snapshot = await getDocs(q);
-
-      // If editing, exclude the current customer from the check
       if (currentCustomerId) {
         return snapshot.docs.some(doc => doc.id !== currentCustomerId);
       }
-
       return !snapshot.empty;
     } catch (error) {
-      console.error('[CustomerForm] Error checking phone existence:', error);
+      console.error('[CustomerForm] Error checking phone:', error);
       return false;
     }
   };
 
+  // Load customer data when editing
   useEffect(() => {
     if (customer) {
       setName(customer.name);
-      setAliasName(customer.aliasName || '');
-      // Extract 10 digits from stored phone numbers
       setPhone(extractDigits(customer.phone));
       setEmail(customer.email || '');
-      setWhatsappNumber(customer.whatsappNumber ? extractDigits(customer.whatsappNumber) : '');
-      setPlace(customer.place);
+      setGender(customer.gender);
       setAddress1(customer.address1 || '');
       setAddress2(customer.address2 || '');
-      setPincode(customer.pincode || '');
-      setRegion(customer.region || '');
       setState(customer.state || '');
-      setCountry(customer.country || '');
-      setGender(customer.gender);
+      setPlace(customer.place);
+      setPincode(customer.pincode || '');
       setMeasurements(customer.measurements || {});
       setPhoneError('');
-      setWhatsappError('');
     } else {
       resetForm();
     }
   }, [customer, open]);
 
+  const resetForm = () => {
+    setActiveTab('basic');
+    setName('');
+    setPhone('');
+    setEmail('');
+    setGender('');
+    setPhoneError('');
+    setAddress1('');
+    setAddress2('');
+    setState('');
+    setPlace('');
+    setPincode('');
+    setMeasurements({});
+    setActiveCategory('shirt');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Clear previous errors
     setPhoneError('');
-    setWhatsappError('');
 
-    // Basic validations
-    if (!name.trim() || !phone.trim() || !place.trim() || !state.trim()) {
-      toast.error('Customer Name, Contact Number, State, and City are required');
+    // Validate required fields
+    if (!name.trim()) {
+      toast.error('Customer name is required');
+      setActiveTab('basic');
       return;
     }
 
-    // Email validation
-    if (!email.trim()) {
-      toast.error('Email address is required');
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-
-    // Gender validation
     if (!gender) {
-      toast.error('Please select the gender');
+      toast.error('Please select gender');
+      setActiveTab('basic');
       return;
     }
 
-    if (name.trim().length > 40) {
-      toast.error('Customer Name must be max 40 characters');
-      return;
-    }
-
-    if (aliasName.trim().length > 40) {
-      toast.error('Alias Name must be max 40 characters');
-      return;
-    }
-
-    // Phone number validation
     const phoneRaw = phone.trim();
-    if (!onlyDigits(phoneRaw) || phoneRaw.length !== 10) {
-      setPhoneError('Enter correct number');
-      toast.error('Phone Number: Enter correct number');
+    if (!/^\d{10}$/.test(phoneRaw)) {
+      setPhoneError('Enter valid 10-digit number');
+      toast.error('Enter valid 10-digit phone number');
+      setActiveTab('basic');
       return;
     }
 
-    // WhatsApp number validation (optional but if provided must be valid)
-    const whatsappRaw = whatsappNumber.trim();
-    if (whatsappRaw && (!onlyDigits(whatsappRaw) || whatsappRaw.length !== 10)) {
-      setWhatsappError('Enter correct number');
-      toast.error('WhatsApp Number: Enter correct number');
+    // Validate email format if provided
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error('Please enter a valid email address');
+      setActiveTab('basic');
       return;
     }
 
-    // Format for storage
+    // Check phone uniqueness
     const phoneNorm = normalize(phoneRaw);
-    const whatsappNorm = whatsappRaw ? normalize(whatsappRaw) : '';
-
-    // Check uniqueness
     const phoneExists = await checkPhoneExists(phoneNorm, customer?.id);
     if (phoneExists) {
       setPhoneError('This number is already registered');
-      toast.error('This number is already registered. Phone/WhatsApp number must be unique.');
+      toast.error('This phone number is already registered');
+      setActiveTab('basic');
       return;
     }
 
-    if (whatsappNorm) {
-      const whatsappExists = await checkPhoneExists(whatsappNorm, customer?.id);
-      if (whatsappExists) {
-        setWhatsappError('This number is already registered');
-        toast.error('This number is already registered. Phone/WhatsApp number must be unique.');
-        return;
-      }
-    }
-
+    // Validate pincode if provided
     if (pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
-      toast.error('Pincode must be exactly 6 digits');
+      toast.error('Pincode must be 6 digits');
+      setActiveTab('address');
       return;
     }
 
-    if (address1.trim().length > 40) {
-      toast.error('Address 1 must be max 40 characters');
-      return;
-    }
-
-    if (address2.trim().length > 40) {
-      toast.error('Address 2 must be max 40 characters');
-      return;
-    }
-
-    // Save with formatted phone numbers
     onSave({
       name: name.trim(),
-      aliasName: aliasName.trim() || undefined,
-      phone: formatDisplay(phoneRaw), // Store as "+91 9876543210"
-      phoneNormalized: phoneNorm as any, // Store as "+919876543210" for queries
-      email: email.trim(),
-      whatsappNumber: whatsappRaw ? formatDisplay(whatsappRaw) : undefined,
-      whatsappNormalized: whatsappNorm || undefined as any,
-      place: place.trim(),
+      phone: formatDisplay(phoneRaw),
+      phoneNormalized: phoneNorm as any,
+      email: email.trim() || undefined,
+      gender,
+      place: place.trim() || 'Not specified',
       address1: address1.trim() || undefined,
       address2: address2.trim() || undefined,
-      pincode: pincode.trim() || undefined,
-      region: region.trim() || undefined,
       state: state.trim() || undefined,
-      country: country.trim() || undefined,
-      gender,
+      pincode: pincode.trim() || undefined,
+      country: 'India',
       measurements,
     });
 
@@ -391,33 +320,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     resetForm();
   };
 
-  const resetForm = () => {
-    setName('');
-    setAliasName('');
-    setPhone('');
-    setEmail('');
-    setWhatsappNumber('');
-    setPhoneError('');
-    setWhatsappError('');
-    setPlace('');
-    setAddress1('');
-    setAddress2('');
-    setPincode('');
-    setRegion('none');
-    setState('');
-    setCountry('India');
-    setGender('');
-    setMeasurements({});
-    setActiveCategory('shirt');
-  };
-
-  const updateMeasurement = (
-    category: keyof Measurements,
-    field: string,
-    value: string,
-    isText?: boolean
-  ) => {
-    const parsedValue = isText ? value : (value === '' ? undefined : parseFloat(value));
+  const updateMeasurement = (category: keyof Measurements, field: string, value: string) => {
+    const parsedValue = value === '' ? undefined : parseFloat(value);
     setMeasurements((prev) => ({
       ...prev,
       [category]: {
@@ -440,363 +344,422 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     return Object.values(categoryMeasurements).filter(v => v !== undefined && v !== null && v !== '').length;
   };
 
+  const getTotalMeasurements = (): number => {
+    return (Object.keys(MEASUREMENT_FIELDS) as MeasurementCategory[])
+      .reduce((sum, cat) => sum + getCategoryMeasurementCount(cat), 0);
+  };
+
+  // Tab completion indicators
+  const isBasicComplete = name.trim() && phone.length === 10 && gender;
+  const hasMeasurements = getTotalMeasurements() > 0;
+  const hasAddress = state || place || address1;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>
-            {customer ? t('editCustomer') : t('createCustomer')}
+      <DialogContent
+        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle className="flex items-center gap-3">
+            <span>{customer ? t('editCustomer') : t('createCustomer')}</span>
+            <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-1 rounded">
+              {customer?.id || nextCustomerId || 'Loading...'}
+            </span>
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="space-y-6 overflow-y-auto pr-2 flex-1">
-          <div className="space-y-4">
-            {/* Customer Code Display */}
-            <div className="p-3 bg-muted rounded-lg">
-              <Label className="text-sm text-muted-foreground">Customer Code No</Label>
-              <p className="text-lg font-semibold">{customer?.id || nextCustomerId || 'Loading...'}</p>
-            </div>
-
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Customer Name *</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={40}
-                  placeholder="Enter customer name"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="aliasName">Alias Name</Label>
-                <Input
-                  id="aliasName"
-                  value={aliasName}
-                  onChange={(e) => setAliasName(e.target.value)}
-                  maxLength={40}
-                  placeholder="Optional alias name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="gender">Gender *</Label>
-                <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
-                  <SelectTrigger id="gender">
-                    <SelectValue placeholder="Gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Contact Number *</Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
-                    +91
-                  </div>
-                  <Input
-                    id="phone"
-                    value={phone}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      setPhone(value);
-                      if (phoneError) setPhoneError('');
-                    }}
-                    maxLength={10}
-                    placeholder="Enter a Number"
-                    className={`pl-12 ${phoneError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                    required
-                  />
-                </div>
-                {phoneError && (
-                  <p className="text-xs text-red-500 font-medium">{phoneError}</p>
-                )}
-                {phone && !phoneError && phone.length === 10 && (
-                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="customer@example.com"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="whatsappNumber">WhatsApp Number</Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
-                    +91
-                  </div>
-                  <Input
-                    id="whatsappNumber"
-                    value={whatsappNumber}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      setWhatsappNumber(value);
-                      if (whatsappError) setWhatsappError('');
-                    }}
-                    maxLength={10}
-                    placeholder="Enter a Number"
-                    className={`pl-12 ${whatsappError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                  />
-                </div>
-                {whatsappError && (
-                  <p className="text-xs text-red-500 font-medium">{whatsappError}</p>
-                )}
-                {whatsappNumber && !whatsappError && whatsappNumber.length === 10 && (
-                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
-                )}
-              </div>
-            </div>
-
-            {/* Address Information */}
-            <div className="space-y-4 pt-4 border-t">
-              <Label className="text-base font-semibold">Address Information</Label>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="address1">Address 1</Label>
-                  <Input
-                    id="address1"
-                    value={address1}
-                    onChange={(e) => setAddress1(e.target.value)}
-                    maxLength={40}
-                    placeholder="Street address"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address2">Address 2</Label>
-                  <Input
-                    id="address2"
-                    value={address2}
-                    onChange={(e) => setAddress2(e.target.value)}
-                    maxLength={40}
-                    placeholder="Apartment, suite, etc."
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="state">State *</Label>
-                  <Select value={state} onValueChange={(value) => {
-                    setState(value);
-                    setPlace(''); // Clear city when state changes
-                  }}>
-                    <SelectTrigger id="state">
-                      <SelectValue placeholder="Select state" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INDIAN_STATES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="place">City *</Label>
-                  <Select value={place} onValueChange={setPlace} disabled={!state}>
-                    <SelectTrigger id="place">
-                      <SelectValue placeholder={state ? "Select city" : "Select state first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(STATE_CITIES[state] || []).map((city) => (
-                        <SelectItem key={city} value={city}>
-                          {city}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!state && (
-                    <p className="text-xs text-muted-foreground">Please select a state first</p>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+            <div className="px-4 pt-3 pb-2 border-b bg-muted/30 flex-shrink-0">
+              <TabsList className="grid grid-cols-3 w-full h-11 p-1 bg-muted rounded-lg">
+                <TabsTrigger
+                  value="basic"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                >
+                  <User size={20} weight="bold" />
+                  <span>Basic</span>
+                  {isBasicComplete && <Check size={16} className="text-green-600" weight="bold" />}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="measurements"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                >
+                  <Ruler size={20} weight="bold" />
+                  <span>Measure</span>
+                  {hasMeasurements && (
+                    <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold min-w-[18px]">
+                      {getTotalMeasurements()}
+                    </span>
                   )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="pincode">Pincode</Label>
-                  <Input
-                    id="pincode"
-                    value={pincode}
-                    onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                    maxLength={6}
-                    placeholder="6-digit pincode"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="region">Region</Label>
-                  <Input
-                    id="region"
-                    value={region}
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Input
-                    id="country"
-                    value={country}
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-              </div>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="address"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                >
+                  <MapPin size={20} weight="bold" />
+                  <span>Address</span>
+                  {hasAddress && <Check size={16} className="text-green-600" weight="bold" />}
+                </TabsTrigger>
+              </TabsList>
             </div>
-          </div>
 
-          {/* Measurements Card - Professional UI */}
-          <Card>
-            <CardHeader className="py-3 px-4 border-b">
-              <CardTitle className="text-sm font-medium flex items-center justify-between">
-                <span>Standard Measurements</span>
-                <Select defaultValue="Inches">
-                  <SelectTrigger className="w-24 h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Nos">Nos</SelectItem>
-                    <SelectItem value="Cms">Cms</SelectItem>
-                    <SelectItem value="Inches">Inches</SelectItem>
-                  </SelectContent>
-                </Select>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              {/* Category Tabs - Clean pill design */}
-              <div className="flex flex-wrap gap-1.5 mb-4 p-1.5 bg-muted/50 rounded-lg">
-                {(Object.keys(MEASUREMENT_FIELDS) as MeasurementCategory[]).map((category) => {
-                  const config = MEASUREMENT_FIELDS[category];
-                  const count = getCategoryMeasurementCount(category);
-                  const Icon = config.icon;
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setActiveCategory(category)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium transition-all ${
-                        activeCategory === category
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'hover:bg-background/80 text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <Icon size={14} weight={activeCategory === category ? 'fill' : 'regular'} />
-                      <span className="hidden sm:inline">{config.label}</span>
-                      {count > 0 && (
-                        <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] ${
-                          activeCategory === category
-                            ? 'bg-primary-foreground/20 text-primary-foreground'
-                            : 'bg-primary/10 text-primary'
-                        }`}>
-                          {count}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[400px]">
+              {/* Basic Details Tab */}
+              <TabsContent value="basic" className="mt-0 space-y-6 h-full">
+                <div className="space-y-6">
+                  {/* Customer Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-medium">Customer Name *</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={40}
+                      placeholder="Enter customer name"
+                      className="h-12 text-base"
+                      autoFocus
+                    />
+                  </div>
 
-              {/* Active Category Fields - Clean grid layout */}
-              <div className="bg-muted/30 rounded-lg p-4 border">
-                <div className="flex items-center gap-2 mb-4 pb-3 border-b">
-                  {(() => {
-                    const Icon = MEASUREMENT_FIELDS[activeCategory].icon;
-                    return <Icon size={20} weight="duotone" className="text-primary" />;
-                  })()}
-                  <h4 className="font-semibold text-sm">
-                    {MEASUREMENT_FIELDS[activeCategory].label} Measurements
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {MEASUREMENT_FIELDS[activeCategory].fields.map((field) => (
-                    <div key={field.key} className="space-y-1.5">
-                      <Label
-                        htmlFor={`${activeCategory}-${field.key}`}
-                        className="text-xs font-medium text-muted-foreground"
+                  {/* Gender Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Gender *</Label>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setGender('male')}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          gender === 'male'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                            : 'border-muted hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/10'
+                        )}
                       >
-                        {field.label}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id={`${activeCategory}-${field.key}`}
-                          type={field.type === 'text' ? 'text' : 'number'}
-                          step="0.1"
-                          min="0"
-                          value={getMeasurementValue(activeCategory, field.key)}
-                          onChange={(e) =>
-                            updateMeasurement(activeCategory, field.key, e.target.value, field.type === 'text')
-                          }
-                          placeholder="0"
-                          className="h-9 pr-8 text-sm"
+                        {gender === 'male' && (
+                          <Check size={16} weight="bold" className="text-blue-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={gender === 'male' ? 'fill' : 'regular'}
+                          className={gender === 'male' ? 'text-blue-500' : 'text-muted-foreground'}
                         />
-                        {field.type !== 'text' && (
-                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                            in
-                          </span>
+                        <span className={cn(
+                          'font-semibold',
+                          gender === 'male' ? 'text-blue-600' : 'text-muted-foreground'
+                        )}>
+                          Male
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setGender('female')}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          gender === 'female'
+                            ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/30'
+                            : 'border-muted hover:border-pink-300 hover:bg-pink-50/50 dark:hover:bg-pink-950/10'
+                        )}
+                      >
+                        {gender === 'female' && (
+                          <Check size={16} weight="bold" className="text-pink-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={gender === 'female' ? 'fill' : 'regular'}
+                          className={gender === 'female' ? 'text-pink-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          gender === 'female' ? 'text-pink-600' : 'text-muted-foreground'
+                        )}>
+                          Female
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Contact Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-sm font-medium">Contact Number *</Label>
+                        <div className="relative">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                            +91
+                          </div>
+                          <Input
+                            id="phone"
+                            value={phone}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '');
+                              setPhone(value);
+                              if (phoneError) setPhoneError('');
+                            }}
+                            maxLength={10}
+                            placeholder="10-digit number"
+                            className={cn('pl-12 h-11 bg-background', phoneError && 'border-red-500')}
+                          />
+                        </div>
+                        {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                        {phone.length === 10 && !phoneError && (
+                          <p className="text-xs text-green-600 mt-1">Valid number</p>
                         )}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Measurement Summary - Shows what's been entered */}
-              <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-2">
-                  Total Measurements
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(Object.keys(MEASUREMENT_FIELDS) as MeasurementCategory[]).map((category) => {
-                    const count = getCategoryMeasurementCount(category);
-                    if (count === 0) return null;
-                    return (
-                      <span
-                        key={category}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium"
-                      >
-                        {MEASUREMENT_FIELDS[category].label}: {count}
-                      </span>
-                    );
-                  })}
-                  {Object.values(MEASUREMENT_FIELDS).every((_, i) =>
-                    getCategoryMeasurementCount(Object.keys(MEASUREMENT_FIELDS)[i] as MeasurementCategory) === 0
-                  ) && (
-                    <span className="text-xs text-muted-foreground italic">No measurements entered yet</span>
+                      <div className="space-y-2">
+                        <Label htmlFor="email" className="text-sm font-medium">
+                          Email <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+                        </Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="customer@example.com"
+                          className="h-11 bg-background"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Measurements Tab */}
+              <TabsContent value="measurements" className="mt-0 h-full">
+                <div className="space-y-5">
+                  {/* Header with Unit selector on right */}
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-muted-foreground">Select Category</h3>
+                    <Select value={measurementUnit} onValueChange={(v) => setMeasurementUnit(v as 'Inches' | 'Cms')}>
+                      <SelectTrigger className="w-28 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Inches">Inches</SelectItem>
+                        <SelectItem value="Cms">Cms</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Category selector - Grid layout */}
+                  <div className="grid grid-cols-5 gap-2">
+                    {(Object.keys(MEASUREMENT_FIELDS) as MeasurementCategory[]).map((category) => {
+                      const config = MEASUREMENT_FIELDS[category];
+                      const count = getCategoryMeasurementCount(category);
+                      const Icon = config.icon;
+                      const isActive = activeCategory === category;
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setActiveCategory(category)}
+                          className={cn(
+                            'relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all',
+                            isActive
+                              ? 'border-primary bg-primary/5 shadow-sm'
+                              : 'border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20'
+                          )}
+                        >
+                          <div className={cn(
+                            'w-10 h-10 rounded-full flex items-center justify-center',
+                            isActive ? 'bg-primary text-primary-foreground' : 'bg-background'
+                          )}>
+                            <Icon size={22} weight={isActive ? 'fill' : 'bold'} />
+                          </div>
+                          <span className={cn(
+                            'text-xs font-semibold',
+                            isActive ? 'text-primary' : 'text-muted-foreground'
+                          )}>
+                            {config.label}
+                          </span>
+                          {count > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-green-500 text-white text-[10px] font-bold rounded-full">
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Measurement inputs */}
+                  <div className="bg-muted/30 rounded-xl p-5 border">
+                    <div className="flex items-center gap-2 mb-4">
+                      {(() => {
+                        const Icon = MEASUREMENT_FIELDS[activeCategory].icon;
+                        return <Icon size={20} weight="bold" className="text-primary" />;
+                      })()}
+                      <h4 className="font-semibold text-sm">
+                        {MEASUREMENT_FIELDS[activeCategory].label} Measurements
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {MEASUREMENT_FIELDS[activeCategory].fields.map((field) => (
+                        <div key={field.key} className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">
+                            {field.label}
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              value={getMeasurementValue(activeCategory, field.key)}
+                              onChange={(e) => updateMeasurement(activeCategory, field.key, e.target.value)}
+                              placeholder="0"
+                              className="h-11 pr-12 text-base"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {measurementUnit === 'Inches' ? 'in' : 'cm'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Measurement summary */}
+                  {getTotalMeasurements() > 0 && (
+                    <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-xl border border-green-200 dark:border-green-800">
+                      <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-3">
+                        Measurements Added ({getTotalMeasurements()} total)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(Object.keys(MEASUREMENT_FIELDS) as MeasurementCategory[]).map((category) => {
+                          const count = getCategoryMeasurementCount(category);
+                          if (count === 0) return null;
+                          return (
+                            <span
+                              key={category}
+                              className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-semibold"
+                            >
+                              {MEASUREMENT_FIELDS[category].label}: {count}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          </div>
+              </TabsContent>
 
-          <div className="flex justify-end gap-3 pt-4 border-t mt-4 flex-shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+              {/* Address Tab */}
+              <TabsContent value="address" className="mt-0 h-full">
+                <div className="space-y-5">
+                  {/* Shop/Flat Number */}
+                  <div className="space-y-2">
+                    <Label htmlFor="address1" className="text-sm font-medium">
+                      Shop No / Flat No
+                    </Label>
+                    <Input
+                      id="address1"
+                      value={address1}
+                      onChange={(e) => setAddress1(e.target.value)}
+                      maxLength={40}
+                      placeholder="e.g., Shop 12, Flat 4B, Door No. 25"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* Street / Area / Landmark */}
+                  <div className="space-y-2">
+                    <Label htmlFor="address2" className="text-sm font-medium">
+                      Street / Area / Landmark
+                    </Label>
+                    <Input
+                      id="address2"
+                      value={address2}
+                      onChange={(e) => setAddress2(e.target.value)}
+                      maxLength={40}
+                      placeholder="e.g., Main Road, Near Bus Stand"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* State and City in same row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="state" className="text-sm font-medium">State</Label>
+                      <Select value={state} onValueChange={(value) => {
+                        setState(value);
+                        setPlace('');
+                      }}>
+                        <SelectTrigger id="state" className="h-11">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="place" className="text-sm font-medium">City</Label>
+                      <Select value={place} onValueChange={setPlace} disabled={!state}>
+                        <SelectTrigger id="place" className="h-11">
+                          <SelectValue placeholder={state ? "Select city" : "Select state first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(STATE_CITIES[state] || []).map((city) => (
+                            <SelectItem key={city} value={city}>{city}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Pincode */}
+                  <div className="space-y-2 max-w-[200px]">
+                    <Label htmlFor="pincode" className="text-sm font-medium">Pincode</Label>
+                    <Input
+                      id="pincode"
+                      value={pincode}
+                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+                      maxLength={6}
+                      placeholder="e.g., 600001"
+                      className="h-11"
+                    />
+                  </div>
+                </div>
+
+              </TabsContent>
+            </div>
+          </Tabs>
+
+          {/* Footer with action buttons */}
+          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t bg-muted/30">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t('cancel')}
             </Button>
-            <Button type="submit">{t('save')}</Button>
+            <div className="flex items-center gap-2">
+              {activeTab !== 'basic' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab(activeTab === 'address' ? 'measurements' : 'basic')}
+                >
+                  Back
+                </Button>
+              )}
+              {activeTab !== 'address' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab(activeTab === 'basic' ? 'measurements' : 'address')}
+                >
+                  Next
+                </Button>
+              )}
+              <Button type="submit" className="min-w-[120px]">
+                {customer ? t('save') : 'Create'}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>
