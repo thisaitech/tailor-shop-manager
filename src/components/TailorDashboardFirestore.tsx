@@ -88,8 +88,12 @@ export function TailorDashboardFirestore() {
       setAllOrders(allotments);
 
       // Calculate stats
+      // Include both 'allotted' and 'reassigned' status orders as assigned
       const assignedOrders = allotments.filter(
-        (a) => a.orderStatus === 'open' && a.status !== 'rejected'
+        (a) => (a.orderStatus === 'open' || a.status === 'allotted' || a.status === 'reassigned') &&
+               a.status !== 'rejected' &&
+               a.status !== 'in_progress' &&
+               a.orderStatus !== 'in-progress'
       ).length;
 
       const inProgress = allotments.filter(
@@ -129,13 +133,13 @@ export function TailorDashboardFirestore() {
           // 1. Not rejected
           // 2. Not delivered (check both status and orderStatus fields)
           // 3. Not ready to deliver
-          // 4. Either open or in-progress
+          // 4. Either open, in-progress, allotted, or reassigned
           const shouldInclude =
             a.status !== 'delivered' &&
             a.status !== 'rejected' &&
             a.orderStatus !== 'delivered' &&
             a.serviceOrderStatus !== 'ready' &&
-            (a.orderStatus === 'open' || a.orderStatus === 'in-progress');
+            (a.orderStatus === 'open' || a.orderStatus === 'in-progress' || a.status === 'allotted' || a.status === 'reassigned' || a.status === 'in_progress');
 
           // Debug log ALL orders to understand their state
           console.log(`[TailorDashboard] Order ${a.serviceOrderNo}: status="${a.status}", orderStatus="${a.orderStatus}", serviceOrderStatus="${a.serviceOrderStatus}", shouldInclude=${shouldInclude}`);
@@ -327,9 +331,15 @@ export function TailorDashboardFirestore() {
   const getFilteredOrders = (): OrderAllotment[] => {
     switch (currentView) {
       case 'assigned':
-        return allOrders.filter((a) => a.orderStatus === 'open' && a.status !== 'rejected');
+        // Include both 'allotted' and 'reassigned' status orders
+        return allOrders.filter((a) =>
+          (a.orderStatus === 'open' || a.status === 'allotted' || a.status === 'reassigned') &&
+          a.status !== 'rejected' &&
+          a.status !== 'in_progress' &&
+          a.orderStatus !== 'in-progress'
+        );
       case 'in-progress':
-        return allOrders.filter((a) => a.orderStatus === 'in-progress' &&
+        return allOrders.filter((a) => (a.orderStatus === 'in-progress' || a.status === 'in_progress') &&
                                        a.status !== 'rejected' &&
                                        a.status !== 'delivered' &&
                                        a.serviceOrderStatus !== 'ready');
@@ -371,13 +381,17 @@ export function TailorDashboardFirestore() {
     if (order.status === 'delivered' || order.serviceOrderStatus === 'ready' || order.orderStatus === 'delivered') {
       return <Badge className="bg-green-500">Delivered</Badge>;
     }
-    if (order.orderStatus === 'in-progress') {
+    if (order.orderStatus === 'in-progress' || order.status === 'in_progress') {
       return <Badge className="bg-blue-500">In Progress</Badge>;
     }
-    if (order.orderStatus === 'open') {
+    // Check for reassigned status
+    if (order.status === 'reassigned') {
+      return <Badge className="bg-purple-500">Reassigned</Badge>;
+    }
+    if (order.orderStatus === 'open' || order.status === 'allotted') {
       return <Badge variant="secondary">Assigned</Badge>;
     }
-    return <Badge variant="outline">{order.orderStatus || 'Unknown'}</Badge>;
+    return <Badge variant="outline">{order.orderStatus || order.status || 'Unknown'}</Badge>;
   };
 
   const dashStats = [
@@ -534,7 +548,7 @@ export function TailorDashboardFirestore() {
                       </TableCell>
                       <TableCell>{getStatusBadge(order)}</TableCell>
                       {currentView === 'dashboard' && <TableCell>
-                        {order.orderStatus === 'open' && order.status !== 'rejected' && (
+                        {((order.orderStatus === 'open' || order.status === 'allotted' || order.status === 'reassigned') && order.status !== 'rejected' && order.status !== 'in_progress' && order.orderStatus !== 'in-progress') && (
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -558,7 +572,7 @@ export function TailorDashboardFirestore() {
                             </Button>
                           </div>
                         )}
-                        {order.orderStatus === 'in-progress' && (
+                        {(order.orderStatus === 'in-progress' || order.status === 'in_progress') && order.status !== 'delivered' && order.serviceOrderStatus !== 'ready' && (
                           <Button
                             size="sm"
                             variant="outline"

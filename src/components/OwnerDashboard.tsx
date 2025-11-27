@@ -18,6 +18,10 @@ import { CustomerForm } from '@/components/CustomerForm';
 import { OrderAllotmentForm } from '@/components/OrderAllotmentForm';
 import { RejectedOrdersList } from '@/components/RejectedOrdersList';
 import { StitchedOrdersList } from '@/components/StitchedOrdersList';
+import { ReadyToDeliverList } from '@/components/ReadyToDeliverList';
+import { ActiveOrdersList } from '@/components/ActiveOrdersList';
+import { DeliveredOrdersList } from '@/components/DeliveredOrdersList';
+import { ReassignedOrdersList } from '@/components/ReassignedOrdersList';
 import { toast } from 'sonner';
 import {
   addCustomer,
@@ -57,7 +61,7 @@ export function OwnerDashboard() {
   const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
   const [tailors] = useStorage<Tailor[]>('tailors', []);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched'>('all');
+  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'reassigned'>('all');
   const [showServiceOrderForm, setShowServiceOrderForm] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
@@ -287,9 +291,9 @@ export function OwnerDashboard() {
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 
-  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => {
+  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'reassigned') => {
     setOrderFilter(filter);
-    if (filter === 'rejected' || filter === 'stitched') {
+    if (filter === 'rejected' || filter === 'stitched' || filter === 'ready' || filter === 'reassigned' || filter === 'active' || filter === 'completed') {
       // Keep on dashboard tab to show the list
       setActiveTab('dashboard');
     } else {
@@ -445,6 +449,29 @@ export function OwnerDashboard() {
               orders={orderAllotments || []}
               onBack={handleBackToDashboard}
               onReassign={handleReassignOrder}
+            />
+          ) : orderFilter === 'ready' ? (
+            <ReadyToDeliverList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'active' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'completed' ? (
+            <DeliveredOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'reassigned' ? (
+            <ReassignedOrdersList
+              orders={orderAllotments || []}
+              onBack={handleBackToDashboard}
             />
           ) : (
             <>

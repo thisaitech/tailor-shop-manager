@@ -1,6 +1,6 @@
 import { useLanguage } from '@/hooks/use-language';
 import { Card } from '@/components/ui/card';
-import { Users, Scissors, Package, CheckCircle, XCircle, Checks } from '@phosphor-icons/react';
+import { Scissors, Package, CheckCircle, XCircle, Checks, ArrowsClockwise } from '@phosphor-icons/react';
 import { Order, ServiceOrder, OrderAllotment } from '@/lib/types';
 
 interface DashboardStatsProps {
@@ -8,26 +8,64 @@ interface DashboardStatsProps {
   orders: Order[];
   serviceOrders?: ServiceOrder[];
   orderAllotments?: OrderAllotment[];
-  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => void;
+  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'reassigned') => void;
 }
 
 export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAllotments, onStatClick }: DashboardStatsProps) {
   const { t } = useLanguage();
 
-  // Use serviceOrders if available, otherwise fall back to old orders array
-  const activeOrders = serviceOrders
-    ? serviceOrders.filter((o) => o.orderStatus !== 'delivered').length
-    : (orders || []).filter((o) => o.status === 'pending' || o.status === 'in-progress').length;
+  // Helper function to get display status (matching OrderList logic)
+  const getDisplayStatus = (serviceOrder: ServiceOrder): string => {
+    // Find matching order allotment (exclude reassigned orders - matching OrderList logic)
+    const allotment = (orderAllotments || []).find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
 
+    // If no allotment exists → Pending
+    if (!allotment) {
+      return 'pending';
+    }
+
+    const allotmentStatus = allotment.status;
+    const serviceOrderStatus = allotment.serviceOrderStatus;
+    const orderTicketStatus = allotment.orderStatus;
+
+    // If final payment is completed → Completed
+    if (serviceOrder.orderStatus === 'delivered') {
+      return 'completed';
+    }
+
+    // Ready to deliver or ready to dispatch → Delivered (Ready to Deliver)
+    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
+      return 'delivered';
+    }
+
+    // In progress
+    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress' || serviceOrder.orderStatus === 'in-progress') {
+      return 'in-progress';
+    }
+
+    // Allotted but not started → Pending
+    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
+      return 'pending';
+    }
+
+    // Default to pending
+    return 'pending';
+  };
+
+  // Count ready orders using display status logic (matching OrderList)
   const readyOrders = serviceOrders
-    ? serviceOrders.filter((o) => o.orderStatus === 'ready').length
+    ? serviceOrders.filter((o) => getDisplayStatus(o) === 'delivered').length
     : (orders || []).filter((o) => o.status === 'ready').length;
 
+  // Active orders = total orders - ready to deliver orders (orders without final payment)
+  const totalOrders = serviceOrders?.length || (orders || []).length;
+  const activeOrders = totalOrders - readyOrders;
+
   const completedOrders = serviceOrders
-    ? serviceOrders.filter((o) => o.orderStatus === 'delivered').length
+    ? serviceOrders.filter((o) => getDisplayStatus(o) === 'completed').length
     : (orders || []).filter((o) => o.status === 'delivered').length;
 
-  // Count rejected and stitched orders from order allotments
+  // Count rejected orders (only first-time rejections, not reassigned ones)
   const rejectedOrders = orderAllotments
     ? orderAllotments.filter((o) => o.status === 'rejected' && !o.reassigned).length
     : 0;
@@ -40,15 +78,17 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       ).length
     : 0;
 
+  // Count only reassigned orders awaiting response (status = 'reassigned')
+  // Once status changes to 'in_progress', 'stitched', etc., they are removed from count
+  const reassignedOrders = orderAllotments
+    ? orderAllotments.filter((o) =>
+        o.reassigned === true &&
+        o.stitchedId &&
+        o.status === 'reassigned'
+      ).length
+    : 0;
+
   const stats = [
-    {
-      label: t('totalCustomers'),
-      value: totalCustomers,
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      filter: 'all' as const,
-    },
     {
       label: t('activeOrders'),
       value: activeOrders,
@@ -82,17 +122,25 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       filter: 'rejected' as const,
     },
     {
-      label: 'Stitched Orders',
+      label: 'Job Completed Orders',
       value: stitchedOrders,
       icon: Checks,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       filter: 'stitched' as const,
     },
+    {
+      label: 'Awaiting Acceptance',
+      value: reassignedOrders,
+      icon: ArrowsClockwise,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-50',
+      filter: 'reassigned' as const,
+    },
   ];
 
   return (
-    <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+    <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
       {stats.map((stat, index) => (
         <Card
           key={index}

@@ -13,7 +13,7 @@ interface RejectedOrdersListProps {
 }
 
 export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrdersListProps) {
-  // Filter rejected orders: status='rejected' AND not reassigned
+  // Filter rejected orders (only first-time rejections, not reassigned ones)
   const rejectedOrders = orders.filter(o => o.status === 'rejected' && !o.reassigned);
 
   return (

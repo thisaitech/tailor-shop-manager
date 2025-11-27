@@ -12,8 +12,8 @@ export const translations = {
     
     totalCustomers: 'Total Customers',
     activeOrders: 'Active Orders',
-    readyForDelivery: 'Ready for Delivery',
-    completedOrders: 'Completed Orders',
+    readyForDelivery: 'Ready to Deliver',
+    completedOrders: 'Delivered Orders',
     
     addCustomer: 'Add Customer',
     newOrder: 'New Order',

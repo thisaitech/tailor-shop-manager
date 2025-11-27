@@ -242,8 +242,8 @@ export function OrderList({
     { value: 'all', label: 'All' },
     { value: 'pending', label: 'Pending' },
     { value: 'in-progress', label: 'In Progress' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'delivered', label: 'Ready to Deliver' },
+    { value: 'completed', label: 'Delivered' },
     { value: 'overdue', label: 'Overdue' },
   ];
 

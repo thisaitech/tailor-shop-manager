@@ -68,7 +68,7 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Stitched Orders</h1>
+          <h1 className="text-2xl font-bold">Job Completed Orders</h1>
           <p className="text-sm text-muted-foreground">{stitchedOrders.length} orders</p>
         </div>
       </div>
@@ -78,14 +78,14 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
         <CardHeader className="border-b">
           <div className="flex items-center gap-2">
             <Checks size={24} className="text-green-600" weight="duotone" />
-            <CardTitle>All Stitched Orders</CardTitle>
+            <CardTitle>All Job Completed Orders</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {stitchedOrders.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Checks size={48} className="mx-auto mb-3 opacity-30" />
-              <p>No stitched orders</p>
+              <p>No job completed orders</p>
             </div>
           ) : (
             <div className="divide-y">
@@ -136,7 +136,7 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                         className="whitespace-nowrap bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                       >
                         <Package size={16} className="mr-1" weight="duotone" />
-                        {markingReady === order.id ? 'Processing...' : 'Ready to Dispatch'}
+                        {markingReady === order.id ? 'Processing...' : 'Ready to Deliver'}
                       </Button>
                       <Button
                         variant="outline"

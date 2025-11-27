@@ -269,7 +269,7 @@ export function JobWorkTailorDashboard() {
           </CardContent>
         </Card>
 
-        {/* Stitched Orders */}
+        {/* Job Completed Orders */}
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
           onClick={() => handleCardClick('stitched')}
@@ -281,7 +281,7 @@ export function JobWorkTailorDashboard() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stitchedOrders}</p>
-                <p className="text-xs text-muted-foreground">Stitched</p>
+                <p className="text-xs text-muted-foreground">Job Completed</p>
               </div>
             </div>
           </CardContent>
@@ -362,7 +362,7 @@ export function JobWorkTailorDashboard() {
                           className="p-3 text-sm font-medium cursor-pointer hover:text-primary"
                           onClick={() => handleOrderRowClick(order)}
                         >
-                          {order.jobWorkNo || order.id}
+                          {order.serviceOrderNo || order.jobWorkNo || order.id}
                         </td>
                         <td
                           className="p-3 text-sm cursor-pointer"
@@ -394,7 +394,7 @@ export function JobWorkTailorDashboard() {
                             {currentStatus === 'allotted' ? 'Assigned' :
                              currentStatus === 'reassigned' ? 'Reassigned' :
                              currentStatus === 'in_progress' ? 'In Progress' :
-                             currentStatus === 'stitched' ? 'Stitched' : currentStatus}
+                             currentStatus === 'stitched' ? 'Job Completed' : currentStatus}
                           </span>
                         </td>
                         <td className="p-3">

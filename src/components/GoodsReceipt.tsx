@@ -34,6 +34,7 @@ import {
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { getOrderAllotmentsByCompany, OrderAllotment } from '@/lib/firestore/orderAllotmentService';
 
 interface GoodsReceiptProps {
   onBack: () => void;
@@ -44,8 +45,12 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
   const [receipts, setReceipts] = useState<GoodsReceiptType[]>([]);
   const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallan[]>([]);
   const [availableDCs, setAvailableDCs] = useState<DeliveryChallan[]>([]);
+  const [orderAllotments, setOrderAllotments] = useState<OrderAllotment[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
+
+  // Filter state
+  const [filterDcNo, setFilterDcNo] = useState<string>('all');
 
   // Form state
   const [showDialog, setShowDialog] = useState(false);
@@ -75,6 +80,9 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
         // Load delivery challans
         const dcList = await getDeliveryChallansByCompany(company.id);
         setDeliveryChallans(dcList);
+        // Load order allotments to map JOB numbers to ST numbers
+        const allotments = await getOrderAllotmentsByCompany(company.id);
+        setOrderAllotments(allotments);
         // Get used DC numbers to filter available DCs
         const usedDCs = await getUsedDCNumbers(company.id);
         const available = dcList.filter(dc => !usedDCs.includes(dc.dcNo));
@@ -178,9 +186,35 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
       {/* Goods Receipts List */}
       <Card>
         <CardHeader className="py-3 px-4 border-b">
-          <CardTitle className="text-sm font-medium">
-            Goods Receipts ({receipts.length})
-          </CardTitle>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="text-sm font-medium">
+              Goods Receipts ({filterDcNo === 'all' ? receipts.length : receipts.filter(r => r.dcNo === filterDcNo).length})
+            </CardTitle>
+            {/* DC No Filter */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="filterDcNo" className="text-xs text-muted-foreground whitespace-nowrap">
+                Filter by DC No:
+              </Label>
+              <Select value={filterDcNo} onValueChange={setFilterDcNo}>
+                <SelectTrigger id="filterDcNo" className="w-[140px] h-8 text-xs">
+                  <SelectValue placeholder="All DC Numbers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All DC Numbers</SelectItem>
+                  {/* Get unique DC numbers from existing receipts */}
+                  {receipts
+                    .map(r => r.dcNo)
+                    .filter((value, index, self) => self.indexOf(value) === index)
+                    .sort()
+                    .map(dcNo => (
+                      <SelectItem key={dcNo} value={dcNo}>
+                        {dcNo}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {receipts.length === 0 ? (
@@ -191,41 +225,64 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
             </div>
           ) : (
             <div className="divide-y">
-              {receipts.map(grn => (
-                <div key={grn.id} className="p-4 hover:bg-muted/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{grn.grnNo}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(grn.grnDate, 'dd MMM yyyy')} • DC: {grn.dcNo}
-                      </p>
-                      <div className="mt-2">
+              {(() => {
+                // Filter receipts based on selected DC No
+                const filteredReceipts = filterDcNo === 'all'
+                  ? receipts
+                  : receipts.filter(r => r.dcNo === filterDcNo);
+
+                if (filteredReceipts.length === 0) {
+                  return (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Package size={48} className="mx-auto mb-3 opacity-30" />
+                      <p>No goods receipts found for DC No: {filterDcNo}</p>
+                      <Button
+                        variant="link"
+                        className="text-sm mt-1"
+                        onClick={() => setFilterDcNo('all')}
+                      >
+                        Clear filter
+                      </Button>
+                    </div>
+                  );
+                }
+
+                return filteredReceipts.map(grn => (
+                  <div key={grn.id} className="p-4 hover:bg-muted/50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{grn.grnNo}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(grn.grnDate, 'dd MMM yyyy')} • DC No: {grn.dcNo}
+                        </p>
+                        <div className="mt-2">
+                          <span className={`inline-block px-2 py-1 text-xs rounded-full ${
+                            grn.status === 'ready_to_dispatch'
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {grn.status === 'ready_to_dispatch' ? 'Ready to Dispatch' : 'Move to Stitching'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
                         <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                          grn.status === 'ready_to_dispatch'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-orange-100 text-orange-700'
+                          grn.shipmentType === 'courier'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-green-100 text-green-700'
                         }`}>
-                          {grn.status === 'ready_to_dispatch' ? 'Ready to Dispatch' : 'Move to Stitching'}
+                          {grn.shipmentType === 'courier' ? 'Courier' : 'Direct'}
                         </span>
+                        {grn.consignmentNo && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            CN: {grn.consignmentNo}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                        grn.shipmentType === 'courier'
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {grn.shipmentType === 'courier' ? 'Courier' : 'Direct'}
-                      </span>
-                      {grn.consignmentNo && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          CN: {grn.consignmentNo}
-                        </p>
-                      )}
-                    </div>
                   </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           )}
         </CardContent>
@@ -258,12 +315,12 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
                 <SelectContent>
                   {availableDCs.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      No Delivery Challans available
+                      No delivery challans available
                     </div>
                   ) : (
-                    availableDCs.map(dc => (
-                      <SelectItem key={dc.id} value={dc.dcNo}>
-                        {dc.dcNo} - {dc.jobWorkTailorName || dc.jobWorkNo}
+                    availableDCs.map((dc) => (
+                      <SelectItem key={dc.dcNo} value={dc.dcNo}>
+                        {dc.dcNo}
                       </SelectItem>
                     ))
                   )}

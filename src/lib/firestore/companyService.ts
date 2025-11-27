@@ -89,7 +89,11 @@ export async function getCompanyProfile(userId: string): Promise<CompanyProfile 
     const docSnap = await getDoc(companyRef);
 
     if (docSnap.exists()) {
-      return docSnap.data() as CompanyProfile;
+      const data = docSnap.data();
+      return {
+        ...data,
+        id: data.id || docSnap.id, // Ensure id is always available
+      } as CompanyProfile;
     }
     return null;
   } catch (error) {

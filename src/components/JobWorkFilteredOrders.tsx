@@ -62,7 +62,7 @@ export function JobWorkFilteredOrders({
     switch (filterType) {
       case 'assigned': return 'Assigned Orders';
       case 'in_progress': return 'In Progress Orders';
-      case 'stitched': return 'Stitched Orders';
+      case 'stitched': return 'Job Completed Orders';
       case 'rejected': return 'Rejected Orders';
       case 'all': return 'All Orders';
       default: return 'Orders';
@@ -165,7 +165,7 @@ export function JobWorkFilteredOrders({
                         onClick={() => handleOrderClick(order)}
                       >
                         <td className="p-3 text-sm font-medium">
-                          {order.jobWorkNo || order.id}
+                          {order.serviceOrderNo || order.jobWorkNo || order.id}
                         </td>
                         <td className="p-3 text-sm">{order.customerName}</td>
                         <td className="p-3 text-sm">{format(displayDate, 'dd MMM yyyy')}</td>
@@ -186,7 +186,7 @@ export function JobWorkFilteredOrders({
                             {currentStatus === 'allotted' ? 'Assigned' :
                              currentStatus === 'reassigned' ? 'Reassigned' :
                              currentStatus === 'in_progress' ? 'In Progress' :
-                             currentStatus === 'stitched' ? 'Stitched' :
+                             currentStatus === 'stitched' ? 'Job Completed' :
                              currentStatus === 'rejected' ? 'Rejected' : currentStatus}
                           </span>
                         </td>
