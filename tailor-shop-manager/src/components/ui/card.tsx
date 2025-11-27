@@ -7,9 +7,48 @@ function Card({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        "text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02]",
         className
       )}
+      style={{
+        background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)',
+        borderColor: 'rgba(196, 181, 253, 0.3)',
+        color: '#ffffff'
+      }}
+      {...props}
+    />
+  )
+}
+
+function CardGlass({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card"
+      className={cn(
+        "text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-lg backdrop-blur-sm transition-all duration-300 hover:shadow-xl",
+        className
+      )}
+      style={{
+        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(124, 58, 237, 0.15) 50%, rgba(99, 102, 241, 0.15) 100%)',
+        borderColor: 'rgba(196, 181, 253, 0.4)',
+      }}
+      {...props}
+    />
+  )
+}
+
+function CardSubtle({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card"
+      className={cn(
+        "text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-md transition-all duration-300 hover:shadow-lg",
+        className
+      )}
+      style={{
+        background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+        borderColor: 'rgba(196, 181, 253, 0.5)',
+      }}
       {...props}
     />
   )
@@ -83,6 +122,8 @@ function CardFooter({ className, ...props }: ComponentProps<"div">) {
 
 export {
   Card,
+  CardGlass,
+  CardSubtle,
   CardHeader,
   CardFooter,
   CardTitle,

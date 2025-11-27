@@ -28,16 +28,16 @@ export function Header({ onProfileClick, onEmployeeClick, onVendorClick, onDesig
   };
 
   return (
-    <header className="border-b backdrop-blur-md sticky top-0 z-50 shadow-sm" style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}>
+    <header className="border-b backdrop-blur-md sticky top-0 z-50 shadow-lg" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-primary p-2.5 rounded-lg">
-              <Scissors size={28} className="text-primary-foreground" weight="duotone" />
+            <div className="p-2.5 rounded-lg shadow-md" style={{ background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)' }}>
+              <Scissors size={28} className="text-white" weight="duotone" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">{t('appName')}</h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">
+              <h1 className="text-2xl font-bold text-white">{t('appName')}</h1>
+              <p className="text-xs text-purple-100 hidden sm:block">
                 {user?.role === 'owner' && 'Owner Dashboard'}
                 {user?.role === 'tailor' && 'Tailor Portal'}
                 {user?.role === 'customer' && 'Customer Portal'}

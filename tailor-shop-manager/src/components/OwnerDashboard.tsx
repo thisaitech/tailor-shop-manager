@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
 import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransaction, ServiceOrder, OrderAllotment, Employee, Vendor, AdvancePayment } from '@/lib/types';
@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { DashboardStats } from '@/components/DashboardStats';
 import { CustomerList } from '@/components/CustomerList';
 import { OrderList } from '@/components/OrderList';
-import { OrderTracking } from '@/components/OrderTracking';
+
+// Lazy load OrderTracking component
+const OrderTracking = lazy(() => import('@/components/OrderTracking').then(m => ({ default: m.OrderTracking })));
 import { InventoryStats } from '@/components/InventoryStats';
 import { InventoryList } from '@/components/InventoryList';
 import { TransactionHistory } from '@/components/TransactionHistory';
@@ -414,7 +416,7 @@ export function OwnerDashboard() {
         <TabsListAnimated
           className="grid w-full grid-cols-4 h-auto p-1 bg-muted/60 gap-1"
           activeValue={activeTab}
-          tabValues={['dashboard', 'tailors', 'inventory', 'track']}
+          tabValues={['dashboard', 'employees', 'customers', 'track']}
         >
           <TabsTrigger
             value="dashboard"
@@ -423,20 +425,20 @@ export function OwnerDashboard() {
             {t('dashboard')}
           </TabsTrigger>
           <TabsTrigger
-            value="tailors"
+            value="employees"
             className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight"
           >
-            {t('tailors')}
+            {t('employees')}
           </TabsTrigger>
           <TabsTrigger
-            value="inventory"
+            value="customers"
             className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight"
           >
-            {t('inventory')}
+            {t('customers')}
           </TabsTrigger>
           <TabsTrigger
             value="track"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight"
+            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight data-[state=active]:bg-teal-600 data-[state=active]:text-white"
           >
             {t('track')}
           </TabsTrigger>
@@ -536,70 +538,140 @@ export function OwnerDashboard() {
                 </button>
               </div>
 
-              <div className="flex flex-col gap-6">
-                {/* Recent Service Orders - Above */}
-                <div className="space-y-4 animate-on-load animate-fade-slide-up stagger-4">
-                  <div className="flex justify-between items-center h-9">
-                    <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
-                  </div>
-                  <OrderList
-                    orders={orders || []}
-                    serviceOrders={serviceOrders || []}
-                    orderAllotments={orderAllotments || []}
-                    customers={customers || []}
-                    tailors={tailors || []}
-                    inventory={inventory || []}
-                    onAddOrder={handleAddOrder}
-                    onUpdateStatus={handleUpdateOrderStatus}
-                    onAddServiceOrder={handleAddServiceOrder}
-                    onCreateCustomer={handleCreateCustomerFromOrder}
-                    hideAddButton
-                  />
+              {/* Recent Service Orders */}
+              <div className="space-y-4 animate-on-load animate-fade-slide-up stagger-4">
+                <div className="flex justify-between items-center h-9">
+                  <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
                 </div>
-                {/* Recent Customers - Below */}
-                <div className="space-y-4 animate-on-load animate-fade-slide-up stagger-5">
-                  <div className="flex justify-between items-center h-9">
-                    <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('customers')}</h2>
-                  </div>
-                  <CustomerList
-                    customers={customers || []}
-                    onAddCustomer={handleAddCustomer}
-                    onUpdateCustomer={handleUpdateCustomer}
-                    onDeleteCustomer={handleDeleteCustomer}
-                    onSelectCustomer={(customer) => {
-                      console.log('[OwnerDashboard] Customer selected:', customer.id, customer.name);
-                      setSelectedCustomer(customer);
-                    }}
-                    hideAddButton
-                  />
-                </div>
+                <OrderList
+                  orders={orders || []}
+                  serviceOrders={serviceOrders || []}
+                  orderAllotments={orderAllotments || []}
+                  customers={customers || []}
+                  tailors={tailors || []}
+                  inventory={inventory || []}
+                  onAddOrder={handleAddOrder}
+                  onUpdateStatus={handleUpdateOrderStatus}
+                  onAddServiceOrder={handleAddServiceOrder}
+                  onCreateCustomer={handleCreateCustomerFromOrder}
+                  hideAddButton
+                />
               </div>
             </>
           )}
         </TabsContent>
 
-        <TabsContent value="tailors">
-          <TailorManagement />
-        </TabsContent>
+        <TabsContent value="employees" className="space-y-4">
+          {/* Employee List */}
+          <div
+            className="flex flex-col gap-4 p-4 sm:p-5 rounded-xl border"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+              boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -2px rgba(139, 92, 246, 0.1)'
+            }}
+          >
+            {/* Header Row */}
+            <div
+              className="grid grid-cols-3 gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold text-white"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)',
+                boxShadow: '0 4px 15px -3px rgba(124, 58, 237, 0.4), 0 2px 6px -2px rgba(124, 58, 237, 0.2)'
+              }}
+            >
+              <div>Name</div>
+              <div>Employee ID</div>
+              <div>Role</div>
+            </div>
 
-        <TabsContent value="inventory" className="space-y-6">
-          <InventoryStats items={inventory || []} transactions={transactions || []} />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <InventoryList
-                items={inventory || []}
-                onAddItem={handleAddInventoryItem}
-                onStockUpdate={handleStockUpdate}
-              />
-            </div>
-            <div>
-              <TransactionHistory transactions={transactions || []} limit={15} />
-            </div>
+            {/* Employee Cards */}
+            {(employees || []).length === 0 ? (
+              <div
+                className="rounded-xl border p-8 flex flex-col items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                  borderColor: 'rgba(167, 139, 250, 0.3)',
+                  boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -2px rgba(139, 92, 246, 0.1)'
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" viewBox="0 0 256 256" className="text-purple-400 mb-4">
+                  <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"></path>
+                </svg>
+                <p className="text-lg font-medium text-gray-900">No employees yet</p>
+                <p className="text-sm text-gray-500">Add your first employee to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(employees || []).map((emp, index) => {
+                  // Format role for display
+                  const roleDisplay = emp.role ? emp.role.charAt(0).toUpperCase() + emp.role.slice(1) : 'Staff';
+
+                  return (
+                    <div
+                      key={emp.id}
+                      className={`grid grid-cols-3 gap-2 px-4 py-4 rounded-xl border-l-4 transition-all hover:scale-[1.01] animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
+                      style={{
+                        background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                        borderLeftColor: emp.isActive ? '#10b981' : '#a855f7',
+                        borderTopColor: 'rgba(167, 139, 250, 0.2)',
+                        borderRightColor: 'rgba(167, 139, 250, 0.2)',
+                        borderBottomColor: 'rgba(167, 139, 250, 0.2)',
+                        borderTopWidth: '1px',
+                        borderRightWidth: '1px',
+                        borderBottomWidth: '1px',
+                        boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.15), 0 2px 4px -2px rgba(139, 92, 246, 0.1)'
+                      }}
+                    >
+                      <div className="flex flex-col justify-center">
+                        <p className="text-sm sm:text-base font-semibold text-gray-900">{emp.name}</p>
+                        {emp.aliasName && (
+                          <p className="text-xs text-gray-500">{emp.aliasName}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center">
+                        <p className="text-xs sm:text-sm font-medium text-purple-700">{emp.employeeCode || emp.id}</p>
+                      </div>
+                      <div className="flex items-center">
+                        <span
+                          className="px-2 py-1 text-xs sm:text-sm font-medium rounded-lg bg-purple-100 text-purple-700"
+                          style={{ boxShadow: '0 1px 2px rgba(139, 92, 246, 0.1)' }}
+                        >
+                          {roleDisplay}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </TabsContent>
 
-        <TabsContent value="track">
-          <OrderTracking orders={orders || []} initialFilter={orderFilter} />
+        <TabsContent value="customers" className="space-y-6">
+          <CustomerList
+            customers={customers || []}
+            onAddCustomer={handleAddCustomer}
+            onUpdateCustomer={handleUpdateCustomer}
+            onDeleteCustomer={handleDeleteCustomer}
+            onSelectCustomer={(customer) => {
+              console.log('[OwnerDashboard] Customer selected:', customer.id, customer.name);
+              setSelectedCustomer(customer);
+              setActiveTab('dashboard');
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="track" className="min-h-[calc(100vh-180px)]">
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm text-muted-foreground font-medium">Loading Jobwork Tailors...</p>
+              </div>
+            </div>
+          }>
+            <OrderTracking orders={orders || []} initialFilter={orderFilter} />
+          </Suspense>
         </TabsContent>
       </Tabs>
 

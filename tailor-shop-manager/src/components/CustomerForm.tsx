@@ -361,10 +361,10 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}>
-          <DialogTitle className="flex items-center gap-3">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+          <DialogTitle className="flex items-center gap-3 text-white">
             <span>{customer ? t('editCustomer') : t('createCustomer')}</span>
-            <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-1 rounded">
+            <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
               {customer?.id || nextCustomerId || 'Loading...'}
             </span>
           </DialogTitle>
@@ -624,8 +624,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
                   {/* Measurement summary */}
                   {getTotalMeasurements() > 0 && (
-                    <div className="p-4 bg-[#b1f2ff] dark:bg-[#0f4c5c] rounded-xl border border-[#7de8f7] dark:border-[#155e75]">
-                      <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-3">
+                    <div className="p-4 rounded-xl border" style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)', borderColor: 'rgba(167, 139, 250, 0.4)' }}>
+                      <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-3">
                         Measurements Added ({getTotalMeasurements()} total)
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -635,7 +635,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                           return (
                             <span
                               key={category}
-                              className="px-3 py-1.5 bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 rounded-lg text-xs font-semibold"
+                              className="px-3 py-1.5 bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-semibold"
                             >
                               {MEASUREMENT_FIELDS[category].label}: {count}
                             </span>
@@ -733,8 +733,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
           </Tabs>
 
           {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t" style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               {t('cancel')}
             </Button>
             <div className="flex items-center gap-2">
@@ -743,6 +743,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                   type="button"
                   variant="outline"
                   onClick={() => setActiveTab(activeTab === 'address' ? 'measurements' : 'basic')}
+                  className="border-white/30 text-white hover:bg-white/10"
                 >
                   Back
                 </Button>
@@ -752,11 +753,12 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                   type="button"
                   variant="outline"
                   onClick={() => setActiveTab(activeTab === 'basic' ? 'measurements' : 'address')}
+                  className="border-white/30 text-white hover:bg-white/10"
                 >
                   Next
                 </Button>
               )}
-              <Button type="submit" className="min-w-[120px]">
+              <Button type="submit" className="min-w-[120px] bg-white text-purple-700 hover:bg-white/90">
                 {customer ? t('save') : 'Create'}
               </Button>
             </div>

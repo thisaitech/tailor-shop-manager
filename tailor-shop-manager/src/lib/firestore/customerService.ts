@@ -197,8 +197,11 @@ export async function updateCustomer(
   try {
     const customerRef = doc(db, CUSTOMERS_COLLECTION, customerId);
 
+    // Remove undefined fields before saving to Firestore
+    const cleanedData = removeUndefinedFields(customerData as Record<string, unknown>);
+
     await updateDoc(customerRef, {
-      ...customerData,
+      ...cleanedData,
       updatedAt: serverTimestamp(),
     });
 

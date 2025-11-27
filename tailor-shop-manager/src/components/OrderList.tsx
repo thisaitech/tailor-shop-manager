@@ -593,8 +593,14 @@ export function OrderList({
           </Card>
         ) : (
           // Show Recent Service Orders when count > 0
-          <Card className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden bg-dashboard-container border-dashboard-card-border">
-            <h3 className="text-base font-semibold text-foreground">
+          <div
+            className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)'
+            }}
+          >
+            <h3 className="text-base font-semibold text-gray-800">
               {search ? `Search Results (${recentServiceOrders.length})` : `Recent Service Orders (${recentServiceOrders.length})`}
             </h3>
             {/* 6 cards per page: 2 cols × 3 rows on mobile */}
@@ -602,38 +608,42 @@ export function OrderList({
               {recentServiceOrders.map((serviceOrder, index) => (
                 <div
                   key={serviceOrder.id}
-                  className={`rounded-lg border-2 hover:shadow-md transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1} bg-dashboard-card border-dashboard-card-border`}
+                  className={`rounded-lg border hover:shadow-lg transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                    borderColor: 'rgba(167, 139, 250, 0.3)'
+                  }}
                 >
                   {/* Order details */}
                   <div className="flex-1 min-h-0 flex flex-col">
                     <div className="flex items-start justify-between mb-1">
-                      <p className="text-[10px] sm:text-xs font-bold text-primary">{serviceOrder.id}</p>
+                      <p className="text-[10px] sm:text-xs font-bold text-purple-700">{serviceOrder.id}</p>
                       <Badge variant="outline" className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-extrabold border-transparent ${getServiceOrderStatusColor(getDisplayStatus(serviceOrder))}`}>
                         {getDisplayStatusLabel(getDisplayStatus(serviceOrder))}
                       </Badge>
                     </div>
-                    <p className="text-xs sm:text-sm font-semibold text-foreground truncate mb-2">{serviceOrder.customerName}</p>
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mb-2 flex-wrap">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate mb-2">{serviceOrder.customerName}</p>
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 mb-2 flex-wrap">
                       <span className="capitalize truncate">{serviceOrder.orderCategory}</span>
                       <span>•</span>
                       <span>{serviceOrder.orderQty} {serviceOrder.uom}</span>
                       <span>•</span>
-                      <span className="font-bold text-primary">₹{serviceOrder.stitchingCost.toFixed(2)}</span>
+                      <span className="font-bold text-purple-700">₹{serviceOrder.stitchingCost.toFixed(2)}</span>
                     </div>
 
                     {/* Design Images */}
                     {serviceOrder.designList && serviceOrder.designList.length > 0 && (
                       <div className="flex gap-1 mb-2">
-                        {serviceOrder.designList.slice(0, 3).map((image, index) => (
+                        {serviceOrder.designList.slice(0, 3).map((image, imgIndex) => (
                           <img
-                            key={index}
+                            key={imgIndex}
                             src={image}
-                            alt={`Design ${index + 1}`}
-                            className="w-8 h-8 rounded object-cover border"
+                            alt={`Design ${imgIndex + 1}`}
+                            className="w-8 h-8 rounded object-cover border border-purple-200"
                           />
                         ))}
                         {serviceOrder.designList.length > 3 && (
-                          <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground border">
+                          <div className="w-8 h-8 rounded bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-700 border border-purple-200">
                             +{serviceOrder.designList.length - 3}
                           </div>
                         )}
@@ -642,17 +652,17 @@ export function OrderList({
                   </div>
 
                   {/* Bottom row: Delivery Date */}
-                  <div className="flex items-center justify-between pt-2 border-t border-dashboard-divider">
+                  <div className="flex items-center justify-between pt-2 border-t border-purple-200">
                     <div className="text-left">
-                      <p className="text-[8px] sm:text-[10px] text-muted-foreground leading-tight">Delivery</p>
-                      <p className="text-[10px] sm:text-xs font-semibold text-foreground">{format(new Date(serviceOrder.expectedDeliveryDate), 'MMM dd')}</p>
+                      <p className="text-[8px] sm:text-[10px] text-gray-500 leading-tight">Delivery</p>
+                      <p className="text-[10px] sm:text-xs font-semibold text-gray-800">{format(new Date(serviceOrder.expectedDeliveryDate), 'MMM dd')}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
             {showPagination && <Pagination />}
-          </Card>
+          </div>
         )
       ) : (
         <div className="space-y-2 sm:space-y-3">

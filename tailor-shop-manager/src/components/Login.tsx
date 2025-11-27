@@ -205,15 +205,15 @@ export function Login() {
 
   return (
     <>
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md animate-on-load animate-scale-in">
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)' }}>
+        <div className="w-full max-w-md animate-on-load animate-scale-in rounded-xl border shadow-xl py-6" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(250,248,255,0.95) 100%)', borderColor: 'rgba(196, 181, 253, 0.4)' }}>
           <CardHeader className="space-y-4 text-center">
-            <div className="mx-auto bg-primary p-4 rounded-xl w-fit animate-on-load animate-fade-slide-up stagger-1">
-              <Scissors size={48} className="text-primary-foreground" weight="duotone" />
+            <div className="mx-auto p-4 rounded-xl w-fit animate-on-load animate-fade-slide-up stagger-1 shadow-lg" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}>
+              <Scissors size={48} className="text-white" weight="duotone" />
             </div>
             <div>
-              <CardTitle className="text-3xl font-bold">Thisai Technologies Tailor</CardTitle>
-              <CardDescription className="text-base mt-2">Management System</CardDescription>
+              <CardTitle className="text-3xl font-bold text-gray-900">Thisai Technologies Tailor</CardTitle>
+              <CardDescription className="text-base mt-2 text-gray-600">Management System</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
@@ -263,15 +263,15 @@ export function Login() {
               </Button>
             </div>
 
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex gap-3">
-              <Info size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
+            <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg flex gap-3">
+              <Info size={20} className="text-purple-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-purple-900">
                 <p className="font-medium mb-1">Password Recovery</p>
-                <p className="text-xs text-blue-700">For password reset, please contact your administrator via WhatsApp. WhatsApp is a free messaging service that works best for account recovery.</p>
+                <p className="text-xs text-purple-700">For password reset, please contact your administrator via WhatsApp. WhatsApp is a free messaging service that works best for account recovery.</p>
               </div>
             </div>
           </CardContent>
-        </Card>
+        </div>
       </div>
 
       <Dialog open={showPasswordSetup} onOpenChange={setShowPasswordSetup}>

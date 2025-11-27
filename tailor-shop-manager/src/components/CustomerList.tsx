@@ -399,8 +399,14 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
         </Card>
       ) : (
         // Show Recent Customers when count > 0
-        <Card className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden bg-dashboard-container border-dashboard-card-border">
-          <h3 className="text-base font-semibold text-foreground">
+        <div
+          className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+          style={{
+            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.5)'
+          }}
+        >
+          <h3 className="text-base font-semibold text-gray-800">
             {search ? `Search Results (${sortedCustomers.length})` : `Recent Customers (${sortedCustomers.length})`}
           </h3>
           {/* 6 cards per page: 2 cols × 3 rows on mobile, 3 cols × 2 rows on desktop */}
@@ -408,7 +414,11 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             {recentCustomers.map((customer, index) => (
               <div
                 key={customer.id}
-                className={`rounded-lg border-2 hover:shadow-md transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1} bg-dashboard-card border-dashboard-card-border`}
+                className={`rounded-lg border hover:shadow-lg transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                  borderColor: 'rgba(167, 139, 250, 0.3)'
+                }}
                 onClick={() => {
                   console.log('[CustomerList] Card clicked:', customer.id, customer.name);
                   console.log('[CustomerList] onSelectCustomer:', typeof onSelectCustomer);
@@ -417,10 +427,10 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
               >
                 {/* Customer details */}
                 <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-[10px] sm:text-xs font-bold text-primary mb-1">{customer.id}</p>
-                  <p className="text-xs sm:text-sm font-semibold text-foreground truncate mb-2">{customer.name}</p>
-                  <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground flex-wrap mb-2">
-                    <span className="truncate font-bold text-blue-900">{customer.phone}</span>
+                  <p className="text-[10px] sm:text-xs font-bold text-purple-700 mb-1">{customer.id}</p>
+                  <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate mb-2">{customer.name}</p>
+                  <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 flex-wrap mb-2">
+                    <span className="truncate font-bold text-purple-700">{customer.phone}</span>
                     {customer.place && (
                       <>
                         <span>•</span>
@@ -428,13 +438,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                       </>
                     )}
                   </div>
-                  <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold w-fit">
+                  <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold w-fit bg-purple-100 text-purple-700 border-purple-200">
                     {t(customer.gender).toUpperCase()}
                   </Badge>
                 </div>
 
                 {/* Bottom row: Actions and Date */}
-                <div className="flex items-center justify-between pt-2 border-t border-dashboard-divider">
+                <div className="flex items-center justify-between pt-2 border-t border-purple-200">
                   {/* Action buttons */}
                   <div className="flex items-center gap-1">
                     <a
@@ -480,8 +490,8 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                   {/* Created date */}
                   {customer.createdAt && (
                     <div className="text-right">
-                      <p className="text-[8px] sm:text-[10px] text-muted-foreground leading-tight">Joined</p>
-                      <p className="text-[10px] sm:text-xs font-semibold text-foreground">
+                      <p className="text-[8px] sm:text-[10px] text-gray-500 leading-tight">Joined</p>
+                      <p className="text-[10px] sm:text-xs font-semibold text-gray-800">
                         {format(new Date(customer.createdAt), 'MMM dd')}
                       </p>
                     </div>
@@ -491,7 +501,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             ))}
           </div>
           {showRecentPagination && <RecentCustomersPagination />}
-        </Card>
+        </div>
       )}
 
       <CustomerForm

@@ -6,9 +6,10 @@ export const translations = {
     dashboard: 'Dashboard',
     customers: 'Customers',
     orders: 'Orders',
-    track: 'Track Order',
+    track: 'Jobwork Tailors',
     inventory: 'Inventory',
     tailors: 'Tailors',
+    employees: 'Employees',
     
     totalCustomers: 'Total Customers',
     activeOrders: 'Active Orders',
@@ -177,9 +178,10 @@ export const translations = {
     dashboard: 'முகப்பு',
     customers: 'வாடிக்கையாளர்கள்',
     orders: 'ஆர்டர்கள்',
-    track: 'ஆர்டரை கண்காணிக்க',
+    track: 'ஜாப்வொர்க் தையல்காரர்கள்',
     inventory: 'சரக்கு',
     tailors: 'தையல்காரர்கள்',
+    employees: 'ஊழியர்கள்',
     
     totalCustomers: 'மொத்த வாடிக்கையாளர்கள்',
     activeOrders: 'செயலில் உள்ள ஆர்டர்கள்',

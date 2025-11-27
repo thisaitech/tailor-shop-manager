@@ -978,10 +978,10 @@ export function ServiceOrderForm({
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0" style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}>
-          <DialogTitle className="flex items-center gap-3">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+          <DialogTitle className="flex items-center gap-3 text-white">
             <span>{order ? 'Edit Service Order' : currentStep === 1 ? 'New Service Order' : 'Advance Payment'}</span>
-            <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-1 rounded">
+            <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
               {order?.id || nextServiceOrderId || 'Loading...'}
             </span>
           </DialogTitle>
@@ -994,14 +994,17 @@ export function ServiceOrderForm({
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
                   currentStep === 1
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-white text-purple-700 shadow-sm'
+                    : 'bg-white/20 text-white hover:bg-white/30'
                 )}
               >
-                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">1</span>
+                <span className={cn(
+                  'w-6 h-6 rounded-full flex items-center justify-center text-xs',
+                  currentStep === 1 ? 'bg-purple-100 text-purple-700' : 'bg-white/20 text-white'
+                )}>1</span>
                 <span>Order Details</span>
               </button>
-              <div className="w-8 h-0.5 bg-muted" />
+              <div className="w-8 h-0.5 bg-white/30" />
               <button
                 type="button"
                 onClick={() => {
@@ -1037,11 +1040,14 @@ export function ServiceOrderForm({
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
                   currentStep === 2
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-white text-purple-700 shadow-sm'
+                    : 'bg-white/20 text-white hover:bg-white/30'
                 )}
               >
-                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">2</span>
+                <span className={cn(
+                  'w-6 h-6 rounded-full flex items-center justify-center text-xs',
+                  currentStep === 2 ? 'bg-purple-100 text-purple-700' : 'bg-white/20 text-white'
+                )}>2</span>
                 <span>Payment</span>
               </button>
             </div>
@@ -1642,11 +1648,11 @@ export function ServiceOrderForm({
           </div>
 
           {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t flex-shrink-0" style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               {t('cancel')}
             </Button>
-            <Button type="submit" className="min-w-[140px]">
+            <Button type="submit" className="min-w-[140px] bg-white text-purple-700 hover:bg-white/90">
               {order ? t('save') : 'Next'}
             </Button>
           </div>
@@ -1804,7 +1810,7 @@ export function ServiceOrderForm({
             </div>
 
             {/* Footer with action buttons */}
-            <div className="flex justify-between items-center gap-3 px-6 py-4 border-t flex-shrink-0" style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}>
+            <div className="flex justify-between items-center gap-3 px-6 py-4 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
               <Button
                 type="button"
                 variant="ghost"
@@ -1813,6 +1819,7 @@ export function ServiceOrderForm({
                   e.stopPropagation();
                   setCurrentStep(1);
                 }}
+                className="text-white hover:text-white/80 hover:bg-white/10"
               >
                 Back
               </Button>
@@ -1821,13 +1828,14 @@ export function ServiceOrderForm({
                   type="button"
                   variant="outline"
                   onClick={handleSkipAdvancePayment}
+                  className="border-white/30 text-white hover:bg-white/10"
                 >
                   Skip Payment
                 </Button>
                 <Button
                   type="button"
                   onClick={handleStep2Submit}
-                  className="min-w-[120px]"
+                  className="min-w-[120px] bg-white text-purple-700 hover:bg-white/90"
                 >
                   Save Order
                 </Button>

@@ -45,8 +45,8 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       label: t('totalCustomers'),
       value: totalCustomers,
       icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      color: 'text-violet-600',
+      bgColor: 'bg-violet-100',
       filter: 'all' as const,
     },
     {
@@ -54,39 +54,39 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       value: activeOrders,
       icon: Scissors,
       color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      bgColor: 'bg-purple-100',
       filter: 'active' as const,
     },
     {
       label: t('readyForDelivery'),
       value: readyOrders,
       icon: Package,
-      color: 'text-accent',
-      bgColor: 'bg-accent/10',
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-100',
       filter: 'ready' as const,
     },
     {
       label: t('completedOrders'),
       value: completedOrders,
       icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-100',
       filter: 'completed' as const,
     },
     {
       label: 'Rejected Orders',
       value: rejectedOrders,
       icon: XCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      color: 'text-rose-600',
+      bgColor: 'bg-rose-100',
       filter: 'rejected' as const,
     },
     {
       label: 'Stitched Orders',
       value: stitchedOrders,
       icon: Checks,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-100',
       filter: 'stitched' as const,
     },
   ];
@@ -96,12 +96,16 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       {stats.map((stat, index) => (
         <Card
           key={index}
-          className={`p-3 sm:p-6 transition-all duration-200 cursor-pointer hover:shadow-lg hover:scale-105 animate-on-load animate-scale-in stagger-${index + 1} dark:bg-blue-950/30 dark:border-blue-900/50`}
-          style={{ backgroundColor: '#b1f2ff', borderColor: '#7de8f7' }}
+          className={`p-3 sm:p-6 transition-all duration-200 cursor-pointer hover:shadow-xl hover:scale-105 animate-on-load animate-scale-in stagger-${index + 1}`}
+          style={{
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(124, 58, 237, 0.15) 50%, rgba(99, 102, 241, 0.15) 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.4)',
+            backdropFilter: 'blur(10px)'
+          }}
           onClick={() => onStatClick && onStatClick(stat.filter)}
         >
           <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
-            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0 shadow-sm`}>
               <stat.icon size={20} className="sm:size-7" weight="duotone" />
             </div>
             <div className="w-full min-w-0">
