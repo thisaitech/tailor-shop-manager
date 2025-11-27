@@ -19,6 +19,8 @@ interface AuthContextType {
   getAllUsers: () => User[];
   updateUser: (userId: string, updatedData: Partial<User>) => void;
   deleteUser: (userId: string) => void;
+  setEmployeeAfterPasswordChange: (employee: EmployeeWithCompany) => void;
+  setVendorAfterPasswordChange: (vendor: Vendor) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,13 +41,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
+    // Trim whitespace from credentials to avoid false "invalid credentials" errors
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
     console.log('=== LOGIN ATTEMPT ===');
-    console.log('Username:', username);
-    console.log('Password:', password);
+    console.log('Username:', trimmedUsername);
+    console.log('Password:', trimmedPassword);
 
     // First, check if this is an employee login (Firestore)
     console.log('Checking Firestore for employee credentials...');
-    const employee = await verifyEmployeeCredentials(username, password);
+    const employee = await verifyEmployeeCredentials(trimmedUsername, trimmedPassword);
 
     if (employee) {
       console.log('[Auth] Found employee:', employee);
@@ -77,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Second, check if this is a vendor/job work tailor login (Firestore)
     console.log('Checking Firestore for vendor credentials...');
-    const vendor = await authenticateVendor(username, password);
+    const vendor = await authenticateVendor(trimmedUsername, trimmedPassword);
 
     if (vendor) {
       console.log('[Auth] Found vendor:', vendor);
@@ -110,8 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })));
 
     const user = (users || []).find(u => {
-      console.log(`Checking user ${u.username}: username match=${u.username === username}, password match=${u.password === password}`);
-      return u.username === username && u.password === password;
+      console.log(`Checking user ${u.username}: username match=${u.username === trimmedUsername}, password match=${u.password === trimmedPassword}`);
+      return u.username === trimmedUsername && u.password === trimmedPassword;
     });
 
     console.log('Found user:', user);
@@ -186,10 +192,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[AuthContext] Users after delete:', updatedUsers);
   };
 
+  // Set employee directly after first login password change (for auto-login)
+  const setEmployeeAfterPasswordChange = (employee: EmployeeWithCompany) => {
+    console.log('[AuthContext] Setting employee after password change:', employee.name);
+    // Update the employee with firstLogin = false since password was just changed
+    const updatedEmployee = { ...employee, firstLogin: false };
+    setCurrentEmployee(updatedEmployee);
+    setCurrentUser(null);
+    setCurrentVendor(null);
+  };
+
+  // Set vendor directly after first login password change (for auto-login)
+  const setVendorAfterPasswordChange = (vendor: Vendor) => {
+    console.log('[AuthContext] Setting vendor after password change:', vendor.tailorName);
+    // Update the vendor with isFirstLogin = false since password was just changed
+    const updatedVendor = { ...vendor, isFirstLogin: false };
+    setCurrentVendor(updatedVendor);
+    setCurrentUser(null);
+    setCurrentEmployee(null);
+  };
+
   const isAuthenticated = (currentUser !== null && currentUser !== undefined) || (currentEmployee !== null && currentEmployee !== undefined) || (currentVendor !== null && currentVendor !== undefined);
 
   return (
-    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, isLoading, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
+    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, isLoading, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange }}>
       {children}
     </AuthContext.Provider>
   );

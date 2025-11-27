@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
+import { Scissors, Info, UserPlus, Eye, EyeSlash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { DebugPanel } from './DebugPanel';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
@@ -17,10 +17,11 @@ import { decryptPassword } from '@/lib/firestore/vendorService';
 import { InlineLoader } from './Loader';
 
 export function Login() {
-  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor } = useAuth();
+  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange } = useAuth();
   const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [showEmployeePasswordSetup, setShowEmployeePasswordSetup] = useState(false);
@@ -43,13 +44,16 @@ export function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password) {
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUsername || !trimmedPassword) {
       toast.error('Please enter phone number and password');
       return;
     }
 
     setIsLoading(true);
-    const result = await login(username, password);
+    const result = await login(trimmedUsername, trimmedPassword);
     setIsLoading(false);
 
     console.log('[Login] Login result:', result);
@@ -231,14 +235,25 @@ export function Login() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
@@ -404,12 +419,12 @@ export function Login() {
               employeeName={tempEmployee.name}
               currentPassword={tempEmployee.password}
               onSuccess={() => {
-                console.log('[Login] Password change successful - redirecting to dashboard');
+                console.log('[Login] Password change successful - auto-login to dashboard');
                 setShowEmployeePasswordSetup(false);
+                // Auto-login: Set employee in auth context to redirect to dashboard
+                setEmployeeAfterPasswordChange(tempEmployee);
                 setTempEmployee(null); // Clear temp storage
-                toast.success('Password changed successfully! Redirecting...');
-                // Reload the page to trigger login with new password
-                window.location.reload();
+                toast.success('Password changed successfully! Welcome!');
               }}
             />
           );
@@ -431,12 +446,12 @@ export function Login() {
               vendorName={tempVendor.tailorName}
               currentPassword={currentPassword}
               onSuccess={() => {
-                console.log('[Login] Vendor password change successful - redirecting to dashboard');
+                console.log('[Login] Vendor password change successful - auto-login to dashboard');
                 setShowVendorPasswordSetup(false);
+                // Auto-login: Set vendor in auth context to redirect to dashboard
+                setVendorAfterPasswordChange(tempVendor);
                 setTempVendor(null); // Clear temp storage
-                toast.success('Password changed successfully! Redirecting...');
-                // Reload the page to trigger login with new password
-                window.location.reload();
+                toast.success('Password changed successfully! Welcome!');
               }}
             />
           );

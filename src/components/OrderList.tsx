@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo, CaretDown, CaretUp, Funnel } from '@phosphor-icons/react';
+import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo, CaretDown, CaretUp, Funnel, Eye } from '@phosphor-icons/react';
 import { format, isPast, isToday, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ServiceOrderForm } from './ServiceOrderForm';
 import { PhotoGallery } from './PhotoGallery';
@@ -86,6 +86,8 @@ export function OrderList({
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
+  const [showServiceOrderDetails, setShowServiceOrderDetails] = useState(false);
 
   /**
    * Get the display status for a service order based on allotment status
@@ -637,12 +639,25 @@ export function OrderList({
                     )}
                   </div>
 
-                  {/* Bottom row: Delivery Date */}
+                  {/* Bottom row: Delivery Date and View Button */}
                   <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
                     <div className="text-left">
                       <p className="text-[8px] sm:text-[10px] text-muted-foreground leading-tight">Delivery</p>
                       <p className="text-[10px] sm:text-xs font-semibold text-foreground">{format(new Date(serviceOrder.expectedDeliveryDate), 'MMM dd')}</p>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedServiceOrder(serviceOrder);
+                        setShowServiceOrderDetails(true);
+                      }}
+                      className="h-7 px-2 text-[10px] sm:text-xs font-semibold"
+                    >
+                      <Eye size={14} className="mr-1" />
+                      View
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -851,6 +866,116 @@ export function OrderList({
           <div className="py-4">
             <FilterButtons inModal />
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Service Order Details Modal */}
+      <Dialog open={showServiceOrderDetails} onOpenChange={setShowServiceOrderDetails}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+          </DialogHeader>
+          {selectedServiceOrder && (
+            <div className="space-y-4 py-4">
+              {/* Order ID and Status */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Order ID</p>
+                  <p className="font-bold text-primary">{selectedServiceOrder.id}</p>
+                </div>
+                <Badge className={`${getServiceOrderStatusColor(getDisplayStatus(selectedServiceOrder))}`}>
+                  {getDisplayStatusLabel(getDisplayStatus(selectedServiceOrder))}
+                </Badge>
+              </div>
+
+              {/* Customer Info */}
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Customer</p>
+                <p className="font-semibold">{selectedServiceOrder.customerName}</p>
+                <p className="text-sm text-muted-foreground">{selectedServiceOrder.customerId}</p>
+              </div>
+
+              {/* Order Details Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Category</p>
+                  <p className="font-medium capitalize">{selectedServiceOrder.orderCategory}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Quantity</p>
+                  <p className="font-medium">{selectedServiceOrder.orderQty} {selectedServiceOrder.uom}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Stitching Cost</p>
+                  <p className="font-bold text-primary">₹{selectedServiceOrder.stitchingCost.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Expected Delivery</p>
+                  <p className="font-medium">{format(new Date(selectedServiceOrder.expectedDeliveryDate), 'MMM dd, yyyy')}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Order Date</p>
+                  <p className="font-medium">{format(new Date(selectedServiceOrder.serviceOrderDate), 'MMM dd, yyyy')}</p>
+                </div>
+                {selectedServiceOrder.reference && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">Reference/Notes</p>
+                    <p className="font-medium">{selectedServiceOrder.reference}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Measurements */}
+              {selectedServiceOrder.measurements && Object.keys(selectedServiceOrder.measurements).length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Measurements</p>
+                  <div className="bg-muted/50 p-3 rounded-lg space-y-2">
+                    {Object.entries(selectedServiceOrder.measurements).map(([category, values]) => (
+                      <div key={category}>
+                        <p className="font-medium capitalize text-sm">{category}</p>
+                        <div className="grid grid-cols-3 gap-1 text-xs">
+                          {Object.entries(values as Record<string, any>).map(([key, value]) => (
+                            value && (
+                              <span key={key} className="text-muted-foreground">
+                                {key}: <span className="text-foreground">{value}</span>
+                              </span>
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Design Images */}
+              {selectedServiceOrder.designList && selectedServiceOrder.designList.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Design Images</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedServiceOrder.designList.map((url, index) => (
+                      <img
+                        key={index}
+                        src={url}
+                        alt={`Design ${index + 1}`}
+                        className="w-full h-20 object-cover rounded-lg border cursor-pointer hover:opacity-80"
+                        onClick={() => window.open(url, '_blank')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => setShowServiceOrderDetails(false)}
+              >
+                Close
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -93,12 +93,12 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
         await updateServiceOrderStatus(order.serviceOrderNo, 'ready');
       }
 
-      console.log(`[StitchedOrders] Order ${order.id} marked as delivered (ready to dispatch). Service order ${order.serviceOrderNo} updated to ready status.`);
+      console.log(`[StitchedOrders] Order ${order.id} marked as delivered (ready to deliver). Service order ${order.serviceOrderNo} updated to ready status.`);
 
-      toast.success('Order marked as Ready to Dispatch!');
+      toast.success('Order marked as Ready to Deliver!');
     } catch (error) {
-      console.error('Error marking order as ready to dispatch:', error);
-      toast.error('Failed to mark order as ready to dispatch');
+      console.error('Error marking order as ready to deliver:', error);
+      toast.error('Failed to mark order as ready to deliver');
     } finally {
       setUpdatingOrder(null);
     }
@@ -128,7 +128,7 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle size={24} className="text-green-600" weight="duotone" />
-            <CardTitle className="text-lg">Stitched Orders</CardTitle>
+            <CardTitle className="text-lg">Job Completed Orders</CardTitle>
           </div>
           <Badge variant="secondary" className="bg-green-100 text-green-700">
             {stitchedOrders.length} order{stitchedOrders.length !== 1 ? 's' : ''}
@@ -190,7 +190,7 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
                   className="whitespace-nowrap bg-green-600 hover:bg-green-700"
                 >
                   <Package size={16} className="mr-1" />
-                  {updatingOrder === order.id ? 'Processing...' : 'Ready to Dispatch'}
+                  {updatingOrder === order.id ? 'Processing...' : 'Ready to Deliver'}
                 </Button>
                 <Button
                   variant="outline"

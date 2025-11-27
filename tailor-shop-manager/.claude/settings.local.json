@@ -4,7 +4,10 @@
       "Bash(npm run dev:*)",
       "Bash(npm install)",
       "Bash(rm:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nMerge ajay branch: CSS/styling from ajay + functionality from nanthini\n\nServiceOrderForm.tsx merged with:\n- CSS: Calendar picker, visual category buttons, improved layout (ajay)\n- Functionality: Auto-open dropdown, close on dialog, conditional focus (nanthini)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(npx vite build)"
     ],
     "deny": [],
     "ask": []
