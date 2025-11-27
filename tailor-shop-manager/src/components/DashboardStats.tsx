@@ -50,7 +50,7 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       filter: 'all' as const,
     },
     {
-      label: t('activeOrders'),
+      label: 'Open Orders',
       value: activeOrders,
       icon: Scissors,
       color: 'text-purple-600',
