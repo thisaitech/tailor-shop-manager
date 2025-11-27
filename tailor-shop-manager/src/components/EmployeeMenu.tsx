@@ -1,0 +1,49 @@
+import { useState } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { List, User, SignOut } from '@phosphor-icons/react';
+import { toast } from 'sonner';
+
+interface EmployeeMenuProps {
+  onProfileClick: () => void;
+}
+
+export function EmployeeMenu({ onProfileClick }: EmployeeMenuProps) {
+  const { logout } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Logout successful');
+    setOpen(false);
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2" style={{ backgroundColor: 'white' }}>
+          <List size={20} weight="bold" />
+          <span className="hidden sm:inline">Menu</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onClick={() => { onProfileClick(); setOpen(false); }} className="cursor-pointer">
+          <User size={18} className="mr-2" />
+          Profile
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+          <SignOut size={18} className="mr-2" />
+          Logout
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

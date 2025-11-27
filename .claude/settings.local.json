@@ -2,9 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run dev:*)",
-      "Bash(npm install)",
-      "Bash(rm:*)",
-      "Bash(npm run build:*)"
+      "Bash(dir:*)",
+      "Bash(node -e:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

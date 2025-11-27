@@ -21,10 +21,12 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar } from '@/components/ui/calendar';
 import { ServiceOrder, OrderCategory, Customer, Measurements, UOM, ModeOfPayment, AdvancePayment, DressItem, DressType } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload } from '@phosphor-icons/react';
+import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank } from '@phosphor-icons/react';
+import { cn } from '@/lib/utils';
 import { uploadPhoto } from '@/lib/storage';
 import { generateProformaInvoiceId } from '@/lib/firestore/advancePaymentService';
 import { useAuth } from '@/hooks/use-auth';
@@ -112,12 +114,13 @@ export function ServiceOrderForm({
   const [orderCategory, setOrderCategory] = useState<OrderCategory | ''>('');
   const [measurements, setMeasurements] = useState<Measurements>({});
   const [previousMeasurements, setPreviousMeasurements] = useState<Measurements>({}); // Store customer's original measurements
-  const [orderQty, setOrderQty] = useState(0);
+  const [orderQty, setOrderQty] = useState(1);
   const [uom, setUom] = useState<UOM>('Nos');
   const [displayUom, setDisplayUom] = useState<'Inches' | 'Cms'>('Inches');
   const [designList, setDesignList] = useState<string[]>([]);
   const [stitchingCost, setStitchingCost] = useState(0);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
+  const [showCalendar, setShowCalendar] = useState(false);
   const [reference, setReference] = useState('');
   const [selectedMeasurementCategories, setSelectedMeasurementCategories] = useState<MeasurementCategoryKey[]>([]);
   const [activeDressType, setActiveDressType] = useState<MeasurementCategoryKey | null>(null); // Currently viewing dress type
@@ -192,7 +195,7 @@ export function ServiceOrderForm({
     loadData();
   }, [user, companyId, open, order, customers]);
 
-  // Handle customer search with debouncing
+  // Handle customer search with debouncing (nanthini functionality: auto-open dropdown)
   useEffect(() => {
     const searchCustomersDebounced = async () => {
       if (!customerSearch.trim()) {
@@ -208,7 +211,7 @@ export function ServiceOrderForm({
         const results = await searchCustomers(actualCompanyId || companyId, customerSearch);
         console.log('[ServiceOrderForm] Search results:', results.length, 'customers found');
         setSearchResults(results);
-        // Open dropdown when search results are available
+        // Open dropdown when search results are available (nanthini functionality)
         if (results.length > 0) {
           setShowCustomerDropdown(true);
         }
@@ -296,7 +299,7 @@ export function ServiceOrderForm({
     } else {
       resetForm();
     }
-    // Always ensure dropdown is closed when dialog opens
+    // Always ensure dropdown is closed when dialog opens (nanthini functionality)
     if (open) {
       setShowCustomerDropdown(false);
     }
@@ -311,12 +314,13 @@ export function ServiceOrderForm({
     setOrderCategory('');
     setMeasurements({});
     setPreviousMeasurements({});
-    setOrderQty(0);
+    setOrderQty(1);
     setUom('Nos');
     setDisplayUom('Inches');
     setDesignList([]);
     setStitchingCost(0);
     setExpectedDeliveryDate('');
+    setShowCalendar(false);
     setReference('');
     setSelectedMeasurementCategories([]);
     setActiveDressType(null);
@@ -328,7 +332,7 @@ export function ServiceOrderForm({
     // Reset design selection
     setSelectedDesignCategory('');
     setSelectedDesigns([]);
-    // Reset customer dropdown
+    // Reset customer dropdown (nanthini functionality)
     setShowCustomerDropdown(false);
   };
 
@@ -978,32 +982,78 @@ export function ServiceOrderForm({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle>
-            {order ? 'Edit Service Order' : currentStep === 1 ? 'New Service Order' : 'Advance Payment'}
+      <DialogContent
+        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
+          <DialogTitle className="flex items-center gap-3">
+            <span>{order ? 'Edit Service Order' : currentStep === 1 ? 'New Service Order' : 'Advance Payment'}</span>
+            <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-1 rounded">
+              {order?.id || nextServiceOrderId || 'Loading...'}
+            </span>
           </DialogTitle>
-          <DialogDescription>
-            {currentStep === 1
-              ? 'Create a new service order with customer details and measurements.'
-              : 'Record advance payment for the service order.'}
-          </DialogDescription>
           {/* Step Indicator */}
           {!order && (
-            <div className="flex items-center justify-center gap-2 mt-3">
-              <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                currentStep === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
-                <span>1</span>
+            <div className="flex items-center gap-3 mt-3">
+              <button
+                type="button"
+                onClick={() => currentStep === 2 && setCurrentStep(1)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
+                  currentStep === 1
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">1</span>
                 <span>Order Details</span>
-              </div>
+              </button>
               <div className="w-8 h-0.5 bg-muted" />
-              <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                currentStep === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
-                <span>2</span>
-                <span>Advance Payment</span>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentStep === 1) {
+                    // Validate mandatory fields before moving to step 2
+                    if (!customerId) {
+                      toast.error('Please select a customer');
+                      return;
+                    }
+                    if (!orderCategory) {
+                      toast.error('Please select a category');
+                      return;
+                    }
+                    if (!orderQty || orderQty < 1) {
+                      toast.error('Please enter order quantity');
+                      return;
+                    }
+                    if (!stitchingCost || stitchingCost <= 0) {
+                      toast.error('Please enter stitching cost');
+                      return;
+                    }
+                    if (!expectedDeliveryDate) {
+                      toast.error('Please select delivery date');
+                      return;
+                    }
+                    // Trigger form submission
+                    const form = document.querySelector('form');
+                    if (form) {
+                      form.requestSubmit();
+                    }
+                  }
+                }}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
+                  currentStep === 2
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">2</span>
+                <span>Payment</span>
+              </button>
             </div>
           )}
         </DialogHeader>
@@ -1011,28 +1061,11 @@ export function ServiceOrderForm({
         {/* Step 1: Order Form */}
         {currentStep === 1 && (
         <form onSubmit={handleStep1Submit} className="flex flex-col flex-1 min-h-0">
-          <div className="space-y-6 overflow-y-auto pr-2 flex-1">
-            {/* Order Info Display */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted rounded-lg">
-              <div>
-                <Label className="text-sm text-muted-foreground">
-                  Service Order No
-                </Label>
-                <p className="text-lg font-semibold">{order?.id || nextServiceOrderId || 'Loading...'}</p>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">
-                  Service Order Date
-                </Label>
-                <p className="text-lg font-semibold">
-                  {format(new Date(), 'dd MMM yyyy')}
-                </p>
-              </div>
-            </div>
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
 
             {/* Customer Selection with Search */}
-            <div className="space-y-2">
-              <Label htmlFor="customer-search">Customer Name *</Label>
+            <div className="space-y-3">
+              <Label htmlFor="customer-search" className="text-sm font-medium">Customer Name *</Label>
 
               {/* Search Input */}
               <div className="relative">
@@ -1046,7 +1079,7 @@ export function ServiceOrderForm({
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
                   onFocus={() => {
-                    // Only show dropdown if there are recent customers to display
+                    // Only show dropdown if there are recent customers to display (nanthini functionality)
                     if (recentCustomers.length > 0) {
                       setShowCustomerDropdown(true);
                     }
@@ -1055,7 +1088,8 @@ export function ServiceOrderForm({
                     // Delay closing to allow clicking dropdown items
                     setTimeout(() => setShowCustomerDropdown(false), 200);
                   }}
-                  className="pl-10"
+                  className="pl-10 h-11"
+                  autoFocus={false}
                 />
                 {isSearching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1066,197 +1100,212 @@ export function ServiceOrderForm({
 
               {/* Customer List - Recent or Search Results */}
               {showCustomerDropdown && (customerSearch.trim() || recentCustomers.length > 0) && (
-                <div className="border rounded-lg">
-                  {/* Create New Customer Button - Always at top */}
-                  {!customerSearch.trim() && (
-                    <div className="p-2 border-b">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onCreateCustomer?.()}
-                        className="w-full justify-start text-primary hover:text-primary"
-                      >
-                        <Plus size={16} weight="bold" className="mr-2" />
-                        Create New Customer
-                      </Button>
+                <div className="border rounded-lg max-h-[280px] overflow-y-auto">
+                  {/* Create New Customer Button - Always at TOP */}
+                  <div className="p-2 border-b bg-muted sticky top-0 z-10">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onCreateCustomer?.()}
+                      className="w-full justify-start text-primary hover:text-primary hover:bg-muted-foreground/10 font-medium"
+                    >
+                      <Plus size={16} weight="bold" className="mr-2" />
+                      Create New Customer
+                    </Button>
+                  </div>
+
+                  {/* Show search results if searching */}
+                  {customerSearch.trim() && searchResults.length > 0 && (
+                    <div className="p-2 space-y-1">
+                      <p className="text-xs text-muted-foreground px-2 py-1">Search Results ({searchResults.length})</p>
+                      {searchResults.map((customer) => (
+                        <button
+                          key={customer.id}
+                          type="button"
+                          onClick={() => {
+                            setCustomerId(customer.id);
+                            setCustomerSearch('');
+                            handleCustomerChange(customer.id);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
+                            customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
+                            </div>
+                            {customerId === customer.id && (
+                              <Check size={16} className="text-green-600" weight="bold" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   )}
 
-                  {/* Scrollable customer list */}
-                  <div className="max-h-[240px] overflow-y-auto">
-                    {/* Show search results if searching */}
-                    {customerSearch.trim() && searchResults.length > 0 && (
-                      <div className="p-2 space-y-1">
-                        <p className="text-xs text-muted-foreground px-2 py-1">Search Results ({searchResults.length})</p>
-                        {searchResults.map((customer) => (
-                          <button
-                            key={customer.id}
-                            type="button"
-                            onClick={() => {
-                              setCustomerId(customer.id);
-                              setCustomerSearch('');
-                              handleCustomerChange(customer.id);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
-                              customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">{customer.name}</p>
-                                <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
-                              </div>
-                              {customerId === customer.id && (
-                                <Check size={16} className="text-green-600" weight="bold" />
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  {/* Show "no results" if search returned nothing */}
+                  {customerSearch.trim() && !isSearching && searchResults.length === 0 && (
+                    <div className="p-4 text-center">
+                      <p className="text-sm text-muted-foreground">No customers found for "{customerSearch}"</p>
+                    </div>
+                  )}
 
-                    {/* Show "no results" if search returned nothing */}
-                    {customerSearch.trim() && !isSearching && searchResults.length === 0 && (
-                      <div className="p-4 text-center">
-                        <p className="text-sm text-muted-foreground mb-2">No customers found</p>
-                        <Button
+                  {/* Show recent customers when not searching */}
+                  {!customerSearch.trim() && recentCustomers.length > 0 && (
+                    <div className="p-2 space-y-1">
+                      <p className="text-xs text-muted-foreground px-2 py-1">Recent Customers</p>
+                      {recentCustomers.map((customer) => (
+                        <button
+                          key={customer.id}
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onCreateCustomer?.()}
-                          className="w-full"
+                          onClick={() => {
+                            setCustomerId(customer.id);
+                            handleCustomerChange(customer.id);
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
+                            customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
+                          }`}
                         >
-                          <Plus size={16} weight="bold" className="mr-2" />
-                          Create New Customer
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Show recent customers when not searching */}
-                    {!customerSearch.trim() && recentCustomers.length > 0 && (
-                      <div className="p-2 space-y-1">
-                        <p className="text-xs text-muted-foreground px-2 py-1">Recent Customers (7)</p>
-                        {recentCustomers.map((customer) => (
-                          <button
-                            key={customer.id}
-                            type="button"
-                            onClick={() => {
-                              setCustomerId(customer.id);
-                              handleCustomerChange(customer.id);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
-                              customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">{customer.name}</p>
-                                <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
-                              </div>
-                              {customerId === customer.id && (
-                                <Check size={16} className="text-green-600" weight="bold" />
-                              )}
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">{customer.phone} • {customer.place}</p>
                             </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                            {customerId === customer.id && (
+                              <Check size={16} className="text-green-600" weight="bold" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Selected Customer Info */}
               {selectedCustomer && (
-                <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="p-3 rounded-lg" style={{ backgroundColor: '#dcfce7', border: '1px solid #86efac' }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <Check size={16} className="text-green-600" weight="bold" />
-                    <span className="text-sm font-semibold text-green-800 dark:text-green-200">
+                    <Check size={16} style={{ color: '#047857' }} weight="bold" />
+                    <span className="text-sm font-bold" style={{ color: '#111827' }}>
                       {selectedCustomer.name}
                     </span>
                   </div>
-                  <p className="text-xs text-green-700 dark:text-green-300">
+                  <p className="text-xs font-semibold" style={{ color: '#374151' }}>
                     {selectedCustomer.id} • {selectedCustomer.phone} • {selectedCustomer.place}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Order Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="orderCategory">Order Category *</Label>
-                <Select
-                  value={orderCategory}
-                  onValueChange={(v) => setOrderCategory(v as OrderCategory)}
-                >
-                  <SelectTrigger id="orderCategory">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="kids">Kids</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Order Category - Visual Buttons (ajay CSS) */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Select Category *</Label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'male', label: 'Men', icon: UserCircle },
+                  { value: 'female', label: 'Women', icon: UserCircle },
+                  { value: 'kids', label: 'Kids', icon: Baby },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = orderCategory === item.value;
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => setOrderCategory(item.value as OrderCategory)}
+                      className={cn(
+                        'relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all',
+                        isActive
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20'
+                      )}
+                    >
+                      <div className={cn(
+                        'w-10 h-10 rounded-full flex items-center justify-center',
+                        isActive ? 'bg-primary text-primary-foreground' : 'bg-background'
+                      )}>
+                        <Icon size={22} weight={isActive ? 'fill' : 'bold'} />
+                      </div>
+                      <span className={cn(
+                        'text-xs font-semibold',
+                        isActive ? 'text-primary' : 'text-muted-foreground'
+                      )}>
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="orderQty">Order Qty *</Label>
-                <Input
-                  id="orderQty"
-                  type="number"
-                  min="1"
-                  value={orderQty || ''}
-                  onChange={(e) => setOrderQty(parseInt(e.target.value) || 0)}
-                  placeholder="Enter quantity"
-                  required
-                />
-              </div>
+            {/* Order Details Grid (ajay CSS) */}
+            <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+              <h3 className="text-sm font-semibold text-muted-foreground">Order Details</h3>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="orderQty" className="text-sm font-medium">Order Qty *</Label>
+                  <Input
+                    id="orderQty"
+                    type="number"
+                    min="1"
+                    value={orderQty || ''}
+                    onChange={(e) => setOrderQty(parseInt(e.target.value) || 0)}
+                    onFocus={(e) => e.target.select()}
+                    placeholder="1"
+                    className="h-12 text-base bg-background"
+                    required
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="uom">UOM (Unit of Measurement) *</Label>
-                <Input
-                  id="uom"
-                  value="Nos"
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stitchingCost" className="text-sm font-medium">Stitching Cost (₹) *</Label>
+                  <Input
+                    id="stitchingCost"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={stitchingCost || ''}
+                    onChange={(e) =>
+                      setStitchingCost(parseFloat(e.target.value) || 0)
+                    }
+                    onFocus={(e) => e.target.select()}
+                    placeholder="0.00"
+                    className="h-12 text-base bg-background"
+                    required
+                  />
+                  {stitchingCost > 0 && (
+                    <p className="text-xs text-green-600 font-semibold">
+                      {formatCurrency(stitchingCost)}
+                    </p>
+                  )}
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="stitchingCost">Stitching Cost (INR) *</Label>
-                <Input
-                  id="stitchingCost"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={stitchingCost}
-                  onChange={(e) =>
-                    setStitchingCost(parseFloat(e.target.value) || 0)
-                  }
-                  placeholder="0.00"
-                  required
-                />
-                {stitchingCost > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {formatCurrency(stitchingCost)}
-                  </p>
-                )}
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expectedDeliveryDate" className="text-sm font-medium">Delivery Date *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCalendar(true)}
+                    className={cn(
+                      "w-full h-12 justify-start text-left font-normal text-base bg-background",
+                      !expectedDeliveryDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarBlank size={18} className="mr-2 flex-shrink-0" />
+                    {expectedDeliveryDate ? format(new Date(expectedDeliveryDate), 'dd MMM yyyy') : 'Select date'}
+                  </Button>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="expectedDeliveryDate">
-                  Expected Delivery Date *
-                </Label>
-                <Input
-                  id="expectedDeliveryDate"
-                  type="date"
-                  min={getTodayDate()}
-                  value={expectedDeliveryDate}
-                  onChange={(e) => setExpectedDeliveryDate(e.target.value)}
-                  required
-                />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Order Date</Label>
+                  <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-medium">
+                    {format(new Date(), 'dd MMM yyyy')}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1607,87 +1656,115 @@ export function ServiceOrderForm({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t mt-4 flex-shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+          {/* Footer with action buttons (ajay CSS) */}
+          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t bg-muted/30 flex-shrink-0">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t('cancel')}
             </Button>
-            <Button type="submit">
-              {order ? t('save') : 'Next: Advance Payment'}
+            <Button type="submit" className="min-w-[140px]">
+              {order ? t('save') : 'Next'}
             </Button>
           </div>
         </form>
         )}
 
-        {/* Step 2: Advance Payment */}
+        {/* Step 2: Advance Payment (ajay CSS) */}
         {currentStep === 2 && createdOrderData && (
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="space-y-4 overflow-y-auto pr-2 flex-1">
-              {/* Order Summary */}
-              <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <h4 className="font-semibold text-sm text-blue-800 dark:text-blue-200 mb-2">Order Summary</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <p className="text-blue-700 dark:text-blue-300">Customer:</p>
-                  <p className="font-medium">{createdOrderData.customerName}</p>
-                  <p className="text-blue-700 dark:text-blue-300">Category:</p>
-                  <p className="font-medium capitalize">{createdOrderData.orderCategory}</p>
-                  <p className="text-blue-700 dark:text-blue-300">Quantity:</p>
-                  <p className="font-medium">{createdOrderData.orderQty} {createdOrderData.uom}</p>
-                  <p className="text-blue-700 dark:text-blue-300">Stitching Cost:</p>
-                  <p className="font-medium">₹{createdOrderData.stitchingCost.toFixed(2)}</p>
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+              {/* Order Summary Card */}
+              <div className="bg-muted/30 rounded-xl p-5 border space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground">Order Summary</h3>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Customer</Label>
+                    <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-medium">
+                      {createdOrderData.customerName}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Category</Label>
+                    <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-medium">
+                      {createdOrderData.orderCategory === 'male' ? 'Men' : createdOrderData.orderCategory === 'female' ? 'Women' : 'Kids'}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Quantity</Label>
+                    <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-medium">
+                      {createdOrderData.orderQty} {createdOrderData.uom}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium text-muted-foreground">Stitching Cost</Label>
+                    <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-bold text-primary">
+                      ₹{createdOrderData.stitchingCost.toFixed(2)}
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Invoice Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-muted rounded-lg">
-                <div>
-                  <Label className="text-sm text-muted-foreground">Proforma Invoice No</Label>
-                  <p className="text-lg font-semibold text-primary">{proformaInvoiceNo}</p>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Proforma Invoice No</Label>
+                  <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-bold text-primary">
+                    {proformaInvoiceNo}
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-sm text-muted-foreground">Invoice Date</Label>
-                  <p className="text-lg font-semibold">{format(new Date(), 'dd MMM yyyy')}</p>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Invoice Date</Label>
+                  <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-medium">
+                    {format(new Date(), 'dd MMM yyyy')}
+                  </div>
                 </div>
               </div>
 
-              {/* Mode of Payment */}
-              <div className="space-y-2">
-                <Label>Mode of Payment *</Label>
-                <RadioGroup
-                  value={modeOfPayment}
-                  onValueChange={(value) => setModeOfPayment(value as ModeOfPayment)}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="cash" id="cash" />
-                    <Label htmlFor="cash" className="font-normal cursor-pointer">Cash</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="qrpay" id="qrpay" />
-                    <Label htmlFor="qrpay" className="font-normal cursor-pointer">QR Pay</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="nil" id="nil" />
-                    <Label htmlFor="nil" className="font-normal cursor-pointer">Nil</Label>
-                  </div>
-                </RadioGroup>
+              {/* Mode of Payment - Visual Buttons (ajay CSS) */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Mode of Payment *</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: 'cash', label: 'Cash' },
+                    { value: 'qrpay', label: 'QR Pay' },
+                    { value: 'nil', label: 'Nil' },
+                  ].map((option) => {
+                    const isActive = modeOfPayment === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setModeOfPayment(option.value as ModeOfPayment)}
+                        className={cn(
+                          'relative flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all font-semibold text-sm',
+                          isActive
+                            ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                            : 'border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20 text-muted-foreground'
+                        )}
+                      >
+                        {isActive && (
+                          <Check size={16} weight="bold" className="absolute top-2 right-2" />
+                        )}
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Amount */}
               <div className="space-y-2">
-                <Label htmlFor="advanceAmount">Advance Amount (INR) *</Label>
+                <Label htmlFor="advanceAmount" className="text-sm font-medium">Advance Amount (₹) *</Label>
                 <Input
                   id="advanceAmount"
                   type="number"
                   min="0"
                   max={createdOrderData.stitchingCost}
                   step="0.01"
-                  value={advanceAmount}
+                  value={advanceAmount || ''}
                   onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0.00"
+                  className="h-12 text-base bg-background"
                   disabled={modeOfPayment === 'nil'}
                 />
                 {modeOfPayment === 'nil' && (
@@ -1696,20 +1773,21 @@ export function ServiceOrderForm({
               </div>
 
               {/* Payment Summary */}
-              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md border border-green-200 dark:border-green-800">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-green-700 dark:text-green-300">Total Stitching Cost:</span>
-                    <span className="font-medium">₹{createdOrderData.stitchingCost.toFixed(2)}</span>
+              <div className="bg-muted/30 rounded-xl p-5 border space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground">Payment Summary</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Total Stitching Cost</span>
+                    <span className="text-base font-semibold">₹{createdOrderData.stitchingCost.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-green-700 dark:text-green-300">Advance Amount:</span>
-                    <span className="font-medium">₹{(modeOfPayment === 'nil' ? 0 : advanceAmount).toFixed(2)}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Advance Paid</span>
+                    <span className="text-base font-semibold text-primary">- ₹{(modeOfPayment === 'nil' ? 0 : advanceAmount).toFixed(2)}</span>
                   </div>
-                  <div className="border-t border-green-200 dark:border-green-800 pt-2 mt-2">
-                    <div className="flex justify-between">
-                      <span className="font-semibold text-green-800 dark:text-green-200">Remaining Amount:</span>
-                      <span className="font-bold text-green-800 dark:text-green-200">
+                  <div className="border-t pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-bold">Balance Due</span>
+                      <span className="text-xl font-bold text-primary">
                         ₹{(createdOrderData.stitchingCost - (modeOfPayment === 'nil' ? 0 : advanceAmount)).toFixed(2)}
                       </span>
                     </div>
@@ -1718,41 +1796,45 @@ export function ServiceOrderForm({
               </div>
 
               {/* Invoice Actions */}
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handlePrintInvoice}
-                  className="flex-1"
+                  className="h-12 text-base"
                 >
-                  <Printer className="mr-2 h-4 w-4" />
+                  <Printer className="mr-2" size={18} />
                   Print Invoice
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleDownloadPdf}
-                  className="flex-1"
+                  className="h-12 text-base"
                 >
-                  <FilePdf className="mr-2 h-4 w-4" />
+                  <FilePdf className="mr-2" size={18} />
                   Save as PDF
                 </Button>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-between gap-3 pt-4 border-t mt-4 flex-shrink-0">
+            {/* Footer with action buttons */}
+            <div className="flex justify-between items-center gap-3 px-6 py-4 border-t bg-muted/30 flex-shrink-0">
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => setCurrentStep(1)}
+                variant="ghost"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCurrentStep(1);
+                }}
               >
                 Back
               </Button>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   onClick={handleSkipAdvancePayment}
                 >
                   Skip Payment
@@ -1760,6 +1842,7 @@ export function ServiceOrderForm({
                 <Button
                   type="button"
                   onClick={handleStep2Submit}
+                  className="min-w-[120px]"
                 >
                   Save Order
                 </Button>
@@ -2028,6 +2111,30 @@ export function ServiceOrderForm({
           >
             Cancel
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Calendar Date Picker Dialog (ajay CSS) */}
+    <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
+      <DialogContent className="sm:max-w-[400px] p-0">
+        <DialogHeader className="px-5 pt-5 pb-3">
+          <DialogTitle className="text-center text-lg">Select Delivery Date</DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-center px-2 pb-5">
+          <Calendar
+            mode="single"
+            selected={expectedDeliveryDate ? new Date(expectedDeliveryDate) : undefined}
+            onSelect={(date) => {
+              if (date) {
+                setExpectedDeliveryDate(format(date, 'yyyy-MM-dd'));
+                setShowCalendar(false);
+              }
+            }}
+            disabled={(date) => date < new Date(getTodayDate())}
+            defaultMonth={expectedDeliveryDate ? new Date(expectedDeliveryDate) : new Date()}
+            className="rounded-md"
+          />
         </div>
       </DialogContent>
     </Dialog>
