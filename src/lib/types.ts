@@ -178,7 +178,7 @@ export interface OrderAllotment {
   jobWorkNo?: string; // Job work number for vendor orders
   jobWorkTailorId?: string; // Vendor/Job Work Tailor ID (TAL0001, etc.)
   jobWorkTailorName?: string; // Vendor name (denormalized)
-  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected' | 'delivered'; // Job work status
+  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected' | 'delivered' | 'reassigned'; // Job work status
   assignedDate?: number; // Date when allotted to job work tailor
   orderNumber?: string; // Service order number for job work reference
   stitchedId?: string; // Unique stitched ID (ST0001, ST0002, etc.)

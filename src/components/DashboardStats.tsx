@@ -78,13 +78,14 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       ).length
     : 0;
 
-  // Count only reassigned orders awaiting response (status = 'reassigned')
-  // Once status changes to 'in_progress', 'stitched', etc., they are removed from count
-  const reassignedOrders = orderAllotments
+  // Count orders awaiting acceptance from employee or job-work tailor
+  // This includes:
+  // 1. Newly allotted orders (status = 'allotted') - waiting for tailor to accept
+  // 2. Reassigned orders (status = 'reassigned') - previously completed orders reassigned to new tailor
+  // Once status changes to 'in_progress', 'stitched', 'rejected', etc., they are removed from count
+  const awaitingAcceptanceOrders = orderAllotments
     ? orderAllotments.filter((o) =>
-        o.reassigned === true &&
-        o.stitchedId &&
-        o.status === 'reassigned'
+        o.status === 'allotted' || o.status === 'reassigned'
       ).length
     : 0;
 
@@ -131,7 +132,7 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
     },
     {
       label: 'Awaiting Acceptance',
-      value: reassignedOrders,
+      value: awaitingAcceptanceOrders,
       icon: ArrowsClockwise,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
