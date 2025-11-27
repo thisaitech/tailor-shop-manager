@@ -66,13 +66,14 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
         const dcList = await getDeliveryChallansByCompany(company.id);
         setChallans(dcList);
         // Load stitched orders for Job Work No dropdown
-        // Include: Only job-work tailor orders (stitchingAllotment === 'vendor')
+        // Include: Only job-work tailor orders (stitchingAllotment === 'vendor' AND assignedTo starts with 'TAL')
         // Include: status='stitched' OR (status='delivered' AND serviceOrderStatus='ready')
         // Include: reassigned orders to job-work tailors
         const allotments = await getOrderAllotmentsByCompany(company.id);
         const stitched = allotments.filter(o =>
           o.stitchedId &&
           o.stitchingAllotment === 'vendor' &&
+          o.assignedTo?.startsWith('TAL') && // Ensure it's a Job Work Tailor (TAL0001, TAL0002, etc.)
           o.jobWorkNo &&
           (o.status === 'stitched' || (o.status === 'delivered' && o.serviceOrderStatus === 'ready'))
         );
