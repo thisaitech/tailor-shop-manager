@@ -17,7 +17,7 @@ import { decryptPassword } from '@/lib/firestore/vendorService';
 import { InlineLoader } from './Loader';
 
 export function Login() {
-  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor } = useAuth();
+  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange } = useAuth();
   const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -422,10 +422,10 @@ export function Login() {
               onSuccess={() => {
                 console.log('[Login] Password change successful - redirecting to dashboard');
                 setShowEmployeePasswordSetup(false);
+                // Set the employee in auth context to redirect to dashboard
+                setEmployeeAfterPasswordChange({ ...tempEmployee, firstLogin: false });
                 setTempEmployee(null); // Clear temp storage
-                toast.success('Password changed successfully! Redirecting...');
-                // Reload the page to trigger login with new password
-                window.location.reload();
+                toast.success('Password changed successfully! Welcome to your dashboard.');
               }}
             />
           );
@@ -449,10 +449,10 @@ export function Login() {
               onSuccess={() => {
                 console.log('[Login] Vendor password change successful - redirecting to dashboard');
                 setShowVendorPasswordSetup(false);
+                // Set the vendor in auth context to redirect to dashboard
+                setVendorAfterPasswordChange({ ...tempVendor, isFirstLogin: false });
                 setTempVendor(null); // Clear temp storage
-                toast.success('Password changed successfully! Redirecting...');
-                // Reload the page to trigger login with new password
-                window.location.reload();
+                toast.success('Password changed successfully! Welcome to your dashboard.');
               }}
             />
           );

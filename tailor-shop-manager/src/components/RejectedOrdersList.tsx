@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { XCircle, ArrowLeft, ArrowCounterClockwise, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { OrderAllotment } from '@/lib/types';
 
@@ -275,15 +276,11 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
 
       {/* Rejected Orders Grid */}
       {sortedOrders.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center">
-            <XCircle size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No rejected orders found</h3>
-            <p className="text-muted-foreground">
-              {hasActiveFilters ? 'Try a different search term or filter' : 'All orders are in good standing'}
-            </p>
-          </div>
-        </Card>
+        <EmptyState
+          icon={XCircle}
+          title="No rejected orders found"
+          description={hasActiveFilters ? 'Try a different search term or filter' : 'All orders are in good standing'}
+        />
       ) : (
         <div
           className="rounded-xl border-2 p-4 space-y-3"

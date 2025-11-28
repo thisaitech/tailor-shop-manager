@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo, CaretDown, CaretUp, Funnel } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, isPast, isToday, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ServiceOrderForm } from './ServiceOrderForm';
 import { PhotoGallery } from './PhotoGallery';
@@ -581,18 +582,13 @@ export function OrderList({
       {filteredOrders.length === 0 ? (
         recentServiceOrders.length === 0 ? (
           // Show "No orders yet" or "No results" based on search
-          <Card className="p-8 sm:p-12 text-center">
-            <Scissors size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
-            <p className="text-base text-muted-foreground mb-4 font-medium">
-              {search ? `No orders found for "${search}"` : 'No orders yet'}
-            </p>
-            {!search && (
-              <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation text-xs sm:text-sm">
-                <Plus size={18} className="mr-1.5" weight="bold" />
-                {t('newOrder')}
-              </Button>
-            )}
-          </Card>
+          <EmptyState
+            icon={Scissors}
+            title={search ? `No orders found for "${search}"` : 'No orders yet'}
+            description={search ? 'Try adjusting your search terms' : 'Create your first order to get started'}
+            actionLabel={!search ? t('newOrder') : undefined}
+            onAction={!search ? () => setShowForm(true) : undefined}
+          />
         ) : (
           // Show Recent Service Orders when count > 0
           <div
@@ -627,7 +623,7 @@ export function OrderList({
                     </div>
                     <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate mb-2">{serviceOrder.customerName}</p>
                     <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 mb-2 flex-wrap">
-                      <span className="capitalize truncate">{serviceOrder.orderCategory}</span>
+                      <span className="truncate">{serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'}</span>
                       <span>•</span>
                       <span>{serviceOrder.orderQty} {serviceOrder.uom}</span>
                       <span>•</span>

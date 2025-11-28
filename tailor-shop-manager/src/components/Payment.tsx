@@ -808,8 +808,8 @@ export function Payment({ onBack }: PaymentProps) {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="male">Men</SelectItem>
+                  <SelectItem value="female">Women</SelectItem>
                   <SelectItem value="kids">Kids</SelectItem>
                 </SelectContent>
               </Select>

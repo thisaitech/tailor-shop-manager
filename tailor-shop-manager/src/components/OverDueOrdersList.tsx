@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ClockCountdown, ArrowLeft, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, differenceInDays } from 'date-fns';
 import { ServiceOrder } from '@/lib/types';
 
@@ -279,15 +280,11 @@ export function OverDueOrdersList({ serviceOrders, onBack }: OverDueOrdersListPr
 
       {/* Orders Grid */}
       {sortedOrders.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center">
-            <ClockCountdown size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No overdue orders found</h3>
-            <p className="text-muted-foreground">
-              {hasActiveFilters ? 'Try a different search term or filter' : 'All orders are on track!'}
-            </p>
-          </div>
-        </Card>
+        <EmptyState
+          icon={ClockCountdown}
+          title="No overdue orders found"
+          description={hasActiveFilters ? 'Try a different search term or filter' : 'All orders are on track!'}
+        />
       ) : (
         <div
           className="rounded-xl border-2 p-4 space-y-3"

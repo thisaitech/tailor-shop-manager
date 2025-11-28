@@ -3,11 +3,13 @@ import { useLanguage } from '@/hooks/use-language';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { AdminMenu } from '@/components/AdminMenu';
 import { EmployeeMenu } from '@/components/EmployeeMenu';
+import { VendorMenu } from '@/components/VendorMenu';
 import { Button } from '@/components/ui/button';
 import { Scissors, SignOut } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface HeaderProps {
+  onDashboardClick?: () => void;
   onProfileClick?: () => void;
   onEmployeeClick?: () => void;
   onVendorClick?: () => void;
@@ -16,10 +18,11 @@ interface HeaderProps {
   onDeliveryChallanClick?: () => void;
   onGoodsReceiptClick?: () => void;
   onEmployeeProfileClick?: () => void;
+  onVendorProfileClick?: () => void;
 }
 
-export function Header({ onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick }: HeaderProps) {
-  const { user, employee, logout } = useAuth();
+export function Header({ onDashboardClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick }: HeaderProps) {
+  const { user, employee, vendor, logout } = useAuth();
   const { t } = useLanguage();
 
   const handleLogout = () => {
@@ -41,6 +44,8 @@ export function Header({ onProfileClick, onEmployeeClick, onVendorClick, onDesig
                 {user?.role === 'owner' && 'Owner Dashboard'}
                 {user?.role === 'tailor' && 'Tailor Portal'}
                 {user?.role === 'customer' && 'Customer Portal'}
+                {employee && 'Employee Portal'}
+                {vendor && 'Job Work Portal'}
               </p>
             </div>
           </div>
@@ -48,6 +53,7 @@ export function Header({ onProfileClick, onEmployeeClick, onVendorClick, onDesig
             <LanguageSwitcher />
             {user?.role === 'owner' && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
               <AdminMenu
+                onDashboardClick={onDashboardClick}
                 onProfileClick={onProfileClick}
                 onEmployeeClick={onEmployeeClick}
                 onVendorClick={onVendorClick}
@@ -58,6 +64,8 @@ export function Header({ onProfileClick, onEmployeeClick, onVendorClick, onDesig
               />
             ) : employee && onEmployeeProfileClick ? (
               <EmployeeMenu onProfileClick={onEmployeeProfileClick} />
+            ) : vendor && onVendorProfileClick ? (
+              <VendorMenu onProfileClick={onVendorProfileClick} />
             ) : (
               <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
                 <SignOut size={16} />

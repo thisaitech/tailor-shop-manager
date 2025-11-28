@@ -14,6 +14,7 @@ import { CompanyProfileFirestore as CompanyProfile } from '@/components/CompanyP
 import { EmployeeManagementFirestore as EmployeeManagement } from '@/components/EmployeeManagementFirestore';
 import { VendorManagementFirestore as VendorManagement } from '@/components/VendorManagementFirestore';
 import { EmployeeProfile } from '@/components/EmployeeProfile';
+import { TailorProfile } from '@/components/TailorProfile';
 import { DesignManagement } from '@/components/DesignManagement';
 import { DeliveryChallan } from '@/components/DeliveryChallan';
 import { GoodsReceipt } from '@/components/GoodsReceipt';
@@ -29,6 +30,7 @@ function AppContent() {
   const { user, employee, vendor, isAuthenticated, isLoading } = useAuth();
   const [adminView, setAdminView] = useState<AdminView>('dashboard');
   const [dashboardTab, setDashboardTab] = useState<string>('dashboard');
+  const [dashboardKey, setDashboardKey] = useState(0); // Key to force remount and reset dashboard state
   const [employeeView, setEmployeeView] = useState<EmployeeView>('dashboard');
   const [vendorView, setVendorView] = useState<VendorView>('dashboard');
 
@@ -40,6 +42,11 @@ function AppContent() {
   if (!isAuthenticated || (!user && !employee && !vendor)) {
     return <Login />;
   }
+
+  const handleDashboardClick = () => {
+    setAdminView('dashboard');
+    setDashboardKey(prev => prev + 1); // Force remount to reset all internal state
+  };
 
   const handleProfileClick = () => {
     setAdminView('profile');
@@ -82,22 +89,29 @@ function AppContent() {
     setEmployeeView('dashboard');
   };
 
+  const handleVendorProfileClick = () => {
+    setVendorView('profile');
+  };
+
+  const handleVendorBackToDashboard = () => {
+    setVendorView('dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6">
-      {/* Hide Header for vendors (job work tailors) as they have their own menu bar */}
-      {!vendor && (
-        <Header
-          onProfileClick={user?.role === 'owner' ? handleProfileClick : undefined}
-          onEmployeeClick={user?.role === 'owner' ? handleEmployeeClick : undefined}
-          onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}
-          onDesignClick={user?.role === 'owner' ? handleDesignClick : undefined}
-          onPaymentClick={user?.role === 'owner' ? handlePaymentClick : undefined}
-          onDeliveryChallanClick={user?.role === 'owner' ? handleDeliveryChallanClick : undefined}
-          onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
-          onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
-        />
-      )}
-      {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard initialTab={dashboardTab} />}
+      <Header
+        onDashboardClick={user?.role === 'owner' ? handleDashboardClick : undefined}
+        onProfileClick={user?.role === 'owner' ? handleProfileClick : undefined}
+        onEmployeeClick={user?.role === 'owner' ? handleEmployeeClick : undefined}
+        onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}
+        onDesignClick={user?.role === 'owner' ? handleDesignClick : undefined}
+        onPaymentClick={user?.role === 'owner' ? handlePaymentClick : undefined}
+        onDeliveryChallanClick={user?.role === 'owner' ? handleDeliveryChallanClick : undefined}
+        onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
+        onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
+        onVendorProfileClick={vendor ? handleVendorProfileClick : undefined}
+      />
+      {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard key={dashboardKey} initialTab={dashboardTab} />}
       {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}
@@ -117,6 +131,7 @@ function AppContent() {
       {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <OwnerDashboard />}
       {employee && employeeView === 'profile' && <EmployeeProfile onBack={handleEmployeeBackToDashboard} />}
       {vendor && vendorView === 'dashboard' && <JobWorkTailorDashboard />}
+      {vendor && vendorView === 'profile' && <TailorProfile vendorId={vendor.tailorCode} onBack={handleVendorBackToDashboard} />}
       <InstallPrompt />
     </div>
   );

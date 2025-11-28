@@ -2,7 +2,8 @@ import { useState, lazy, Suspense } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Scissors, ArrowLeft } from '@phosphor-icons/react';
+import { Scissors, ArrowLeft, Spinner, FileText, UserPlus } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format } from 'date-fns';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
@@ -11,73 +12,107 @@ const ServiceOrderDetailsDialog = lazy(() =>
   import('@/components/ServiceOrderDetailsDialog').then(m => ({ default: m.ServiceOrderDetailsDialog }))
 );
 
+// Filter types for different views
+type FilterType = 'open' | 'inProgress' | 'receivedNote';
+
 interface ActiveOrdersListProps {
   serviceOrders: ServiceOrder[];
   orderAllotments: OrderAllotment[];
   onBack: () => void;
+  filterType?: FilterType;
+  onJobAllotment?: (serviceOrderId: string) => void; // Callback for Job Allotment (Open Orders only)
 }
 
-export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack }: ActiveOrdersListProps) {
+export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filterType = 'open', onJobAllotment }: ActiveOrdersListProps) {
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
 
-  // Helper function to get display status (matching OrderList and DashboardStats logic)
-  const getDisplayStatus = (serviceOrder: ServiceOrder): string => {
-    // Find matching order allotment (exclude reassigned orders - matching OrderList logic)
-    const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
-
-    // If no allotment exists → Pending
-    if (!allotment) {
-      return 'pending';
+  // Get title and icon based on filter type
+  const getViewConfig = () => {
+    switch (filterType) {
+      case 'open':
+        return {
+          title: 'Open Orders',
+          subtitle: 'Orders not yet assigned',
+          icon: Scissors,
+          color: '#9333ea', // purple
+          bgColor: '#f3e8ff',
+          emptyMessage: 'No open orders',
+        };
+      case 'inProgress':
+        return {
+          title: 'In-Progress Orders',
+          subtitle: 'Orders currently being worked on',
+          icon: Spinner,
+          color: '#2563eb', // blue
+          bgColor: '#dbeafe',
+          emptyMessage: 'No in-progress orders',
+        };
+      case 'receivedNote':
+        return {
+          title: 'Received Note',
+          subtitle: 'Vendor goods received at shop',
+          icon: FileText,
+          color: '#0891b2', // cyan
+          bgColor: '#cffafe',
+          emptyMessage: 'No received notes',
+        };
+      default:
+        return {
+          title: 'Orders',
+          subtitle: '',
+          icon: Scissors,
+          color: '#9333ea',
+          bgColor: '#f3e8ff',
+          emptyMessage: 'No orders found',
+        };
     }
-
-    const allotmentStatus = allotment.status;
-    const serviceOrderStatus = allotment.serviceOrderStatus;
-    const orderTicketStatus = allotment.orderStatus;
-
-    // If final payment is completed → Completed
-    if (serviceOrder.orderStatus === 'delivered') {
-      return 'completed';
-    }
-
-    // Ready to deliver or ready to dispatch → Delivered (Ready to Deliver)
-    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
-      return 'delivered';
-    }
-
-    // In progress
-    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress' || serviceOrder.orderStatus === 'in-progress') {
-      return 'in-progress';
-    }
-
-    // Allotted but not started → Pending
-    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
-      return 'pending';
-    }
-
-    // Default to pending
-    return 'pending';
   };
 
-  // Filter active orders (all orders except ready to deliver ones)
-  const activeOrders = serviceOrders.filter(o => getDisplayStatus(o) !== 'delivered');
+  const viewConfig = getViewConfig();
+  const ViewIcon = viewConfig.icon;
+
+  // Filter orders based on filterType
+  const getFilteredOrders = (): ServiceOrder[] => {
+    switch (filterType) {
+      case 'open':
+        // Open orders - service orders with orderStatus === 'open' (not assigned yet)
+        return serviceOrders.filter(o => o.orderStatus === 'open');
+
+      case 'inProgress':
+        // In-progress orders - find service orders that have an active allotment with status 'in_progress'
+        const inProgressAllotments = orderAllotments.filter(
+          a => a.status === 'in_progress' && !a.reassigned
+        );
+        const inProgressOrderIds = new Set(inProgressAllotments.map(a => a.serviceOrderNo));
+        return serviceOrders.filter(o => inProgressOrderIds.has(o.id));
+
+      case 'receivedNote':
+        // Received Note - vendor orders with status === 'delivered' but serviceOrderStatus !== 'ready'
+        const receivedNoteAllotments = orderAllotments.filter(
+          a => a.stitchingAllotment === 'vendor' &&
+               a.status === 'delivered' &&
+               a.serviceOrderStatus !== 'ready' &&
+               !a.reassigned
+        );
+        const receivedNoteOrderIds = new Set(receivedNoteAllotments.map(a => a.serviceOrderNo));
+        return serviceOrders.filter(o => receivedNoteOrderIds.has(o.id));
+
+      default:
+        return serviceOrders;
+    }
+  };
+
+  const filteredOrders = getFilteredOrders();
 
   const handleOrderClick = (order: ServiceOrder) => {
     setSelectedOrder(order);
     setShowDetailsDialog(true);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="secondary" className="text-xs">Pending</Badge>;
-      case 'in-progress':
-        return <Badge className="bg-blue-500 text-white text-xs">In Progress</Badge>;
-      case 'completed':
-        return <Badge className="bg-gray-500 text-white text-xs">Delivered</Badge>;
-      default:
-        return <Badge variant="outline" className="text-xs">{status}</Badge>;
-    }
+  // Get allotment info for an order
+  const getOrderAllotment = (orderId: string) => {
+    return orderAllotments.find(a => a.serviceOrderNo === orderId && !a.reassigned);
   };
 
   return (
@@ -88,41 +123,46 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack }: Act
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Active Orders</h1>
-          <p className="text-sm text-muted-foreground">{activeOrders.length} orders</p>
+          <h1 className="text-2xl font-bold">{viewConfig.title}</h1>
+          <p className="text-sm text-muted-foreground">{filteredOrders.length} orders</p>
         </div>
       </div>
 
-      {/* Scrollable Active Orders List */}
+      {/* Scrollable Orders List */}
       <Card className="flex-1 min-h-0 overflow-hidden">
-        <CardContent className="p-4 h-full overflow-y-auto" style={{ background: '#EADDFD' }}>
-          {activeOrders.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Scissors size={48} className="mx-auto mb-3 opacity-30" />
-              <p>No active orders</p>
-            </div>
+        <CardContent className="p-4 h-full overflow-y-auto" style={{ background: viewConfig.bgColor }}>
+          {filteredOrders.length === 0 ? (
+            <EmptyState
+              icon={ViewIcon}
+              title={viewConfig.emptyMessage}
+              description="Orders will appear here when available"
+            />
           ) : (
             <div className="space-y-4">
-              {activeOrders.map((order, index) => {
-                const displayStatus = getDisplayStatus(order);
+              {filteredOrders.map((order, index) => {
+                const allotment = getOrderAllotment(order.id);
                 return (
                   <div
                     key={order.id}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer hover:shadow-lg hover:scale-[1.01] animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
                     style={{
-                      background: '#FAF8FF',
-                      borderColor: '#6A64F2',
-                      boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)',
+                      background: '#ffffff',
+                      borderColor: viewConfig.color,
+                      boxShadow: `0 4px 12px -2px ${viewConfig.color}33, 0 2px 6px -2px ${viewConfig.color}26`,
                     }}
                     onClick={() => handleOrderClick(order)}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="font-mono text-xs" style={{ background: '#EADDFD', color: '#6A64F2', borderColor: '#6A64F2' }}>
+                          <Badge variant="outline" className="font-mono text-xs" style={{ background: viewConfig.bgColor, color: viewConfig.color, borderColor: viewConfig.color }}>
                             {order.id}
                           </Badge>
-                          {getStatusBadge(displayStatus)}
+                          {allotment && (
+                            <Badge className="text-xs" style={{ background: viewConfig.color, color: '#ffffff' }}>
+                              {allotment.stitchingAllotment === 'vendor' ? 'Vendor' : 'Employee'}
+                            </Badge>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -132,7 +172,9 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack }: Act
                           </div>
                           <div>
                             <span className="text-muted-foreground">Category:</span>{' '}
-                            <span className="font-medium text-gray-900 capitalize">{order.orderCategory}</span>
+                            <span className="font-medium text-gray-900">
+                              {order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'}
+                            </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Order Date:</span>{' '}
@@ -152,21 +194,45 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack }: Act
                               <span className="font-medium text-gray-900">{order.orderQty} {order.uom}</span>
                             </div>
                           )}
+                          {allotment?.allottedToName && (
+                            <div>
+                              <span className="text-muted-foreground">Assigned to:</span>{' '}
+                              <span className="font-medium text-gray-900">{allotment.allottedToName}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOrderClick(order);
-                        }}
-                        className="whitespace-nowrap shadow-sm"
-                        style={{ background: '#FAF8FF', color: '#6A64F2', borderColor: '#6A64F2' }}
-                      >
-                        View Details
-                      </Button>
+                      <div className="flex flex-col gap-3">
+                        {/* Job Allotment button - only for Open Orders */}
+                        {filterType === 'open' && onJobAllotment && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onJobAllotment(order.id);
+                            }}
+                            className="whitespace-nowrap shadow-sm py-2"
+                            style={{ background: viewConfig.color }}
+                          >
+                            <UserPlus size={16} className="mr-1.5" weight="bold" />
+                            Job Allotment
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOrderClick(order);
+                          }}
+                          className="whitespace-nowrap shadow-sm py-2"
+                          style={{ background: '#ffffff', color: viewConfig.color, borderColor: viewConfig.color }}
+                        >
+                          View Details
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );

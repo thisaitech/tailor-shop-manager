@@ -153,7 +153,7 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
                 <p className="text-sm font-bold" style={{ color: '#6A64F2' }}>{serviceOrder.id}</p>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {serviceOrder.orderCategory.charAt(0).toUpperCase() + serviceOrder.orderCategory.slice(1)} • {serviceOrder.orderQty} {serviceOrder.uom}
+                {serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'} • {serviceOrder.orderQty} {serviceOrder.uom}
               </p>
             </div>
             <Badge className={`text-[10px] px-2 py-1 font-bold ${getStatusColor(displayStatus)}`}>

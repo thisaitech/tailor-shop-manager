@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, ArrowLeft, Eye } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format } from 'date-fns';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
@@ -84,10 +85,11 @@ export function DeliveredOrdersList({ serviceOrders, orderAllotments, onBack }: 
       <Card className="flex-1 min-h-0 overflow-hidden">
         <CardContent className="p-4 h-full overflow-y-auto" style={{ background: '#EADDFD' }}>
           {deliveredOrders.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <CheckCircle size={48} className="mx-auto mb-3 opacity-30" />
-              <p>No delivered orders</p>
-            </div>
+            <EmptyState
+              icon={CheckCircle}
+              title="No delivered orders"
+              description="Delivered orders will appear here"
+            />
           ) : (
             <div className="space-y-4">
               {deliveredOrders.map((order, index) => (
@@ -119,7 +121,9 @@ export function DeliveredOrdersList({ serviceOrders, orderAllotments, onBack }: 
                         </div>
                         <div>
                           <span className="text-muted-foreground">Category:</span>{' '}
-                          <span className="font-medium text-gray-900 capitalize">{order.orderCategory}</span>
+                          <span className="font-medium text-gray-900">
+                            {order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Order Date:</span>{' '}

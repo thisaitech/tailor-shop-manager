@@ -11,7 +11,7 @@ import {
   generateEmployeePassword,
   EmployeeWithCompany,
   findEmployeeByContactNumber,
-  findEmployeeByWhatsAppNumber,
+  findEmployeeByEmail,
 } from '@/lib/firestore/employeeService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,7 +37,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Key, Copy, Spinner, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, UserCircle } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Key, Copy, Spinner, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, UserCircle, User, MapPin, Check } from '@phosphor-icons/react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { EmptyState } from './EmptyState';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { sendWhatsAppMessage } from '@/lib/utils';
@@ -104,8 +107,8 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateEmployee, setDuplicateEmployee] = useState<EmployeeWithCompany | null>(null);
   const [phoneError, setPhoneError] = useState('');
-  const [whatsappError, setWhatsappError] = useState('');
   const [deleteEmployeeId, setDeleteEmployeeId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('basic');
 
   // Search, filter, and pagination states
   const [search, setSearch] = useState('');
@@ -128,9 +131,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     address2: '',
     city: '',
     pincode: '',
-    region: 'none',
     state: '',
-    country: 'India',
     role: 'staff' as EmployeeRole,
     designation: '',
     joiningDate: Date.now(),
@@ -241,9 +242,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         address2: employee.address2 || '',
         city: employee.city || '',
         pincode: employee.pincode || '',
-        region: employee.region || '',
         state: employee.state || '',
-        country: employee.country || 'India',
         role: employee.role,
         designation: employee.designation || '',
         joiningDate: employee.joiningDate,
@@ -265,9 +264,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         address2: '',
         city: '',
         pincode: '',
-        region: 'none',
         state: '',
-        country: 'India',
         role: 'staff',
         designation: '',
         joiningDate: Date.now(),
@@ -276,6 +273,8 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         isActive: true,
       });
     }
+    setActiveTab('basic');
+    setPhoneError('');
     setShowDialog(true);
   };
 
@@ -297,7 +296,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
     // Reset errors
     setPhoneError('');
-    setWhatsappError('');
 
     // Validation
     if (!formData.name) {
@@ -322,13 +320,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
-    // Validate whatsapp number (exactly 10 digits if provided)
-    if (formData.whatsappNumber && !/^\d{10}$/.test(formData.whatsappNumber)) {
-      setWhatsappError('Enter correct number');
-      toast.error('WhatsApp Number: Enter correct number');
-      return;
-    }
-
     // Validate pincode (6 digits)
     if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
       toast.error('Pincode must be exactly 6 digits');
@@ -346,7 +337,55 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
+    // Address validation - mandatory fields
+    if (!formData.address1 || !formData.address1.trim()) {
+      toast.error('Address (Shop No / Flat No) is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.address2 || !formData.address2.trim()) {
+      toast.error('Street / Area / Landmark is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.state) {
+      toast.error('State is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.city) {
+      toast.error('City is required');
+      setActiveTab('address');
+      return;
+    }
+
     try {
+      // Check for duplicate contact number
+      const existingByContact = await findEmployeeByContactNumber(
+        formData.contactNumber,
+        user.id,
+        editingEmployee?.id
+      );
+      if (existingByContact) {
+        setPhoneError('This number already exists');
+        toast.error(`Contact number already exists for: ${existingByContact.name}`);
+        return;
+      }
+
+      // Check for duplicate email
+      const existingByEmail = await findEmployeeByEmail(
+        formData.email!,
+        user.id,
+        editingEmployee?.id
+      );
+      if (existingByEmail) {
+        toast.error(`Email address already exists for: ${existingByEmail.name}`);
+        return;
+      }
+
       if (editingEmployee) {
         // Update existing employee
         await updateEmployee(editingEmployee.id, formData);
@@ -360,26 +399,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         toast.success('Employee updated successfully!');
         handleCloseDialog();
       } else {
-        // Check for duplicate contact number
-        const existingEmployee = await findEmployeeByContactNumber(formData.contactNumber, user.id);
-
-        if (existingEmployee) {
-          setPhoneError('This number already exists');
-          toast.error('Phone Number: This number already exists');
-          return;
-        }
-
-        // Check for duplicate WhatsApp number (if provided)
-        if (formData.whatsappNumber) {
-          const existingWhatsAppEmployee = await findEmployeeByWhatsAppNumber(formData.whatsappNumber, user.id);
-
-          if (existingWhatsAppEmployee) {
-            setWhatsappError('This number already exists');
-            toast.error('WhatsApp Number: This number already exists');
-            return;
-          }
-        }
-
         // Add new employee
         const newEmployee = await addEmployee(user.id, companyId, user.id, formData as any, companyName);
         setEmployees([...employees, newEmployee]);
@@ -396,9 +415,10 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         }
         handleCloseDialog();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving employee:', error);
-      toast.error('Failed to save employee. Please try again.');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      toast.error(`Failed to save employee: ${errorMessage}`);
     }
   };
 
@@ -708,18 +728,13 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       </div>
 
       {filteredEmployees.length === 0 ? (
-        <Card className="p-8 sm:p-12 text-center">
-          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
-          <p className="text-base text-muted-foreground mb-4 font-medium">
-            {search ? 'No employees found matching your search.' : 'No employees added yet.'}
-          </p>
-          {!search && (
-            <Button onClick={() => handleOpenDialog()} className="h-10 touch-manipulation text-xs sm:text-sm">
-              <Plus size={18} className="mr-1.5" weight="bold" />
-              Add Employee
-            </Button>
-          )}
-        </Card>
+        <EmptyState
+          icon={UserCircle}
+          title={search ? 'No employees found' : 'No employees added yet'}
+          description={search ? 'Try adjusting your search terms' : 'Get started by adding your first employee'}
+          actionLabel={!search ? 'Add Employee' : undefined}
+          onAction={!search ? () => handleOpenDialog() : undefined}
+        />
       ) : (
         <div
           className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
@@ -871,289 +886,355 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
       {/* Add/Edit Employee Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
-            <DialogDescription>
-              {editingEmployee
-                ? 'Update employee information and permissions'
-                : 'Enter employee details and assign permissions (Password will be auto-generated)'}
-            </DialogDescription>
+        <DialogContent
+          className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <DialogTitle className="flex items-center gap-3 text-white">
+              <span>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</span>
+              {editingEmployee && (
+                <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
+                  {editingEmployee.employeeCode || editingEmployee.id}
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Employee Name */}
-              <div className="space-y-2">
-                <Label htmlFor="empName">Employee Name *</Label>
-                <Input
-                  id="empName"
-                  maxLength={40}
-                  value={formData.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  placeholder="Enter employee name"
-                />
-              </div>
-
-              {/* Alias Name */}
-              <div className="space-y-2">
-                <Label htmlFor="empAliasName">Alias Name</Label>
-                <Input
-                  id="empAliasName"
-                  maxLength={40}
-                  value={formData.aliasName}
-                  onChange={(e) => handleChange('aliasName', e.target.value)}
-                  placeholder="Enter alias name"
-                />
-              </div>
-
-              {/* Gender */}
-              <div className="space-y-2">
-                <Label htmlFor="empGender">Gender *</Label>
-                <Select
-                  value={formData.gender || undefined}
-                  onValueChange={(value: EmployeeGender) => handleChange('gender', value)}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+            <div className="px-4 pt-3 pb-2 border-b bg-muted/30 flex-shrink-0">
+              <TabsList className="grid grid-cols-2 w-full h-11 p-1 bg-muted rounded-lg">
+                <TabsTrigger
+                  value="basic"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <SelectTrigger id="empGender">
-                    <SelectValue placeholder="Gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Contact Number */}
-              <div className="space-y-2">
-                <Label htmlFor="empContact">Contact Number (Login ID) *</Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
-                    +91
-                  </div>
-                  <Input
-                    id="empContact"
-                    maxLength={10}
-                    value={formData.contactNumber}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      handleChange('contactNumber', value);
-                      if (phoneError) setPhoneError('');
-                    }}
-                    placeholder="Enter a Number"
-                    className={`pl-12 ${phoneError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                  />
-                </div>
-                {phoneError && (
-                  <p className="text-xs text-red-500 font-medium">{phoneError}</p>
-                )}
-                {formData.contactNumber && !phoneError && formData.contactNumber.length === 10 && (
-                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
-                )}
-              </div>
-
-              {/* WhatsApp Number */}
-              <div className="space-y-2">
-                <Label htmlFor="empWhatsapp">WhatsApp Number</Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
-                    +91
-                  </div>
-                  <Input
-                    id="empWhatsapp"
-                    maxLength={10}
-                    value={formData.whatsappNumber}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      handleChange('whatsappNumber', value);
-                      if (whatsappError) setWhatsappError('');
-                    }}
-                    placeholder="Enter a Number"
-                    className={`pl-12 ${whatsappError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                  />
-                </div>
-                {whatsappError && (
-                  <p className="text-xs text-red-500 font-medium">{whatsappError}</p>
-                )}
-                {formData.whatsappNumber && !whatsappError && formData.whatsappNumber.length === 10 && (
-                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
-                )}
-              </div>
-
-              {/* Email */}
-              <div className="space-y-2">
-                <Label htmlFor="empEmail">Email *</Label>
-                <Input
-                  id="empEmail"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  placeholder="employee@example.com"
-                  required
-                />
-              </div>
-
-              {/* Address 1 */}
-              <div className="space-y-2">
-                <Label htmlFor="empAddress1">Address Line 1</Label>
-                <Input
-                  id="empAddress1"
-                  maxLength={40}
-                  value={formData.address1}
-                  onChange={(e) => handleChange('address1', e.target.value)}
-                  placeholder="Enter address"
-                />
-              </div>
-
-              {/* Address 2 */}
-              <div className="space-y-2">
-                <Label htmlFor="empAddress2">Address Line 2</Label>
-                <Input
-                  id="empAddress2"
-                  maxLength={40}
-                  value={formData.address2}
-                  onChange={(e) => handleChange('address2', e.target.value)}
-                  placeholder="Enter address"
-                />
-              </div>
-
-              {/* State */}
-              <div className="space-y-2">
-                <Label htmlFor="empState">State</Label>
-                <Select
-                  value={formData.state}
-                  onValueChange={(value) => {
-                    handleChange('state', value);
-                    handleChange('city', ''); // Clear city when state changes
-                  }}
+                  <User size={20} weight="bold" />
+                  <span>Basic</span>
+                  {formData.name && formData.gender && formData.contactNumber.length === 10 && formData.role && (
+                    <Check size={16} className="text-green-600" weight="bold" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="address"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <SelectTrigger id="empState">
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDIAN_STATES.map((state) => (
-                      <SelectItem key={state} value={state}>{state}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* City */}
-              <div className="space-y-2">
-                <Label htmlFor="empCity">City</Label>
-                <Select
-                  value={formData.city}
-                  onValueChange={(value) => handleChange('city', value)}
-                  disabled={!formData.state}
-                >
-                  <SelectTrigger id="empCity">
-                    <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(STATE_CITIES[formData.state] || []).map((city) => (
-                      <SelectItem key={city} value={city}>{city}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Pincode */}
-              <div className="space-y-2">
-                <Label htmlFor="empPincode">Pincode</Label>
-                <Input
-                  id="empPincode"
-                  maxLength={6}
-                  value={formData.pincode}
-                  onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
-                  placeholder="6 digits"
-                />
-              </div>
-
-              {/* Region */}
-              <div className="space-y-2">
-                <Label htmlFor="empRegion">Region</Label>
-                <Input
-                  id="empRegion"
-                  value={formData.region}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              {/* Country */}
-              <div className="space-y-2">
-                <Label htmlFor="empCountry">Country</Label>
-                <Input
-                  id="empCountry"
-                  value={formData.country}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              {/* Role */}
-              <div className="space-y-2">
-                <Label htmlFor="empRole">Role *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => handleChange('role', value)}
-                >
-                  <SelectTrigger id="empRole">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="tailor">Tailor</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Designation */}
-              <div className="space-y-2">
-                <Label htmlFor="empDesignation">Designation</Label>
-                <Input
-                  id="empDesignation"
-                  value={formData.designation}
-                  onChange={(e) => handleChange('designation', e.target.value)}
-                  placeholder="Enter designation"
-                />
-              </div>
-
-              {/* Joining Date */}
-              <div className="space-y-2">
-                <Label htmlFor="empJoiningDate">Joining Date *</Label>
-                <Input
-                  id="empJoiningDate"
-                  type="date"
-                  value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
-                  onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
-                />
-              </div>
+                  <MapPin size={20} weight="bold" />
+                  <span>Address</span>
+                  {formData.address1 && formData.address2 && formData.state && formData.city && (
+                    <Check size={16} className="text-green-600" weight="bold" />
+                  )}
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={formData.isActive ?? true}
-                onChange={(e) => handleChange('isActive', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300"
-              />
-              <Label htmlFor="isActive" className="cursor-pointer">Active</Label>
-            </div>
-          </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[400px]">
+              {/* Basic Details Tab */}
+              <TabsContent value="basic" className="mt-0 space-y-6 h-full">
+                <div className="space-y-6">
+                  {/* Employee Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="empName" className="text-sm font-medium">Employee Name *</Label>
+                    <Input
+                      id="empName"
+                      maxLength={40}
+                      value={formData.name}
+                      onChange={(e) => handleChange('name', e.target.value)}
+                      placeholder="Enter employee name"
+                      className="h-12 text-base"
+                      autoFocus
+                    />
+                  </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
+                  {/* Gender Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Gender *</Label>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => handleChange('gender', 'male')}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          formData.gender === 'male'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                            : 'border-muted hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/10'
+                        )}
+                      >
+                        {formData.gender === 'male' && (
+                          <Check size={16} weight="bold" className="text-blue-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={formData.gender === 'male' ? 'fill' : 'regular'}
+                          className={formData.gender === 'male' ? 'text-blue-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          formData.gender === 'male' ? 'text-blue-600' : 'text-muted-foreground'
+                        )}>
+                          Male
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleChange('gender', 'female')}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          formData.gender === 'female'
+                            ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/30'
+                            : 'border-muted hover:border-pink-300 hover:bg-pink-50/50 dark:hover:bg-pink-950/10'
+                        )}
+                      >
+                        {formData.gender === 'female' && (
+                          <Check size={16} weight="bold" className="text-pink-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={formData.gender === 'female' ? 'fill' : 'regular'}
+                          className={formData.gender === 'female' ? 'text-pink-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          formData.gender === 'female' ? 'text-pink-600' : 'text-muted-foreground'
+                        )}>
+                          Female
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Contact Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="empContact" className="text-sm font-medium">Contact Number (Login ID) *</Label>
+                        <div className="relative">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                            +91
+                          </div>
+                          <Input
+                            id="empContact"
+                            maxLength={10}
+                            value={formData.contactNumber}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '');
+                              handleChange('contactNumber', value);
+                              if (phoneError) setPhoneError('');
+                            }}
+                            placeholder="10-digit number"
+                            className={cn('pl-12 h-11 bg-background', phoneError && 'border-red-500')}
+                          />
+                        </div>
+                        {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                        {formData.contactNumber.length === 10 && !phoneError && (
+                          <p className="text-xs text-green-600 mt-1">Valid number</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="empEmail" className="text-sm font-medium">Email *</Label>
+                        <Input
+                          id="empEmail"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => handleChange('email', e.target.value)}
+                          placeholder="employee@example.com"
+                          className="h-11 bg-background"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Work Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Work Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {/* Role */}
+                      <div className="space-y-2">
+                        <Label htmlFor="empRole" className="text-sm font-medium">Role *</Label>
+                        <Select
+                          value={formData.role}
+                          onValueChange={(value) => handleChange('role', value)}
+                        >
+                          <SelectTrigger id="empRole" className="h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="accountant">Accountant</SelectItem>
+                            <SelectItem value="staff">Staff</SelectItem>
+                            <SelectItem value="tailor">Tailor</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Designation */}
+                      <div className="space-y-2">
+                        <Label htmlFor="empDesignation" className="text-sm font-medium">Designation</Label>
+                        <Input
+                          id="empDesignation"
+                          value={formData.designation}
+                          onChange={(e) => handleChange('designation', e.target.value)}
+                          placeholder="Enter designation"
+                          className="h-11"
+                        />
+                      </div>
+
+                      {/* Joining Date */}
+                      <div className="space-y-2">
+                        <Label htmlFor="empJoiningDate" className="text-sm font-medium">Joining Date *</Label>
+                        <Input
+                          id="empJoiningDate"
+                          type="date"
+                          value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
+                          onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
+                          className="h-11"
+                        />
+                      </div>
+
+                      {/* Active Status */}
+                      <div className="space-y-2 flex items-end">
+                        <div className="flex items-center gap-3 h-11">
+                          <input
+                            type="checkbox"
+                            id="isActive"
+                            checked={formData.isActive ?? true}
+                            onChange={(e) => handleChange('isActive', e.target.checked)}
+                            className="w-5 h-5 rounded border-gray-300"
+                          />
+                          <Label htmlFor="isActive" className="cursor-pointer font-medium">Active Employee</Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Address Tab */}
+              <TabsContent value="address" className="mt-0 h-full">
+                <div className="space-y-5">
+                  {/* Shop/Flat Number */}
+                  <div className="space-y-2">
+                    <Label htmlFor="empAddress1" className="text-sm font-medium">
+                      Shop No / Flat No *
+                    </Label>
+                    <Input
+                      id="empAddress1"
+                      maxLength={40}
+                      value={formData.address1}
+                      onChange={(e) => handleChange('address1', e.target.value)}
+                      placeholder="e.g., Shop 12, Flat 4B, Door No. 25"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* Street / Area / Landmark */}
+                  <div className="space-y-2">
+                    <Label htmlFor="empAddress2" className="text-sm font-medium">
+                      Street / Area / Landmark *
+                    </Label>
+                    <Input
+                      id="empAddress2"
+                      maxLength={40}
+                      value={formData.address2}
+                      onChange={(e) => handleChange('address2', e.target.value)}
+                      placeholder="e.g., Main Road, Near Bus Stand"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* State and City in same row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="empState" className="text-sm font-medium">State *</Label>
+                      <Select
+                        value={formData.state}
+                        onValueChange={(value) => {
+                          handleChange('state', value);
+                          handleChange('city', '');
+                        }}
+                      >
+                        <SelectTrigger id="empState" className="h-11">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="empCity" className="text-sm font-medium">City *</Label>
+                      <Select
+                        value={formData.city}
+                        onValueChange={(value) => handleChange('city', value)}
+                        disabled={!formData.state}
+                      >
+                        <SelectTrigger id="empCity" className="h-11">
+                          <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(STATE_CITIES[formData.state] || []).map((city) => (
+                            <SelectItem key={city} value={city}>{city}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Pincode */}
+                  <div className="space-y-2 max-w-[200px]">
+                    <Label htmlFor="empPincode" className="text-sm font-medium">Pincode</Label>
+                    <Input
+                      id="empPincode"
+                      maxLength={6}
+                      value={formData.pincode}
+                      onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g., 600001"
+                      className="h-11"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+
+          {/* Footer with action buttons */}
+          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" onClick={handleCloseDialog} className="text-white hover:text-white/80 hover:bg-white/10">
               Cancel
             </Button>
-            <Button onClick={handleSave}>
-              {editingEmployee ? 'Update' : 'Add'} Employee
-            </Button>
-          </DialogFooter>
+            <div className="flex items-center gap-2">
+              {activeTab === 'address' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab('basic')}
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Back
+                </Button>
+              )}
+              {activeTab === 'basic' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab('address')}
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Next
+                </Button>
+              )}
+              <Button onClick={handleSave} className="min-w-[120px] bg-white text-purple-700 hover:bg-white/90">
+                {editingEmployee ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

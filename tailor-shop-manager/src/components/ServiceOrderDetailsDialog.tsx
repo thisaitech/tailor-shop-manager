@@ -135,7 +135,9 @@ export function ServiceOrderDetailsDialog({ serviceOrder, open, onClose }: Servi
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Order Category</p>
-                <p className="font-medium text-gray-900 capitalize">{serviceOrder.orderCategory}</p>
+                <p className="font-medium text-gray-900">
+                  {serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Order Quantity</p>

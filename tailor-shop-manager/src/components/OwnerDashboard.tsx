@@ -5,7 +5,7 @@ import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransacti
 import { useStorage } from '@/hooks/use-storage';
 import { Tabs, TabsContent, TabsListAnimated, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { DashboardStats } from '@/components/DashboardStats';
+import { DashboardStats, DashboardFilter } from '@/components/DashboardStats';
 import { CustomerList } from '@/components/CustomerList';
 import { OrderList } from '@/components/OrderList';
 
@@ -74,7 +74,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
   const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
   const [tailors] = useStorage<Tailor[]>('tailors', []);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'overdue' | 'jobworkCompleted'>('all');
+  const [orderFilter, setOrderFilter] = useState<DashboardFilter>('all');
   const [showServiceOrderForm, setShowServiceOrderForm] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
@@ -86,6 +86,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
+  const [initialServiceOrderId, setInitialServiceOrderId] = useState<string | undefined>(); // For Job Allotment from Open Orders
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';
@@ -308,7 +309,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 
-  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'overdue' | 'jobworkCompleted') => {
+  const handleStatClick = (filter: DashboardFilter) => {
     setOrderFilter(filter);
     // Keep on dashboard tab to show the dedicated list pages
     setActiveTab('dashboard');
@@ -494,23 +495,35 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
               orders={orderAllotments || []}
               onBack={handleBackToDashboard}
             />
-          ) : orderFilter === 'rejected' ? (
-            <RejectedOrdersList
-              orders={orderAllotments || []}
+          ) : orderFilter === 'open' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
-              onReassign={handleReassignOrder}
+              filterType="open"
+              onJobAllotment={(serviceOrderId) => {
+                setInitialServiceOrderId(serviceOrderId);
+                setShowOrderAllotmentForm(true);
+              }}
             />
-          ) : orderFilter === 'stitched' ? (
+          ) : orderFilter === 'awaiting' ? (
             <StitchedOrdersList
               orders={orderAllotments || []}
               onBack={handleBackToDashboard}
               onReassign={handleReassignOrder}
             />
-          ) : orderFilter === 'active' ? (
+          ) : orderFilter === 'inProgress' ? (
             <ActiveOrdersList
               serviceOrders={serviceOrders || []}
               orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
+              filterType="inProgress"
+            />
+          ) : orderFilter === 'rejected' ? (
+            <RejectedOrdersList
+              orders={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              onReassign={handleReassignOrder}
             />
           ) : orderFilter === 'ready' ? (
             <ReadyToDeliverList
@@ -518,7 +531,14 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
               orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
             />
-          ) : orderFilter === 'completed' ? (
+          ) : orderFilter === 'receivedNote' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="receivedNote"
+            />
+          ) : orderFilter === 'delivered' ? (
             <DeliveredOrdersList
               serviceOrders={serviceOrders || []}
               orderAllotments={orderAllotments || []}
@@ -709,6 +729,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
           setShowOrderAllotmentForm(open);
           if (!open) {
             setReassignOrder(null); // Clear reassign order when dialog closes
+            setInitialServiceOrderId(undefined); // Clear initial service order when dialog closes
           }
         }}
         onSave={handleAddOrderAllotment}
@@ -716,6 +737,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
         employees={employees || []}
         vendors={vendors || []}
         reassignOrder={reassignOrder}
+        initialServiceOrderId={initialServiceOrderId}
       />
     </main>
   );

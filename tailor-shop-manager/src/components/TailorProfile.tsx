@@ -1,16 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { User, ArrowLeft, FloppyDisk } from '@phosphor-icons/react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Pencil, ArrowLeft, User, Phone, MapPin, Briefcase } from '@phosphor-icons/react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Vendor } from '@/lib/types';
 import { getVendor, updateVendor } from '@/lib/firestore/vendorService';
@@ -23,14 +17,8 @@ interface TailorProfileProps {
 export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const [formData, setFormData] = useState({
-    tailorName: '',
-    aliasName: '',
-    gender: 'male' as 'male' | 'female' | 'other',
-    businessType: 'individual' as 'individual' | 'company',
-    email: '',
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editFormData, setEditFormData] = useState({
     address1: '',
     address2: '',
     city: '',
@@ -38,7 +26,6 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
     region: '',
     state: '',
     country: '',
-    contactNumber: '',
     whatsappNumber: '',
   });
 
@@ -53,21 +40,15 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
 
       if (vendorData) {
         setVendor(vendorData);
-        setFormData({
-          tailorName: vendorData.tailorName,
-          aliasName: vendorData.aliasName || '',
-          gender: vendorData.gender,
-          businessType: vendorData.businessType,
-          email: vendorData.email,
-          address1: vendorData.address1,
+        setEditFormData({
+          address1: vendorData.address1 || '',
           address2: vendorData.address2 || '',
-          city: vendorData.city,
-          pincode: vendorData.pincode,
-          region: vendorData.region,
-          state: vendorData.state,
-          country: vendorData.country,
-          contactNumber: vendorData.contactNumber,
-          whatsappNumber: vendorData.whatsappNumber,
+          city: vendorData.city || '',
+          pincode: vendorData.pincode || '',
+          region: vendorData.region || '',
+          state: vendorData.state || '',
+          country: vendorData.country || '',
+          whatsappNumber: vendorData.whatsappNumber || '',
         });
       } else {
         toast.error('Vendor profile not found');
@@ -81,94 +62,44 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleEditProfile = () => {
+    setShowEditDialog(true);
   };
 
-  const handleSave = async () => {
+  const handleSaveChanges = async () => {
+    // Validate pincode (6 digits)
+    if (editFormData.pincode && !/^\d{6}$/.test(editFormData.pincode)) {
+      toast.error('Pincode must be exactly 6 digits');
+      return;
+    }
+
+    // Validate whatsapp number (up to 15 digits)
+    if (editFormData.whatsappNumber && !/^\d{1,15}$/.test(editFormData.whatsappNumber)) {
+      toast.error('WhatsApp number must be up to 15 digits');
+      return;
+    }
+
     try {
-      // Validation
-      if (!formData.tailorName.trim()) {
-        toast.error('Tailor name is required');
-        return;
-      }
-
-      if (!formData.email.trim() || !formData.email.includes('@')) {
-        toast.error('Valid email is required');
-        return;
-      }
-
-      if (!formData.contactNumber.trim() || formData.contactNumber.length < 10) {
-        toast.error('Valid contact number is required (min 10 digits)');
-        return;
-      }
-
-      if (!formData.whatsappNumber.trim() || formData.whatsappNumber.length < 10) {
-        toast.error('Valid WhatsApp number is required (min 10 digits)');
-        return;
-      }
-
-      if (!formData.pincode.trim() || formData.pincode.length !== 6) {
-        toast.error('Valid 6-digit pincode is required');
-        return;
-      }
-
-      if (formData.tailorName.length > 40) {
-        toast.error('Tailor name must be maximum 40 characters');
-        return;
-      }
-
-      if (formData.aliasName && formData.aliasName.length > 40) {
-        toast.error('Alias name must be maximum 40 characters');
-        return;
-      }
-
-      if (formData.address1.length > 40) {
-        toast.error('Address line 1 must be maximum 40 characters');
-        return;
-      }
-
-      if (formData.address2 && formData.address2.length > 40) {
-        toast.error('Address line 2 must be maximum 40 characters');
-        return;
-      }
-
-      setSaving(true);
-
-      // Update vendor profile
-      await updateVendor(vendorId, {
-        tailorName: formData.tailorName,
-        aliasName: formData.aliasName || undefined,
-        gender: formData.gender,
-        businessType: formData.businessType,
-        email: formData.email,
-        address1: formData.address1,
-        address2: formData.address2 || undefined,
-        city: formData.city,
-        pincode: formData.pincode,
-        region: formData.region,
-        state: formData.state,
-        country: formData.country,
-        contactNumber: formData.contactNumber,
-        whatsappNumber: formData.whatsappNumber,
-      });
-
-      toast.success('Profile updated successfully');
+      await updateVendor(vendorId, editFormData);
 
       // Reload vendor data
       await loadVendorData();
+
+      setShowEditDialog(false);
+      toast.success('Profile updated successfully!');
     } catch (error) {
       console.error('Error updating profile:', error);
       toast.error('Failed to update profile');
-    } finally {
-      setSaving(false);
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Loading profile...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading profile...</p>
+        </div>
       </div>
     );
   }
@@ -176,249 +107,384 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
   if (!vendor) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Profile not found</p>
+        <div className="text-center">
+          <p className="text-muted-foreground">Profile data not found</p>
+        </div>
       </div>
     );
   }
 
   return (
     <main className="container mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={onBack}>
+      <div className="mb-6">
+        <Button variant="outline" size="icon" onClick={onBack}>
           <ArrowLeft size={20} />
         </Button>
-        <div>
-          <h1 className="text-2xl font-bold">My Profile</h1>
-          <p className="text-sm text-muted-foreground">
-            Tailor Code: {vendor.tailorCode}
-          </p>
-        </div>
       </div>
 
-      {/* Profile Form */}
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex items-center gap-2">
-            <User size={24} className="text-primary" weight="duotone" />
-            <CardTitle>Profile Information</CardTitle>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">My Profile</h2>
+        <p className="text-muted-foreground">Welcome, {vendor.tailorName}</p>
+      </div>
+
+      <Tabs defaultValue="profile" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="address">Address</TabsTrigger>
+        </TabsList>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-4">
+          {/* Personal Information Card */}
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header with icon and edit button */}
+            <div className="flex items-center justify-between p-4 border-b border-purple-200/50">
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-2.5 rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+                >
+                  <User size={24} className="text-white" weight="duotone" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Personal Information</h3>
+                </div>
+              </div>
+              <Button
+                onClick={handleEditProfile}
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+              >
+                <Pencil size={16} />
+                Edit
+              </Button>
+            </div>
+
+            {/* Profile Avatar and Name */}
+            <div className="p-4 border-b border-purple-200/50">
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+                >
+                  {vendor.tailorName?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{vendor.tailorName}</h3>
+                  <p className="text-sm text-gray-600">Job Work Tailor</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Tailor Name</p>
+                <p className="font-semibold text-gray-900">{vendor.tailorName}</p>
+              </div>
+              {vendor.aliasName && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Alias Name</p>
+                  <p className="font-semibold text-gray-900">{vendor.aliasName}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Gender</p>
+                <p className="font-semibold text-gray-900 capitalize">{vendor.gender || '-'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Tailor Code</p>
+                <p className="font-semibold text-purple-600">{vendor.tailorCode}</p>
+              </div>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="space-y-6">
-            {/* Basic Information */}
+
+          {/* Contact Information Card */}
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-purple-200/50">
+              <div
+                className="p-2.5 rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+              >
+                <Phone size={24} className="text-white" weight="duotone" />
+              </div>
+              <h3 className="font-semibold text-gray-900">Contact Information</h3>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Phone</p>
+                <p className="font-semibold text-gray-900">+91 {vendor.contactNumber}</p>
+              </div>
+              {vendor.whatsappNumber && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">WhatsApp</p>
+                  <p className="font-semibold text-gray-900">+91 {vendor.whatsappNumber}</p>
+                </div>
+              )}
+              {vendor.email && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Email</p>
+                  <p className="font-semibold text-gray-900">{vendor.email}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Work Information Card */}
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-purple-200/50">
+              <div
+                className="p-2.5 rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+              >
+                <Briefcase size={24} className="text-white" weight="duotone" />
+              </div>
+              <h3 className="font-semibold text-gray-900">Work Information</h3>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Business Type</p>
+                  <p className="font-semibold text-gray-900 capitalize">{vendor.businessType}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Status</p>
+                  <p className="font-semibold text-gray-900 capitalize">{vendor.status || 'Active'}</p>
+                </div>
+              </div>
+              {vendor.createdAt && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Registered Date</p>
+                  <p className="font-semibold text-gray-900">
+                    {new Date(vendor.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Address Tab */}
+        <TabsContent value="address" className="space-y-4">
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-purple-200/50">
+              <div
+                className="p-2.5 rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' }}
+              >
+                <MapPin size={24} className="text-white" weight="duotone" />
+              </div>
+              <h3 className="font-semibold text-gray-900">Address Information</h3>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              {vendor.address1 && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Address Line 1</p>
+                  <p className="font-semibold text-gray-900">{vendor.address1}</p>
+                </div>
+              )}
+              {vendor.address2 && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Address Line 2</p>
+                  <p className="font-semibold text-gray-900">{vendor.address2}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                {vendor.city && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">City</p>
+                    <p className="font-semibold text-gray-900">{vendor.city}</p>
+                  </div>
+                )}
+                {vendor.state && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">State</p>
+                    <p className="font-semibold text-gray-900">{vendor.state}</p>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {vendor.pincode && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Pincode</p>
+                    <p className="font-semibold text-gray-900">{vendor.pincode}</p>
+                  </div>
+                )}
+                {vendor.region && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Region</p>
+                    <p className="font-semibold text-gray-900">{vendor.region}</p>
+                  </div>
+                )}
+              </div>
+              {vendor.country && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Country</p>
+                  <p className="font-semibold text-gray-900">{vendor.country}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+            <DialogDescription>
+              Update your contact information and address details. Sensitive fields cannot be edited.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="tailorName">
-                  Tailor Name <span className="text-red-500">*</span>
-                </Label>
+              {/* WhatsApp Number */}
+              <div className="space-y-2">
+                <Label htmlFor="editWhatsapp">WhatsApp Number</Label>
                 <Input
-                  id="tailorName"
-                  value={formData.tailorName}
-                  onChange={(e) => handleInputChange('tailorName', e.target.value)}
-                  placeholder="Enter tailor name"
-                  maxLength={40}
+                  id="editWhatsapp"
+                  maxLength={15}
+                  value={editFormData.whatsappNumber}
+                  onChange={(e) => setEditFormData({ ...editFormData, whatsappNumber: e.target.value.replace(/\D/g, '') })}
+                  placeholder="Up to 15 digits"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="aliasName">Alias Name</Label>
+              {/* Address 1 */}
+              <div className="space-y-2">
+                <Label htmlFor="editAddress1">Address Line 1</Label>
                 <Input
-                  id="aliasName"
-                  value={formData.aliasName}
-                  onChange={(e) => handleInputChange('aliasName', e.target.value)}
-                  placeholder="Enter alias name"
+                  id="editAddress1"
                   maxLength={40}
+                  value={editFormData.address1}
+                  onChange={(e) => setEditFormData({ ...editFormData, address1: e.target.value })}
+                  placeholder="Enter address"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="gender">
-                  Gender <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.gender}
-                  onValueChange={(value) => handleInputChange('gender', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Address 2 */}
+              <div className="space-y-2">
+                <Label htmlFor="editAddress2">Address Line 2</Label>
+                <Input
+                  id="editAddress2"
+                  maxLength={40}
+                  value={editFormData.address2}
+                  onChange={(e) => setEditFormData({ ...editFormData, address2: e.target.value })}
+                  placeholder="Enter address"
+                />
               </div>
 
-              <div>
-                <Label htmlFor="businessType">
-                  Business Type <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.businessType}
-                  onValueChange={(value) => handleInputChange('businessType', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="individual">Individual</SelectItem>
-                    <SelectItem value="company">Company</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* City */}
+              <div className="space-y-2">
+                <Label htmlFor="editCity">City</Label>
+                <Input
+                  id="editCity"
+                  value={editFormData.city}
+                  onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                  placeholder="Enter city"
+                />
               </div>
-            </div>
 
-            {/* Contact Information */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Contact Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email">
-                    Email <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    placeholder="Enter email"
-                  />
-                </div>
+              {/* Pincode */}
+              <div className="space-y-2">
+                <Label htmlFor="editPincode">Pincode</Label>
+                <Input
+                  id="editPincode"
+                  maxLength={6}
+                  value={editFormData.pincode}
+                  onChange={(e) => setEditFormData({ ...editFormData, pincode: e.target.value.replace(/\D/g, '') })}
+                  placeholder="6 digits"
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="contactNumber">
-                    Contact Number <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="contactNumber"
-                    value={formData.contactNumber}
-                    onChange={(e) => handleInputChange('contactNumber', e.target.value)}
-                    placeholder="Enter contact number"
-                    maxLength={15}
-                  />
-                </div>
+              {/* Region */}
+              <div className="space-y-2">
+                <Label htmlFor="editRegion">Region</Label>
+                <Input
+                  id="editRegion"
+                  value={editFormData.region}
+                  onChange={(e) => setEditFormData({ ...editFormData, region: e.target.value })}
+                  placeholder="Enter region"
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="whatsappNumber">
-                    WhatsApp Number <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="whatsappNumber"
-                    value={formData.whatsappNumber}
-                    onChange={(e) => handleInputChange('whatsappNumber', e.target.value)}
-                    placeholder="Enter WhatsApp number"
-                    maxLength={15}
-                  />
-                </div>
+              {/* State */}
+              <div className="space-y-2">
+                <Label htmlFor="editState">State</Label>
+                <Input
+                  id="editState"
+                  value={editFormData.state}
+                  onChange={(e) => setEditFormData({ ...editFormData, state: e.target.value })}
+                  placeholder="Enter state"
+                />
+              </div>
+
+              {/* Country */}
+              <div className="space-y-2">
+                <Label htmlFor="editCountry">Country</Label>
+                <Input
+                  id="editCountry"
+                  value={editFormData.country}
+                  onChange={(e) => setEditFormData({ ...editFormData, country: e.target.value })}
+                  placeholder="Enter country"
+                />
               </div>
             </div>
 
-            {/* Address Information */}
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Address Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <Label htmlFor="address1">
-                    Address Line 1 <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="address1"
-                    value={formData.address1}
-                    onChange={(e) => handleInputChange('address1', e.target.value)}
-                    placeholder="Enter address line 1"
-                    maxLength={40}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <Label htmlFor="address2">Address Line 2</Label>
-                  <Input
-                    id="address2"
-                    value={formData.address2}
-                    onChange={(e) => handleInputChange('address2', e.target.value)}
-                    placeholder="Enter address line 2"
-                    maxLength={40}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="city">
-                    City <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => handleInputChange('city', e.target.value)}
-                    placeholder="Enter city"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="pincode">
-                    Pincode <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="pincode"
-                    value={formData.pincode}
-                    onChange={(e) => handleInputChange('pincode', e.target.value)}
-                    placeholder="Enter 6-digit pincode"
-                    maxLength={6}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="region">
-                    Region <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="region"
-                    value={formData.region}
-                    onChange={(e) => handleInputChange('region', e.target.value)}
-                    placeholder="Enter region"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="state">
-                    State <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="state"
-                    value={formData.state}
-                    onChange={(e) => handleInputChange('state', e.target.value)}
-                    placeholder="Enter state"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="country">
-                    Country <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="country"
-                    value={formData.country}
-                    onChange={(e) => handleInputChange('country', e.target.value)}
-                    placeholder="Enter country"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button variant="outline" onClick={onBack}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                <FloppyDisk size={16} className="mr-2" weight="duotone" />
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-900">
+                <strong>Note:</strong> Tailor Code, Name, Gender, Business Type, and Contact Number cannot be edited.
+                Please contact your administrator to change these details.
+              </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveChanges}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

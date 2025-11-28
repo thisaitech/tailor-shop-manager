@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash, Phone, WhatsappLogo, Funnel } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { CustomerForm } from './CustomerForm';
 import { sendWhatsAppMessage } from '@/lib/utils';
 import { startOfDay, endOfDay, subDays, subMonths, isWithinInterval, format } from 'date-fns';
@@ -385,18 +386,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
       </div>
 
       {filteredCustomers.length === 0 ? (
-        <Card className="p-8 sm:p-12 text-center">
-          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
-          <p className="text-base text-muted-foreground mb-4 font-medium">
-            {search ? t('noCustomers') : t('noCustomers')}
-          </p>
-          {!search && (
-            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation text-xs sm:text-sm">
-              <Plus size={18} className="mr-1.5" weight="bold" />
-              {t('addCustomer')}
-            </Button>
-          )}
-        </Card>
+        <EmptyState
+          icon={UserCircle}
+          title={search ? 'No customers found' : t('noCustomers')}
+          description={search ? 'Try adjusting your search terms' : 'Get started by adding your first customer'}
+          actionLabel={!search ? t('addCustomer') : undefined}
+          onAction={!search ? () => setShowForm(true) : undefined}
+        />
       ) : (
         // Show Recent Customers when count > 0
         <div

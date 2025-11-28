@@ -123,7 +123,9 @@ export function JobWorkOrderDetailsDialog({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Order Category</p>
-                  <p className="font-medium capitalize">{order.orderCategory}</p>
+                  <p className="font-medium">
+                    {order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'}
+                  </p>
                 </div>
               </div>
             </div>

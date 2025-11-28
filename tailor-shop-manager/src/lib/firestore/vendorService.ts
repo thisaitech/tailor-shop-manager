@@ -60,6 +60,82 @@ export function decryptPassword(encryptedPassword: string): string {
 }
 
 /**
+ * Check if vendor with contact number already exists
+ * @param contactNumber - Contact number to check
+ * @param companyDocId - Company document ID
+ * @param excludeVendorId - Optional vendor ID to exclude (for updates)
+ * @returns Vendor if exists, null otherwise
+ */
+export async function findVendorByContactNumber(
+  contactNumber: string,
+  companyDocId: string,
+  excludeVendorId?: string
+): Promise<Vendor | null> {
+  try {
+    const vendorsRef = collection(db, VENDORS_COLLECTION);
+    const q = query(
+      vendorsRef,
+      where('contactNumber', '==', contactNumber),
+      where('companyDocId', '==', companyDocId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // If excluding a vendor ID, check if the found vendor is different
+    const vendor = snapshot.docs[0].data() as Vendor;
+    if (excludeVendorId && vendor.id === excludeVendorId) {
+      return null;
+    }
+
+    return vendor;
+  } catch (error) {
+    console.error('Error finding vendor by contact number:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if vendor with email already exists
+ * @param email - Email to check
+ * @param companyDocId - Company document ID
+ * @param excludeVendorId - Optional vendor ID to exclude (for updates)
+ * @returns Vendor if exists, null otherwise
+ */
+export async function findVendorByEmail(
+  email: string,
+  companyDocId: string,
+  excludeVendorId?: string
+): Promise<Vendor | null> {
+  try {
+    const vendorsRef = collection(db, VENDORS_COLLECTION);
+    const q = query(
+      vendorsRef,
+      where('email', '==', email),
+      where('companyDocId', '==', companyDocId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // If excluding a vendor ID, check if the found vendor is different
+    const vendor = snapshot.docs[0].data() as Vendor;
+    if (excludeVendorId && vendor.id === excludeVendorId) {
+      return null;
+    }
+
+    return vendor;
+  } catch (error) {
+    console.error('Error finding vendor by email:', error);
+    return null;
+  }
+}
+
+/**
  * Generate auto-incrementing tailor code
  * Format: TAL0001, TAL0002, etc.
  */
@@ -104,18 +180,18 @@ export async function addVendor(
       id: tailorCode,
       tailorCode,
       tailorName: vendorData.tailorName,
-      aliasName: vendorData.aliasName,
+      aliasName: vendorData.aliasName || '',
       gender: vendorData.gender,
       businessType: vendorData.businessType,
-      address1: vendorData.address1,
-      address2: vendorData.address2,
-      city: vendorData.city,
-      pincode: vendorData.pincode,
-      region: vendorData.region,
-      state: vendorData.state,
-      country: vendorData.country,
+      address1: vendorData.address1 || '',
+      address2: vendorData.address2 || '',
+      city: vendorData.city || '',
+      pincode: vendorData.pincode || '',
+      region: vendorData.region || '',
+      state: vendorData.state || '',
+      country: vendorData.country || 'India',
       contactNumber: vendorData.contactNumber,
-      whatsappNumber: vendorData.whatsappNumber,
+      whatsappNumber: vendorData.whatsappNumber || '',
       email: vendorData.email,
       password: encryptedPassword,
       passwordHistory: [{ password: encryptedPassword, changedAt: now }],

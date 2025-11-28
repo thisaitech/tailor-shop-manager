@@ -183,7 +183,9 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Order Category</p>
-                  <p className="font-medium capitalize">{serviceOrder.orderCategory}</p>
+                  <p className="font-medium">
+                    {serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Order Quantity</p>

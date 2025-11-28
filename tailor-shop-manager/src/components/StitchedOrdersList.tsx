@@ -15,13 +15,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Checks, ArrowLeft, ArrowCounterClockwise, Package, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { HourglassMedium, ArrowLeft, ArrowCounterClockwise, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { OrderAllotment } from '@/lib/types';
-import { toast } from 'sonner';
-import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { updateServiceOrderStatus } from '@/lib/firestore/serviceOrderService';
 
 type DateFilter = 'all' | 'exact' | 'range';
 const ITEMS_PER_PAGE = 6;
@@ -33,13 +30,11 @@ interface StitchedOrdersListProps {
 }
 
 export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrdersListProps) {
-  const [markingReady, setMarkingReady] = useState<string | null>(null);
-
-  // Filter stitched orders: status='stitched' AND not reassigned AND not ready to dispatch
-  const stitchedOrders = orders.filter(o =>
-    o.status === 'stitched' &&
-    !o.reassigned &&
-    o.serviceOrderStatus !== 'ready'
+  // Filter awaiting acceptance orders: status='allotted' AND not reassigned
+  // These are orders assigned but not yet accepted by tailor/vendor
+  const awaitingOrders = orders.filter(o =>
+    o.status === 'allotted' &&
+    !o.reassigned
   );
 
   // Search, filter, and pagination states
@@ -67,23 +62,22 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
   };
 
   // Filter orders
-  const filteredOrders = stitchedOrders.filter((order) => {
+  const filteredOrders = awaitingOrders.filter((order) => {
     const matchesSearch =
       (order.jobWorkNo?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
-      (order.stitchedId?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
       order.serviceOrderNo.toLowerCase().includes(search.toLowerCase()) ||
       order.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      (order.assignedName?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (order.allottedToName?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
       (order.dressItemName?.toLowerCase().includes(search.toLowerCase()) ?? false);
 
     const dateRange = getDateRange(dateFilter);
-    const matchesDate = !dateRange || (order.stitchedDate && isWithinInterval(new Date(order.stitchedDate), dateRange));
+    const matchesDate = !dateRange || (order.allottedDate && isWithinInterval(new Date(order.allottedDate), dateRange));
 
     return matchesSearch && matchesDate;
   });
 
-  // Sort by stitched date (newest first)
-  const sortedOrders = filteredOrders.sort((a, b) => (b.stitchedDate || 0) - (a.stitchedDate || 0));
+  // Sort by allotted date (newest first)
+  const sortedOrders = filteredOrders.sort((a, b) => (b.allottedDate || 0) - (a.allottedDate || 0));
 
   // Pagination logic
   const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
@@ -100,33 +94,6 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
-
-  const handleMarkAsReadyToDispatch = async (order: OrderAllotment) => {
-    try {
-      setMarkingReady(order.id);
-
-      // Update order allotment: set status to 'delivered' and serviceOrderStatus to 'ready'
-      await updateDoc(doc(db, 'orderAllotment', order.id), {
-        status: 'delivered', // Set status to delivered to remove from Stitched Orders
-        orderStatus: 'closed',
-        serviceOrderStatus: 'ready',
-        deliveredDate: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      // Update the service order status to 'ready'
-      await updateServiceOrderStatus(order.serviceOrderNo, 'ready');
-
-      console.log(`[StitchedOrdersList] Order ${order.id} marked as delivered (ready to dispatch). Service order ${order.serviceOrderNo} updated to ready status.`);
-
-      toast.success('Order marked as Ready to Dispatch!');
-    } catch (error) {
-      console.error('Error marking order as ready to dispatch:', error);
-      toast.error('Failed to mark order as ready to dispatch');
-    } finally {
-      setMarkingReady(null);
-    }
-  };
 
   const getInitials = (name: string) => {
     return name
@@ -301,8 +268,8 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-lg sm:text-xl font-bold">Await Acceptance</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">{stitchedOrders.length} orders awaiting acceptance</p>
+          <h1 className="text-lg sm:text-xl font-bold">Awaiting Acceptance</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">{awaitingOrders.length} orders awaiting acceptance</p>
         </div>
       </div>
 
@@ -345,24 +312,23 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
         </div>
       </div>
 
-      {/* Await Acceptance Grid */}
+      {/* Awaiting Acceptance Grid */}
       {filteredOrders.length === 0 ? (
-        <Card className="p-8 sm:p-12 text-center">
-          <Checks size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
-          <p className="text-base text-muted-foreground mb-4 font-medium">
-            {search ? 'No orders found matching your search.' : 'No orders awaiting acceptance.'}
-          </p>
-        </Card>
+        <EmptyState
+          icon={HourglassMedium}
+          title={search ? 'No orders found' : 'No orders awaiting acceptance'}
+          description={search ? 'Try adjusting your search terms' : 'Orders awaiting acceptance will appear here'}
+        />
       ) : (
         <div
           className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
           style={{
-            background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%)',
-            borderColor: 'rgba(16, 185, 129, 0.5)'
+            background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fde68a 100%)',
+            borderColor: 'rgba(245, 158, 11, 0.5)'
           }}
         >
           <h3 className="text-base font-semibold text-gray-800">
-            {search ? `Search Results (${sortedOrders.length})` : `Await Acceptance (${sortedOrders.length})`}
+            {search ? `Search Results (${sortedOrders.length})` : `Awaiting Acceptance (${sortedOrders.length})`}
           </h3>
           {/* Rectangle cards: 1 col mobile, 2 cols tablet, 3 cols desktop */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -371,16 +337,16 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                 key={order.id}
                 className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
                 style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
-                  borderColor: '#10b981',
-                  boxShadow: '0 4px 12px -2px rgba(16, 185, 129, 0.2), 0 2px 6px -2px rgba(16, 185, 129, 0.15)',
+                  background: 'linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)',
+                  borderColor: '#f59e0b',
+                  boxShadow: '0 4px 12px -2px rgba(245, 158, 11, 0.2), 0 2px 6px -2px rgba(245, 158, 11, 0.15)',
                 }}
               >
                 {/* Left side: Avatar/Icon */}
                 <div className="flex-shrink-0 flex items-center">
                   <div
                     className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                    style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}
+                    style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
                   >
                     {getInitials(order.customerName)}
                   </div>
@@ -393,14 +359,14 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                       {order.customerName}
                     </p>
                   </div>
-                  <p className="text-[10px] sm:text-xs font-bold text-emerald-600 mb-1">
-                    {order.stitchedId || order.jobWorkNo || order.id.slice(0, 12)}
+                  <p className="text-[10px] sm:text-xs font-bold text-amber-600 mb-1">
+                    {order.jobWorkNo || order.id.slice(0, 12)}
                   </p>
                   <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
                     <span className="font-medium">{order.serviceOrderNo}</span>
                     <span>•</span>
-                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-emerald-100 text-emerald-700 border-emerald-200">
-                      Completed
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-amber-100 text-amber-700 border-amber-200">
+                      {order.stitchingAllotment === 'vendor' ? 'Vendor' : 'Employee'}
                     </Badge>
                   </div>
                   {order.dressItemName && (
@@ -409,8 +375,8 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                     </p>
                   )}
                   <p className="text-[9px] sm:text-[10px] text-gray-500">
-                    By: {order.assignedName}
-                    {order.stitchedDate && typeof order.stitchedDate === 'number' && ` • ${format(new Date(order.stitchedDate), 'dd MMM yyyy')}`}
+                    Assigned to: {order.allottedToName}
+                    {order.allottedDate && typeof order.allottedDate === 'number' && ` • ${format(new Date(order.allottedDate), 'dd MMM yyyy')}`}
                   </p>
                 </div>
 
@@ -423,14 +389,6 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => handleMarkAsReadyToDispatch(order)}
-                        disabled={markingReady === order.id}
-                        className="font-medium"
-                      >
-                        <Package size={18} className="mr-2" weight="bold" />
-                        {markingReady === order.id ? 'Processing...' : 'Ready to Delivery'}
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onReassign(order)} className="font-medium">
                         <ArrowCounterClockwise size={18} className="mr-2" weight="bold" />
                         Re-assign
@@ -444,20 +402,6 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
 
                   {/* Action buttons */}
                   <div className="flex flex-col gap-1.5">
-                    {/* Ready to Delivery button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMarkAsReadyToDispatch(order);
-                      }}
-                      disabled={markingReady === order.id}
-                      className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
-                    >
-                      <Package size={14} className="mr-1" />
-                      {markingReady === order.id ? 'Processing...' : 'Ready to Delivery'}
-                    </Button>
                     {/* Re-assign button */}
                     <Button
                       variant="outline"
@@ -466,7 +410,7 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                         e.stopPropagation();
                         onReassign(order);
                       }}
-                      className="text-[10px] sm:text-xs h-7 px-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
+                      className="text-[10px] sm:text-xs h-7 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300"
                     >
                       <ArrowCounterClockwise size={14} className="mr-1" />
                       Re-assign

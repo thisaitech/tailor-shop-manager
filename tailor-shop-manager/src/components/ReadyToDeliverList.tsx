@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Package, ArrowLeft, Eye } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format } from 'date-fns';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
@@ -84,10 +85,11 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack }: R
       <Card className="flex-1 min-h-0 overflow-hidden">
         <CardContent className="p-4 h-full overflow-y-auto" style={{ background: '#EADDFD' }}>
           {readyOrders.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Package size={48} className="mx-auto mb-3 opacity-30" />
-              <p>No orders ready to deliver</p>
-            </div>
+            <EmptyState
+              icon={Package}
+              title="No orders ready to deliver"
+              description="Completed orders will appear here"
+            />
           ) : (
             <div className="space-y-4">
               {readyOrders.map((order, index) => (
@@ -119,7 +121,9 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack }: R
                         </div>
                         <div>
                           <span className="text-muted-foreground">Category:</span>{' '}
-                          <span className="font-medium text-gray-900 capitalize">{order.orderCategory}</span>
+                          <span className="font-medium text-gray-900">
+                            {order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Order Date:</span>{' '}

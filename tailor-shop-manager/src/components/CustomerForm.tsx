@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Customer, Gender, Measurements } from '@/lib/types';
 import { toast } from 'sonner';
 import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle } from '@phosphor-icons/react';
-import { generateCustomerId } from '@/lib/firestore/customerService';
+import { generateCustomerId, findCustomerByPhone, findCustomerByEmail } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -217,6 +217,29 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     }
   };
 
+  // Check if email exists
+  const checkEmailExists = async (emailToCheck: string, currentCustomerId?: string): Promise<{ exists: boolean; customerName?: string }> => {
+    try {
+      const customersRef = collection(db, 'newcustomers');
+      const q = query(customersRef, where('email', '==', emailToCheck));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        return { exists: false };
+      }
+      if (currentCustomerId) {
+        const otherCustomer = snapshot.docs.find(doc => doc.id !== currentCustomerId);
+        if (otherCustomer) {
+          return { exists: true, customerName: otherCustomer.data().name };
+        }
+        return { exists: false };
+      }
+      return { exists: true, customerName: snapshot.docs[0].data().name };
+    } catch (error) {
+      console.error('[CustomerForm] Error checking email:', error);
+      return { exists: false };
+    }
+  };
+
   // Load customer data when editing
   useEffect(() => {
     if (customer) {
@@ -292,6 +315,16 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       toast.error('This phone number is already registered');
       setActiveTab('basic');
       return;
+    }
+
+    // Check email uniqueness (only if email is provided)
+    if (email.trim()) {
+      const emailCheck = await checkEmailExists(email.trim(), customer?.id);
+      if (emailCheck.exists) {
+        toast.error(`Email already exists for customer: ${emailCheck.customerName || 'Unknown'}`);
+        setActiveTab('basic');
+        return;
+      }
     }
 
     // Validate pincode if provided

@@ -44,6 +44,7 @@ interface OrderAllotmentFormProps {
   employees: Employee[];
   vendors: Vendor[];
   reassignOrder?: OrderAllotment | null; // Order to reassign (pre-populate form)
+  initialServiceOrderId?: string; // Pre-select a service order (for Job Allotment from Open Orders)
 }
 
 export function OrderAllotmentForm({
@@ -55,6 +56,7 @@ export function OrderAllotmentForm({
   employees,
   vendors,
   reassignOrder,
+  initialServiceOrderId,
 }: OrderAllotmentFormProps) {
   const { t } = useLanguage();
 
@@ -161,6 +163,18 @@ export function OrderAllotmentForm({
       }
     }
   }, [reassignOrder, open]);
+
+  // Pre-select service order when initialServiceOrderId is provided (from Open Orders Job Allotment)
+  useEffect(() => {
+    if (initialServiceOrderId && open && !reassignOrder) {
+      setServiceOrderNo(initialServiceOrderId);
+      // Also set expected delivery date from the service order
+      const order = serviceOrders.find(o => o.id === initialServiceOrderId);
+      if (order?.expectedDeliveryDate) {
+        setExpectedDeliveryDate(format(order.expectedDeliveryDate, 'yyyy-MM-dd'));
+      }
+    }
+  }, [initialServiceOrderId, open, reassignOrder, serviceOrders]);
 
   // Reset assigned to when switching between employee/vendor (legacy)
   useEffect(() => {
@@ -383,7 +397,7 @@ export function OrderAllotmentForm({
                 ) : (
                   eligibleOrders.map((order) => (
                     <SelectItem key={order.id} value={order.id}>
-                      {order.id} - {order.customerName} ({order.orderCategory})
+                      {order.id} - {order.customerName} ({order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'})
                     </SelectItem>
                   ))
                 )}

@@ -1,19 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { OrderAllotment } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
 import { TailorProfile } from '@/components/TailorProfile';
+import { EmptyState } from '@/components/EmptyState';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Package,
   ClockCounterClockwise,
@@ -22,6 +21,12 @@ import {
   Check,
   X,
   XCircle,
+  ArrowLeft,
+  MagnifyingGlass,
+  DotsThree,
+  Eye,
+  User,
+  Calendar,
 } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -50,6 +55,8 @@ interface DashboardStats {
 
 type TailorView = 'dashboard' | 'assigned' | 'in-progress' | 'ready' | 'rejected' | 'all-orders' | 'profile';
 
+const ITEMS_PER_PAGE = 6;
+
 export function TailorDashboardFirestore() {
   const { employee } = useAuth();
   const [currentView, setCurrentView] = useState<TailorView>('dashboard');
@@ -68,6 +75,8 @@ export function TailorDashboardFirestore() {
   const [selectedOrder, setSelectedOrder] = useState<OrderAllotment | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [markingReady, setMarkingReady] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (employee) {
@@ -325,43 +334,82 @@ export function TailorDashboardFirestore() {
       label: 'Assigned Orders',
       value: stats.assignedOrders,
       icon: ListChecks,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
+      gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+      bgGradient: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
+      borderColor: 'rgba(249, 115, 22, 0.5)',
       view: 'assigned' as TailorView,
     },
     {
       label: 'In Progress',
       value: stats.inProgress,
       icon: ClockCounterClockwise,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+      bgGradient: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%)',
+      borderColor: 'rgba(59, 130, 246, 0.5)',
       view: 'in-progress' as TailorView,
     },
     {
       label: 'Ready to Deliver',
       value: stats.readyToDeliver,
       icon: Package,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+      bgGradient: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%)',
+      borderColor: 'rgba(34, 197, 94, 0.5)',
       view: 'ready' as TailorView,
     },
     {
       label: 'Rejected Orders',
       value: stats.rejectedOrders,
       icon: XCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+      bgGradient: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 50%, #fecaca 100%)',
+      borderColor: 'rgba(239, 68, 68, 0.5)',
       view: 'rejected' as TailorView,
     },
     {
       label: 'Total Orders',
       value: stats.totalOrders,
       icon: CheckCircle,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)',
+      bgGradient: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+      borderColor: 'rgba(196, 181, 253, 0.5)',
       view: 'all-orders' as TailorView,
     },
   ];
+
+  // Filter orders based on search
+  const getFilteredOrdersWithSearch = (): OrderAllotment[] => {
+    const baseOrders = getFilteredOrders();
+    if (!search) return baseOrders;
+
+    return baseOrders.filter((order) =>
+      order.serviceOrderNo.toLowerCase().includes(search.toLowerCase()) ||
+      order.customerName.toLowerCase().includes(search.toLowerCase()) ||
+      (order.jobWorkNo?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (order.dressItemName?.toLowerCase().includes(search.toLowerCase()) ?? false)
+    );
+  };
+
+  // Pagination
+  const filteredOrders = getFilteredOrdersWithSearch();
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const showPagination = filteredOrders.length > ITEMS_PER_PAGE;
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, currentView]);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   if (!employee) {
     return (
@@ -382,21 +430,19 @@ export function TailorDashboardFirestore() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-6">
+    <main className="container mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-3">
         {currentView !== 'dashboard' && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentView('dashboard')}
-          >
-            ← Back to Dashboard
+          <Button variant="ghost" size="icon" onClick={() => setCurrentView('dashboard')} className="h-9 w-9">
+            <ArrowLeft size={20} />
           </Button>
         )}
         <div>
-          <h2 className="text-2xl font-bold">Tailor Dashboard</h2>
-          <p className="text-muted-foreground">
+          <h1 className="text-lg sm:text-xl font-bold">
+            {currentView === 'dashboard' ? 'Employee Dashboard' : getViewTitle()}
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Welcome back, {employee.name}
           </p>
         </div>
@@ -404,124 +450,240 @@ export function TailorDashboardFirestore() {
 
       {/* Summary Cards - Only show on dashboard view */}
       {currentView === 'dashboard' && (
-        <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           {dashStats.map((stat, index) => (
-            <Card
+            <div
               key={index}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
+              className={`cursor-pointer hover:shadow-lg transition-all rounded-xl border-2 p-4 animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+              style={{
+                background: stat.bgGradient,
+                borderColor: stat.borderColor,
+                boxShadow: '0 4px 12px -2px rgba(0, 0, 0, 0.1), 0 2px 6px -2px rgba(0, 0, 0, 0.08)',
+              }}
               onClick={() => setCurrentView(stat.view)}
             >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-2">
-                      {stat.label}
-                    </p>
-                    <p className="text-3xl font-bold">{stat.value}</p>
-                  </div>
-                  <div className={`${stat.bgColor} ${stat.color} p-3 rounded-lg`}>
-                    <stat.icon size={24} weight="duotone" />
-                  </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] sm:text-xs font-medium text-gray-600 mb-1">
+                    {stat.label}
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stat.value}</p>
                 </div>
-              </CardContent>
-            </Card>
+                <div
+                  className="p-2 sm:p-3 rounded-xl shadow-md"
+                  style={{ background: stat.gradient }}
+                >
+                  <stat.icon size={20} className="text-white sm:w-6 sm:h-6" weight="duotone" />
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Orders Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{getViewTitle()}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">Loading orders...</p>
-            </div>
-          ) : getFilteredOrders().length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">
-                No orders found
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order No</TableHead>
-                    <TableHead>Customer Name</TableHead>
-                    <TableHead>Assigned Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getFilteredOrders().map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">
-                        <button
-                          onClick={() => handleViewOrderDetails(order)}
-                          className="text-primary hover:underline cursor-pointer"
-                        >
-                          {order.serviceOrderNo}
-                        </button>
-                      </TableCell>
-                      <TableCell>{order.customerName}</TableCell>
-                      <TableCell>
-                        {format(new Date(order.createdAt), 'dd MMM yyyy')}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(order.orderStatus)}</TableCell>
-                      <TableCell>
-                        {order.orderStatus === 'open' && (
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleAcceptOrder(order)}
-                              disabled={acceptingOrder === order.id}
-                              className="text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
-                            >
-                              <Check size={14} className="mr-1" />
-                              {acceptingOrder === order.id ? 'Accepting...' : 'Accept'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRejectOrder(order)}
-                              disabled={rejectingOrder === order.id}
-                              className="text-xs bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
-                            >
-                              <X size={14} className="mr-1" />
-                              {rejectingOrder === order.id ? 'Rejecting...' : 'Reject'}
-                            </Button>
-                          </div>
-                        )}
-                        {order.orderStatus === 'in-progress' && (
+      {/* Search Bar - Only show when not on dashboard view */}
+      {currentView !== 'dashboard' && (
+        <div className="relative">
+          <MagnifyingGlass
+            size={18}
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="text"
+            placeholder="Search orders..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 h-10 w-full sm:max-w-md"
+          />
+        </div>
+      )}
+
+      {/* Orders Section */}
+      <div className="space-y-4">
+        <div className="flex justify-between items-center h-9">
+          <h2 className="text-sm md:text-xl font-semibold line-clamp-1">
+            {currentView === 'dashboard' ? 'Recent Orders' : getViewTitle()}
+          </h2>
+          <span className="text-xs sm:text-sm text-muted-foreground">
+            {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'}
+          </span>
+        </div>
+
+        {loading ? (
+          <div
+            className="p-8 rounded-xl border-2 text-center"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            <p className="text-muted-foreground">Loading orders...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <EmptyState
+            icon={Package}
+            title={search ? 'No orders found' : 'No orders yet'}
+            description={search ? 'Try adjusting your search terms' : 'Orders assigned to you will appear here'}
+          />
+        ) : (
+          <div
+            className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Order Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {paginatedOrders.map((order, index) => (
+                <div
+                  key={order.id}
+                  className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                    borderColor: '#6A64F2',
+                    boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)',
+                  }}
+                  onClick={() => handleViewOrderDetails(order)}
+                >
+                  {/* Left side: Avatar */}
+                  <div className="flex-shrink-0 flex items-center">
+                    <div
+                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                      style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+                    >
+                      {getInitials(order.customerName)}
+                    </div>
+                  </div>
+
+                  {/* Middle: Order details */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">
+                        {order.customerName}
+                      </p>
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold mb-1" style={{ color: '#6A64F2' }}>
+                      {order.serviceOrderNo}
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
+                      {order.dressItemName && (
+                        <>
+                          <span className="font-medium">{order.dressItemName}</span>
+                          <span>•</span>
+                        </>
+                      )}
+                      {getStatusBadge(order.orderStatus)}
+                    </div>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">
+                      <Calendar size={10} className="inline mr-1" />
+                      {format(new Date(order.createdAt), 'dd MMM yyyy')}
+                    </p>
+                  </div>
+
+                  {/* Right side: Actions */}
+                  <div className="flex-shrink-0 flex flex-col items-end justify-between gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                          <DotsThree size={20} weight="bold" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewOrderDetails(order); }} className="font-medium">
+                          <Eye size={18} className="mr-2" weight="bold" />
+                          View Details
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-1.5">
+                      {order.orderStatus === 'open' && (
+                        <>
                           <Button
-                            size="sm"
                             variant="outline"
-                            onClick={() => handleMarkAsReady(order)}
-                            disabled={markingReady === order.id}
-                            className="text-xs bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcceptOrder(order);
+                            }}
+                            disabled={acceptingOrder === order.id}
+                            className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                           >
-                            <CheckCircle size={14} className="mr-1" weight="duotone" />
-                            {markingReady === order.id ? 'Updating...' : 'Mark as Ready'}
+                            <Check size={14} className="mr-1" />
+                            {acceptingOrder === order.id ? '...' : 'Accept'}
                           </Button>
-                        )}
-                        {order.serviceOrderStatus === 'ready' && (
-                          <span className="text-xs text-green-600 font-medium">Completed</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRejectOrder(order);
+                            }}
+                            disabled={rejectingOrder === order.id}
+                            className="text-[10px] sm:text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
+                          >
+                            <X size={14} className="mr-1" />
+                            {rejectingOrder === order.id ? '...' : 'Reject'}
+                          </Button>
+                        </>
+                      )}
+                      {order.orderStatus === 'in-progress' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsReady(order);
+                          }}
+                          disabled={markingReady === order.id}
+                          className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
+                        >
+                          <CheckCircle size={14} className="mr-1" weight="duotone" />
+                          {markingReady === order.id ? '...' : 'Ready'}
+                        </Button>
+                      )}
+                      {order.serviceOrderStatus === 'ready' && (
+                        <Badge className="text-[10px] bg-green-500 text-white">Completed</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Pagination */}
+            {showPagination && (
+              <div className="flex items-center justify-between pt-4 border-t border-purple-200">
+                <p className="text-xs sm:text-sm text-gray-600">
+                  Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredOrders.length)} of {filteredOrders.length}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="h-8 px-3 text-xs"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-8 px-3 text-xs"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Order Details Dialog */}
       {selectedOrder && (

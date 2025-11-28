@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ArrowLeft, Clock, Eye, MagnifyingGlass, Funnel, DotsThree, ArrowsClockwise } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { OrderAllotment, ServiceOrder } from '@/lib/types';
 import { getServiceOrderById } from '@/lib/firestore/serviceOrderService';
@@ -318,15 +319,11 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
 
       {/* Orders Grid */}
       {sortedOrders.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center">
-            <ArrowsClockwise size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No reassigned orders found</h3>
-            <p className="text-muted-foreground">
-              {hasActiveFilters ? 'Try a different search term or filter' : 'No orders are awaiting acceptance'}
-            </p>
-          </div>
-        </Card>
+        <EmptyState
+          icon={ArrowsClockwise}
+          title="No reassigned orders found"
+          description={hasActiveFilters ? 'Try a different search term or filter' : 'No orders are awaiting acceptance'}
+        />
       ) : (
         <div
           className="rounded-xl border-2 p-4 space-y-3"

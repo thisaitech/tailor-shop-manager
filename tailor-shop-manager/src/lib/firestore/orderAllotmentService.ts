@@ -50,7 +50,7 @@ export async function addOrderAllotment(
     const initialHistoryEntry = {
       timestamp: Date.now(),
       action: 'created' as const,
-      newStatus: allotmentData.stitchingAllotment === 'vendor' ? 'allotted' : 'open',
+      newStatus: 'allotted', // All allotments start with 'allotted' status (awaiting acceptance)
       newAssignedTo: allotmentData.assignedTo,
       newAssignedName: allotmentData.assignedName,
       newStitchingAllotment: allotmentData.stitchingAllotment,
@@ -68,12 +68,12 @@ export async function addOrderAllotment(
       createdAt: Date.now(),
       updatedAt: Date.now(),
       history: [initialHistoryEntry],
+      status: 'allotted', // All allotments start with 'allotted' status (awaiting acceptance)
+      assignedDate: Date.now(), // Set assignment date for all allotments
     };
 
     // If this is a vendor allotment, initialize vendor-specific fields
     if (allotmentData.stitchingAllotment === 'vendor') {
-      newAllotment.status = 'allotted'; // Initialize status for job work tailor
-      newAllotment.assignedDate = Date.now(); // Set assignment date
       newAllotment.jobWorkNo = jobWorkId; // Set job work number for reference
       newAllotment.jobWorkTailorId = allotmentData.assignedTo; // Set job work tailor ID
       newAllotment.jobWorkTailorName = allotmentData.assignedName; // Set job work tailor name
@@ -88,9 +88,11 @@ export async function addOrderAllotment(
       updatedAt: serverTimestamp(),
     });
 
-    // Update service order status to 'pending' (after job allotment)
-    await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'pending');
-    console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} status to 'pending'`);
+    // Update service order status based on assignment type:
+    // 'allotment' for employee, 'job-network' for vendor
+    const newServiceOrderStatus = allotmentData.stitchingAllotment === 'employee' ? 'allotment' : 'job-network';
+    await updateServiceOrderStatus(allotmentData.serviceOrderNo, newServiceOrderStatus);
+    console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} status to '${newServiceOrderStatus}'`);
 
     console.log(`[orderAllotmentService] Order allotment ${jobWorkId} added successfully with initial history`);
     return newAllotment;
@@ -173,21 +175,34 @@ export async function updateOrderAllotment(
 }
 
 /**
- * Update order allotment status
+ * Update order allotment status (for both employee and vendor workflows)
+ * This updates both 'orderStatus' and 'status' fields for consistency
  */
 export async function updateOrderAllotmentStatus(
   allotmentId: string,
-  status: 'open' | 'in-progress' | 'closed'
+  newOrderStatus: 'open' | 'in-progress' | 'closed'
 ): Promise<void> {
   try {
-    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} status to ${status}`);
+    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} status to ${newOrderStatus}`);
+
+    // Map orderStatus to status field values for consistency with DashboardStats
+    // 'in-progress' (orderStatus) → 'in_progress' (status)
+    // 'closed' (orderStatus) → 'stitched' (status)
+    // 'open' (orderStatus) → 'allotted' (status)
+    let statusFieldValue: 'allotted' | 'in_progress' | 'stitched' | 'rejected' = 'allotted';
+    if (newOrderStatus === 'in-progress') {
+      statusFieldValue = 'in_progress';
+    } else if (newOrderStatus === 'closed') {
+      statusFieldValue = 'stitched';
+    }
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
-      orderStatus: status,
+      orderStatus: newOrderStatus,
+      status: statusFieldValue, // Also update the 'status' field for DashboardStats consistency
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[orderAllotmentService] Order allotment ${allotmentId} status updated to ${status}`);
+    console.log(`[orderAllotmentService] Order allotment ${allotmentId} status updated to orderStatus=${newOrderStatus}, status=${statusFieldValue}`);
   } catch (error) {
     console.error('[orderAllotmentService] Error updating order allotment status:', error);
     throw error;
@@ -196,22 +211,32 @@ export async function updateOrderAllotmentStatus(
 
 /**
  * Update both order allotment status and service order status
+ * This updates 'orderStatus', 'status', and 'serviceOrderStatus' fields for consistency
  */
 export async function updateOrderAllotmentWithServiceStatus(
   allotmentId: string,
-  orderStatus: 'open' | 'in-progress' | 'closed',
+  newOrderStatus: 'open' | 'in-progress' | 'closed',
   serviceOrderStatus: ServiceOrderStatus
 ): Promise<void> {
   try {
-    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${orderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
+    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${newOrderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
+
+    // Map orderStatus to status field values for consistency with DashboardStats
+    let statusFieldValue: 'allotted' | 'in_progress' | 'stitched' | 'rejected' = 'allotted';
+    if (newOrderStatus === 'in-progress') {
+      statusFieldValue = 'in_progress';
+    } else if (newOrderStatus === 'closed') {
+      statusFieldValue = 'stitched';
+    }
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
-      orderStatus: orderStatus,
+      orderStatus: newOrderStatus,
+      status: statusFieldValue, // Also update the 'status' field for DashboardStats consistency
       serviceOrderStatus: serviceOrderStatus,
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[orderAllotmentService] Order allotment ${allotmentId} updated successfully`);
+    console.log(`[orderAllotmentService] Order allotment ${allotmentId} updated - orderStatus=${newOrderStatus}, status=${statusFieldValue}, serviceOrderStatus=${serviceOrderStatus}`);
   } catch (error) {
     console.error('[orderAllotmentService] Error updating order allotment:', error);
     throw error;

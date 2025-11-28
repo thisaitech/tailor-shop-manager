@@ -685,7 +685,7 @@ export function ServiceOrderForm({
               <tbody>
                 <tr>
                   <td>Tailoring / Stitching Services</td>
-                  <td class="text-center" style="text-transform: capitalize;">${createdOrderData.orderCategory}</td>
+                  <td class="text-center">${createdOrderData.orderCategory === 'male' ? 'Men' : createdOrderData.orderCategory === 'female' ? 'Women' : 'Kids'}</td>
                   <td class="text-center">${createdOrderData.orderQty}</td>
                   <td class="text-center">${createdOrderData.uom}</td>
                   <td class="text-right">₹${createdOrderData.stitchingCost.toFixed(2)}</td>

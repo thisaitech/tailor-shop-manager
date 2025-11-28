@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Truck, ArrowLeft, Package, MagnifyingGlass, Funnel, DotsThree, Eye, Spinner } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { OrderAllotment } from '@/lib/types';
 import { toast } from 'sonner';
@@ -310,15 +311,11 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
 
       {/* Jobwork Completed Orders Grid */}
       {sortedOrders.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center">
-            <Truck size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No jobwork completed orders</h3>
-            <p className="text-muted-foreground">
-              {hasActiveFilters ? 'Try a different search term or filter' : 'No orders from vendors pending goods receipt'}
-            </p>
-          </div>
-        </Card>
+        <EmptyState
+          icon={Truck}
+          title="No jobwork completed orders"
+          description={hasActiveFilters ? 'Try a different search term or filter' : 'No orders from vendors pending goods receipt'}
+        />
       ) : (
         <div
           className="rounded-xl border-2 p-4 space-y-3"

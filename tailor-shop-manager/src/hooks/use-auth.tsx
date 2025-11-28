@@ -19,6 +19,8 @@ interface AuthContextType {
   getAllUsers: () => User[];
   updateUser: (userId: string, updatedData: Partial<User>) => void;
   deleteUser: (userId: string) => void;
+  setEmployeeAfterPasswordChange: (employee: EmployeeWithCompany) => void;
+  setVendorAfterPasswordChange: (vendor: Vendor) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -186,10 +188,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[AuthContext] Users after delete:', updatedUsers);
   };
 
+  const setEmployeeAfterPasswordChange = (employee: EmployeeWithCompany) => {
+    console.log('[AuthContext] Setting employee after password change:', employee);
+    setCurrentEmployee(employee);
+    setCurrentUser(null);
+    setCurrentVendor(null);
+  };
+
+  const setVendorAfterPasswordChange = (vendor: Vendor) => {
+    console.log('[AuthContext] Setting vendor after password change:', vendor);
+    setCurrentVendor(vendor);
+    setCurrentUser(null);
+    setCurrentEmployee(null);
+  };
+
   const isAuthenticated = (currentUser !== null && currentUser !== undefined) || (currentEmployee !== null && currentEmployee !== undefined) || (currentVendor !== null && currentVendor !== undefined);
 
   return (
-    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, isLoading, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
+    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, isLoading, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange }}>
       {children}
     </AuthContext.Provider>
   );

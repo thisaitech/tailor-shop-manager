@@ -78,6 +78,96 @@ export interface CustomerWithCompany extends Customer {
 }
 
 /**
+ * Check if customer with phone number already exists
+ * @param phone - Phone number to check
+ * @param companyId - Company ID
+ * @param excludeCustomerId - Optional customer ID to exclude (for updates)
+ * @returns Customer if exists, null otherwise
+ */
+export async function findCustomerByPhone(
+  phone: string,
+  companyId: string,
+  excludeCustomerId?: string
+): Promise<CustomerWithCompany | null> {
+  try {
+    const customersRef = collection(db, CUSTOMERS_COLLECTION);
+    const q = query(
+      customersRef,
+      where('phone', '==', phone),
+      where('companyId', '==', companyId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // If excluding a customer ID, check if the found customer is different
+    const data = snapshot.docs[0].data();
+    const customer = {
+      ...data,
+      id: snapshot.docs[0].id,
+      createdAt: convertTimestamp(data.createdAt),
+      updatedAt: convertTimestamp(data.updatedAt),
+    } as CustomerWithCompany;
+
+    if (excludeCustomerId && customer.id === excludeCustomerId) {
+      return null;
+    }
+
+    return customer;
+  } catch (error) {
+    console.error('Error finding customer by phone:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if customer with email already exists
+ * @param email - Email to check
+ * @param companyId - Company ID
+ * @param excludeCustomerId - Optional customer ID to exclude (for updates)
+ * @returns Customer if exists, null otherwise
+ */
+export async function findCustomerByEmail(
+  email: string,
+  companyId: string,
+  excludeCustomerId?: string
+): Promise<CustomerWithCompany | null> {
+  try {
+    const customersRef = collection(db, CUSTOMERS_COLLECTION);
+    const q = query(
+      customersRef,
+      where('email', '==', email),
+      where('companyId', '==', companyId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // If excluding a customer ID, check if the found customer is different
+    const data = snapshot.docs[0].data();
+    const customer = {
+      ...data,
+      id: snapshot.docs[0].id,
+      createdAt: convertTimestamp(data.createdAt),
+      updatedAt: convertTimestamp(data.updatedAt),
+    } as CustomerWithCompany;
+
+    if (excludeCustomerId && customer.id === excludeCustomerId) {
+      return null;
+    }
+
+    return customer;
+  } catch (error) {
+    console.error('Error finding customer by email:', error);
+    return null;
+  }
+}
+
+/**
  * Convert Firestore timestamp to number
  */
 function convertTimestamp(timestamp: any): number {

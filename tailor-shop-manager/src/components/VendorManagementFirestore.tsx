@@ -23,7 +23,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, PencilSimple, Trash, UserCircle, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, Spinner, ArrowLeft } from '@phosphor-icons/react';
+import { Plus, PencilSimple, Trash, UserCircle, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, Spinner, ArrowLeft, User, MapPin, Check, Copy } from '@phosphor-icons/react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { EmptyState } from './EmptyState';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { sendWhatsAppMessage } from '@/lib/utils';
@@ -33,6 +36,8 @@ import {
   updateVendor,
   deleteVendor,
   getVendorsByCompany,
+  findVendorByContactNumber,
+  findVendorByEmail,
 } from '@/lib/firestore/vendorService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 
@@ -97,6 +102,8 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
   const [generatedPassword, setGeneratedPassword] = useState<string>('');
   const [newVendorInfo, setNewVendorInfo] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
   const [deleteVendorId, setDeleteVendorId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('basic');
+  const [phoneError, setPhoneError] = useState('');
 
   // Search, filter, and pagination states
   const [search, setSearch] = useState('');
@@ -110,14 +117,14 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
   const [formData, setFormData] = useState<Partial<Vendor>>({
     tailorName: '',
     aliasName: '',
-    gender: 'male',
+    gender: '' as VendorGender | '',
     businessType: 'stitching',
     email: '',
     address1: '',
     address2: '',
     city: '',
     pincode: '',
-    region: 'none',
+    region: '',
     state: '',
     country: 'India',
     contactNumber: '',
@@ -216,25 +223,29 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
     setFormData({
       tailorName: '',
       aliasName: '',
-      gender: 'male',
+      gender: '' as VendorGender | '',
       businessType: 'stitching',
       email: '',
       address1: '',
       address2: '',
       city: '',
       pincode: '',
-      region: 'none',
+      region: '',
       state: '',
       country: 'India',
       contactNumber: '',
       whatsappNumber: '',
     });
+    setActiveTab('basic');
+    setPhoneError('');
     setShowDialog(true);
   };
 
   const handleEdit = (vendor: Vendor) => {
     setEditingVendor(vendor);
     setFormData(vendor);
+    setActiveTab('basic');
+    setPhoneError('');
     setShowDialog(true);
   };
 
@@ -259,46 +270,108 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
   const handleSave = async () => {
     if (!user?.id || !companyId) {
-      toast.error('Company information not found');
+      toast.error('Company profile not found. Please create a profile first.');
       return;
     }
 
-    // Validation
-    if (!formData.tailorName || !formData.contactNumber || !formData.city || !formData.pincode) {
-      toast.error('Please fill in all required fields');
+    // Reset errors
+    setPhoneError('');
+
+    // Validation - Basic Tab
+    if (!formData.tailorName || !formData.tailorName.trim()) {
+      toast.error('Tailor name is required');
+      setActiveTab('basic');
+      return;
+    }
+
+    if (!formData.gender || formData.gender === '') {
+      toast.error('Please select the gender');
+      setActiveTab('basic');
+      return;
+    }
+
+    if (!formData.contactNumber) {
+      toast.error('Contact number is required');
+      setActiveTab('basic');
+      return;
+    }
+
+    // Validate contact number (exactly 10 digits)
+    if (!/^\d{10}$/.test(formData.contactNumber)) {
+      setPhoneError('Enter correct number');
+      toast.error('Phone Number: Enter correct 10-digit number');
+      setActiveTab('basic');
       return;
     }
 
     // Email validation - mandatory
     if (!formData.email || !formData.email.trim()) {
       toast.error('Email address is required');
+      setActiveTab('basic');
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       toast.error('Please enter a valid email address');
+      setActiveTab('basic');
       return;
     }
 
-    // Validate pincode (6 digits)
+    // Address validation - mandatory fields
+    if (!formData.address1 || !formData.address1.trim()) {
+      toast.error('Address (Shop No / Flat No) is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.address2 || !formData.address2.trim()) {
+      toast.error('Street / Area / Landmark is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.state) {
+      toast.error('State is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.city) {
+      toast.error('City is required');
+      setActiveTab('address');
+      return;
+    }
+
+    // Validate pincode if provided (6 digits)
     if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
       toast.error('Pincode must be exactly 6 digits');
-      return;
-    }
-
-    // Validate contact number (up to 15 digits)
-    if (formData.contactNumber && !/^\d{1,15}$/.test(formData.contactNumber)) {
-      toast.error('Contact number must be up to 15 digits');
-      return;
-    }
-
-    // Validate whatsapp number (up to 15 digits)
-    if (formData.whatsappNumber && !/^\d{1,15}$/.test(formData.whatsappNumber)) {
-      toast.error('WhatsApp number must be up to 15 digits');
+      setActiveTab('address');
       return;
     }
 
     try {
+      // Check for duplicate contact number
+      const existingByContact = await findVendorByContactNumber(
+        formData.contactNumber!,
+        user.id,
+        editingVendor?.id
+      );
+      if (existingByContact) {
+        toast.error(`Contact number already exists for vendor: ${existingByContact.tailorName}`);
+        return;
+      }
+
+      // Check for duplicate email
+      const existingByEmail = await findVendorByEmail(
+        formData.email!,
+        user.id,
+        editingVendor?.id
+      );
+      if (existingByEmail) {
+        toast.error(`Email address already exists for vendor: ${existingByEmail.tailorName}`);
+        return;
+      }
+
       if (editingVendor) {
         // Update existing vendor
         await updateVendor(editingVendor.id, formData);
@@ -466,10 +539,12 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
             <p className="text-sm text-muted-foreground">{vendors.length} total tailors</p>
           </div>
         </div>
-        <Button onClick={handleAddNew} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
-          <Plus size={18} className="mr-1" />
-          <span className="hidden sm:inline">Add Tailor</span>
-        </Button>
+{vendors.length > 0 && (
+          <Button onClick={handleAddNew} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
+            <Plus size={18} className="mr-1" />
+            Add Tailor
+          </Button>
+        )}
       </div>
 
       {/* Search and Filter Row */}
@@ -506,21 +581,13 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
       {/* Vendors List */}
       {sortedVendors.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center">
-            <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No tailors found</h3>
-            <p className="text-muted-foreground mb-4">
-              {search ? 'Try a different search term' : 'Get started by adding your first tailor'}
-            </p>
-            {!search && (
-              <Button onClick={handleAddNew} className="bg-purple-600 hover:bg-purple-700">
-                <Plus size={20} className="mr-2" />
-                Add Tailor
-              </Button>
-            )}
-          </div>
-        </Card>
+        <EmptyState
+          icon={UserCircle}
+          title={search ? 'No tailors found' : 'No jobwork tailors added yet'}
+          description={search ? 'Try adjusting your search terms' : 'Get started by adding your first jobwork tailor'}
+          actionLabel={!search ? 'Add Tailor' : undefined}
+          onAction={!search ? handleAddNew : undefined}
+        />
       ) : (
         <div
           className="rounded-xl border-2 p-4 space-y-3"
@@ -659,283 +726,348 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
-            <DialogDescription>
-              {editingVendor ? 'Update vendor information' : 'Fill in the details to add a new vendor'}
-            </DialogDescription>
+        <DialogContent
+          className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <DialogTitle className="flex items-center gap-3 text-white">
+              <span>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</span>
+              {editingVendor && (
+                <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
+                  {editingVendor.tailorCode || editingVendor.id}
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {/* Tailor Name */}
-            <div className="space-y-2">
-              <Label htmlFor="tailorName">Tailor Name *</Label>
-              <Input
-                id="tailorName"
-                maxLength={40}
-                value={formData.tailorName}
-                onChange={(e) => setFormData({ ...formData, tailorName: e.target.value })}
-                placeholder="Enter tailor name"
-              />
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+            <div className="px-4 pt-3 pb-2 border-b bg-muted/30 flex-shrink-0">
+              <TabsList className="grid grid-cols-2 w-full h-11 p-1 bg-muted rounded-lg">
+                <TabsTrigger
+                  value="basic"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                >
+                  <User size={20} weight="bold" />
+                  <span>Basic</span>
+                  {formData.tailorName && formData.gender && formData.contactNumber?.length === 10 && formData.businessType && (
+                    <Check size={16} className="text-green-600" weight="bold" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="address"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                >
+                  <MapPin size={20} weight="bold" />
+                  <span>Address</span>
+                  {formData.address1 && formData.address2 && formData.state && formData.city && (
+                    <Check size={16} className="text-green-600" weight="bold" />
+                  )}
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            {/* Alias Name */}
-            <div className="space-y-2">
-              <Label htmlFor="aliasName">Alias Name</Label>
-              <Input
-                id="aliasName"
-                maxLength={40}
-                value={formData.aliasName}
-                onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
-                placeholder="Enter alias name"
-              />
-            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[400px]">
+              {/* Basic Details Tab */}
+              <TabsContent value="basic" className="mt-0 space-y-6 h-full">
+                <div className="space-y-6">
+                  {/* Tailor Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="tailorName" className="text-sm font-medium">Tailor Name *</Label>
+                    <Input
+                      id="tailorName"
+                      maxLength={40}
+                      value={formData.tailorName}
+                      onChange={(e) => setFormData({ ...formData, tailorName: e.target.value })}
+                      placeholder="Enter tailor name"
+                      className="h-12 text-base"
+                      autoFocus
+                    />
+                  </div>
 
-            {/* Gender */}
-            <div className="space-y-2">
-              <Label htmlFor="gender">Gender *</Label>
-              <Select value={formData.gender} onValueChange={(value: VendorGender) => setFormData({ ...formData, gender: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="female">Female</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                  {/* Gender Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Gender *</Label>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, gender: 'male' })}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          formData.gender === 'male'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                            : 'border-muted hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/10'
+                        )}
+                      >
+                        {formData.gender === 'male' && (
+                          <Check size={16} weight="bold" className="text-blue-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={formData.gender === 'male' ? 'fill' : 'regular'}
+                          className={formData.gender === 'male' ? 'text-blue-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          formData.gender === 'male' ? 'text-blue-600' : 'text-muted-foreground'
+                        )}>
+                          Male
+                        </span>
+                      </button>
 
-            {/* Business Type */}
-            <div className="space-y-2">
-              <Label htmlFor="businessType">Business Type *</Label>
-              <Select value={formData.businessType} onValueChange={(value: VendorBusinessType) => setFormData({ ...formData, businessType: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stitching">Stitching</SelectItem>
-                  <SelectItem value="aari_work">Aari Work</SelectItem>
-                  <SelectItem value="stitching_aari_work">Stiching & Aari Work</SelectItem>
-                  <SelectItem value="others">Others</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, gender: 'female' })}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          formData.gender === 'female'
+                            ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/30'
+                            : 'border-muted hover:border-pink-300 hover:bg-pink-50/50 dark:hover:bg-pink-950/10'
+                        )}
+                      >
+                        {formData.gender === 'female' && (
+                          <Check size={16} weight="bold" className="text-pink-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={formData.gender === 'female' ? 'fill' : 'regular'}
+                          className={formData.gender === 'female' ? 'text-pink-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          formData.gender === 'female' ? 'text-pink-600' : 'text-muted-foreground'
+                        )}>
+                          Female
+                        </span>
+                      </button>
+                    </div>
+                  </div>
 
-            {/* Address 1 */}
-            <div className="space-y-2">
-              <Label htmlFor="address1">Address Line 1 *</Label>
-              <Input
-                id="address1"
-                maxLength={40}
-                value={formData.address1}
-                onChange={(e) => setFormData({ ...formData, address1: e.target.value })}
-                placeholder="Enter address"
-              />
-            </div>
+                  {/* Contact Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Contact Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="vendorContact" className="text-sm font-medium">Contact Number (Login ID) *</Label>
+                        <div className="relative">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                            +91
+                          </div>
+                          <Input
+                            id="vendorContact"
+                            maxLength={10}
+                            value={formData.contactNumber}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '');
+                              setFormData({ ...formData, contactNumber: value });
+                              if (phoneError) setPhoneError('');
+                            }}
+                            placeholder="10-digit number"
+                            className={cn('pl-12 h-11 bg-background', phoneError && 'border-red-500')}
+                          />
+                        </div>
+                        {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                        {formData.contactNumber?.length === 10 && !phoneError && (
+                          <p className="text-xs text-green-600 mt-1">Valid number</p>
+                        )}
+                      </div>
 
-            {/* Address 2 */}
-            <div className="space-y-2">
-              <Label htmlFor="address2">Address Line 2</Label>
-              <Input
-                id="address2"
-                maxLength={40}
-                value={formData.address2}
-                onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
-                placeholder="Enter address"
-              />
-            </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vendorEmail" className="text-sm font-medium">Email *</Label>
+                        <Input
+                          id="vendorEmail"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="vendor@example.com"
+                          className="h-11 bg-background"
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-            {/* City */}
-            <div className="space-y-2">
-              <Label htmlFor="city">City *</Label>
-              <Select
-                value={formData.city}
-                onValueChange={(value) => setFormData({ ...formData, city: value })}
-                disabled={!formData.state}
-              >
-                <SelectTrigger id="city">
-                  <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {(STATE_CITIES[formData.state || ''] || []).map((city) => (
-                    <SelectItem key={city} value={city}>{city}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  {/* Work Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Work Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {/* Business Type */}
+                      <div className="space-y-2">
+                        <Label htmlFor="businessType" className="text-sm font-medium">Business Type *</Label>
+                        <Select value={formData.businessType} onValueChange={(value: VendorBusinessType) => setFormData({ ...formData, businessType: value })}>
+                          <SelectTrigger id="businessType" className="h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="stitching">Stitching</SelectItem>
+                            <SelectItem value="aari_work">Aari Work</SelectItem>
+                            <SelectItem value="stitching_aari_work">Stitching & Aari Work</SelectItem>
+                            <SelectItem value="others">Others</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
 
-            {/* Pincode */}
-            <div className="space-y-2">
-              <Label htmlFor="pincode">Pincode *</Label>
-              <Input
-                id="pincode"
-                maxLength={6}
-                value={formData.pincode}
-                onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
-                placeholder="6 digits"
-              />
-            </div>
+              {/* Address Tab */}
+              <TabsContent value="address" className="mt-0 h-full">
+                <div className="space-y-5">
+                  {/* Shop/Flat Number */}
+                  <div className="space-y-2">
+                    <Label htmlFor="vendorAddress1" className="text-sm font-medium">
+                      Shop No / Flat No *
+                    </Label>
+                    <Input
+                      id="vendorAddress1"
+                      maxLength={40}
+                      value={formData.address1}
+                      onChange={(e) => setFormData({ ...formData, address1: e.target.value })}
+                      placeholder="e.g., Shop 12, Flat 4B, Door No. 25"
+                      className="h-11"
+                    />
+                  </div>
 
-            {/* Region */}
-            <div className="space-y-2">
-              <Label htmlFor="region">Region</Label>
-              <Input
-                id="region"
-                value={formData.region}
-                disabled
-                className="bg-muted"
-              />
-            </div>
+                  {/* Street / Area / Landmark */}
+                  <div className="space-y-2">
+                    <Label htmlFor="vendorAddress2" className="text-sm font-medium">
+                      Street / Area / Landmark *
+                    </Label>
+                    <Input
+                      id="vendorAddress2"
+                      maxLength={40}
+                      value={formData.address2}
+                      onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
+                      placeholder="e.g., Main Road, Near Bus Stand"
+                      className="h-11"
+                    />
+                  </div>
 
-            {/* State */}
-            <div className="space-y-2">
-              <Label htmlFor="state">State *</Label>
-              <Select
-                value={formData.state}
-                onValueChange={(value) => setFormData({ ...formData, state: value, city: '' })}
-              >
-                <SelectTrigger id="state">
-                  <SelectValue placeholder="Select state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {INDIAN_STATES.map((state) => (
-                    <SelectItem key={state} value={state}>{state}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  {/* State and City in same row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="vendorState" className="text-sm font-medium">State *</Label>
+                      <Select
+                        value={formData.state}
+                        onValueChange={(value) => setFormData({ ...formData, state: value, city: '' })}
+                      >
+                        <SelectTrigger id="vendorState" className="h-11">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-            {/* Country */}
-            <div className="space-y-2">
-              <Label htmlFor="country">Country *</Label>
-              <Input
-                id="country"
-                value={formData.country}
-                disabled
-                className="bg-muted"
-              />
-            </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vendorCity" className="text-sm font-medium">City *</Label>
+                      <Select
+                        value={formData.city}
+                        onValueChange={(value) => setFormData({ ...formData, city: value })}
+                        disabled={!formData.state}
+                      >
+                        <SelectTrigger id="vendorCity" className="h-11">
+                          <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(STATE_CITIES[formData.state || ''] || []).map((city) => (
+                            <SelectItem key={city} value={city}>{city}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="vendor@example.com"
-                required
-              />
+                  {/* Pincode */}
+                  <div className="space-y-2 max-w-[200px]">
+                    <Label htmlFor="vendorPincode" className="text-sm font-medium">Pincode</Label>
+                    <Input
+                      id="vendorPincode"
+                      maxLength={6}
+                      value={formData.pincode}
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
+                      placeholder="e.g., 600001"
+                      className="h-11"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
             </div>
+          </Tabs>
 
-            {/* Contact Number */}
-            <div className="space-y-2">
-              <Label htmlFor="contactNumber">Contact Number *</Label>
-              <Input
-                id="contactNumber"
-                maxLength={15}
-                value={formData.contactNumber}
-                onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value.replace(/\D/g, '') })}
-                placeholder="Up to 15 digits"
-              />
-            </div>
-
-            {/* WhatsApp Number */}
-            <div className="space-y-2">
-              <Label htmlFor="whatsappNumber">WhatsApp Number *</Label>
-              <Input
-                id="whatsappNumber"
-                maxLength={15}
-                value={formData.whatsappNumber}
-                onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value.replace(/\D/g, '') })}
-                placeholder="Up to 15 digits"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
+          {/* Footer with action buttons */}
+          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" onClick={() => setShowDialog(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               Cancel
             </Button>
-            <Button onClick={handleSave}>
-              {editingVendor ? 'Update Vendor' : 'Save Vendor'}
-            </Button>
-          </DialogFooter>
+            <div className="flex items-center gap-2">
+              {activeTab === 'address' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab('basic')}
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Back
+                </Button>
+              )}
+              {activeTab === 'basic' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab('address')}
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Next
+                </Button>
+              )}
+              <Button onClick={handleSave} className="min-w-[120px] bg-white text-purple-700 hover:bg-white/90">
+                {editingVendor ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Password Display Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Job Work Tailor Created Successfully</DialogTitle>
+            <DialogTitle>Tailor Password</DialogTitle>
+            <DialogDescription>
+              Save this password securely. The tailor will use this to log in.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="bg-green-50 dark:bg-green-950/30 p-4 rounded-lg border border-green-200 dark:border-green-800">
-              <p className="text-sm text-green-900 dark:text-green-100 mb-3">
-                <strong>{newVendorInfo.name}</strong> has been created successfully!
-              </p>
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-xs text-green-700 dark:text-green-300">Phone Number (Login ID)</Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Input
-                      value={newVendorInfo.phone}
-                      readOnly
-                      className="bg-white dark:bg-gray-900 font-mono"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newVendorInfo.phone);
-                        toast.success('Phone number copied!');
-                      }}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs text-green-700 dark:text-green-300">Auto-Generated Password</Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Input
-                      value={generatedPassword}
-                      readOnly
-                      className="bg-white dark:bg-gray-900 font-mono text-lg font-bold"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedPassword);
-                        toast.success('Password copied!');
-                      }}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-              </div>
+          <div className="py-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <p className="text-sm text-muted-foreground mb-2">Auto-generated Password:</p>
+              <code className="text-2xl font-mono font-bold text-blue-900 bg-white px-4 py-2 rounded border-2 border-blue-300">
+                {generatedPassword}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedPassword);
+                  toast.success('Password copied!');
+                }}
+                className="mt-4 gap-2"
+              >
+                <Copy size={16} />
+                Copy Password
+              </Button>
             </div>
-
-            <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-              <p className="text-xs text-blue-900 dark:text-blue-100">
-                <strong>📧 Email Sent:</strong> Login credentials have been sent to the vendor's email address.
-              </p>
-            </div>
-
-            <div className="bg-amber-50 dark:bg-amber-950/30 p-3 rounded-md border border-amber-200 dark:border-amber-800">
-              <p className="text-xs text-amber-800 dark:text-amber-300">
-                <strong>⚠️ Important:</strong> Please save these credentials securely. The vendor will be required to change their password on first login.
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground mt-4 text-center">
+              Make sure to save this password. You can reset it later if needed.
+            </p>
           </div>
           <DialogFooter>
             <Button onClick={() => setShowPasswordDialog(false)}>
-              Done
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

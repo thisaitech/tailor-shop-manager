@@ -12,6 +12,7 @@ import { List, User, Users, SignOut, Storefront, Scissors, CurrencyInr, Truck, P
 import { toast } from 'sonner';
 
 interface AdminMenuProps {
+  onDashboardClick?: () => void;
   onProfileClick: () => void;
   onEmployeeClick: () => void;
   onVendorClick: () => void;
@@ -22,6 +23,7 @@ interface AdminMenuProps {
 }
 
 export function AdminMenu({
+  onDashboardClick,
   onProfileClick,
   onEmployeeClick,
   onVendorClick,
@@ -48,6 +50,12 @@ export function AdminMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        {onDashboardClick && (
+          <DropdownMenuItem onClick={() => { onDashboardClick(); setOpen(false); }} className="cursor-pointer">
+            <Package size={18} className="mr-2" />
+            Dashboard
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => { onProfileClick(); setOpen(false); }} className="cursor-pointer">
           <User size={18} className="mr-2" />
           Profile

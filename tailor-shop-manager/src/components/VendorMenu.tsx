@@ -12,12 +12,12 @@ import { Button } from '@/components/ui/button';
 import { User, SignOut, CaretDown } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
-interface EmployeeMenuProps {
+interface VendorMenuProps {
   onProfileClick: () => void;
 }
 
-export function EmployeeMenu({ onProfileClick }: EmployeeMenuProps) {
-  const { employee, logout } = useAuth();
+export function VendorMenu({ onProfileClick }: VendorMenuProps) {
+  const { vendor, logout } = useAuth();
   const [open, setOpen] = useState(false);
 
   const handleLogout = () => {
@@ -43,10 +43,10 @@ export function EmployeeMenu({ onProfileClick }: EmployeeMenuProps) {
             className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
             style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
           >
-            {employee?.name ? getInitials(employee.name) : <User size={14} />}
+            {vendor?.tailorName ? getInitials(vendor.tailorName) : <User size={14} />}
           </div>
           <span className="hidden sm:inline font-medium text-gray-700 max-w-[100px] truncate">
-            {employee?.name || 'User'}
+            {vendor?.tailorName || 'User'}
           </span>
           <CaretDown size={14} className="text-gray-500" />
         </Button>
@@ -54,8 +54,8 @@ export function EmployeeMenu({ onProfileClick }: EmployeeMenuProps) {
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{employee?.name || 'User'}</p>
-            <p className="text-xs leading-none text-muted-foreground">{employee?.contactNumber || ''}</p>
+            <p className="text-sm font-medium leading-none">{vendor?.tailorName || 'User'}</p>
+            <p className="text-xs leading-none text-muted-foreground">{vendor?.contactNumber || ''}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
