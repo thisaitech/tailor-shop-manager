@@ -51,7 +51,7 @@ export function EmployeeMenu({ onProfileClick }: EmployeeMenuProps) {
           <CaretDown size={14} className="text-gray-500" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 bg-purple-50 border border-purple-200 shadow-lg">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{employee?.name || 'User'}</p>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, ArrowCounterClockwise, Package } from '@phosphor-icons/react';
+import { CheckCircle, ArrowCounterClockwise, Package, Spinner } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { OrderAllotment } from '@/lib/types';
 import { updateServiceOrderStatus } from '@/lib/firestore/serviceOrderService';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
 
 interface StitchedOrdersProps {
   companyId: string;
@@ -21,6 +22,35 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
   const [stitchedOrders, setStitchedOrders] = useState<OrderAllotment[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: StatusChangeType;
+    order: OrderAllotment | null;
+  }>({ open: false, type: 'dispatch', order: null });
+
+  const openConfirmDialog = (type: StatusChangeType, order: OrderAllotment) => {
+    setConfirmDialog({ open: true, type, order });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({ open: false, type: 'dispatch', order: null });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog.order) return;
+
+    switch (confirmDialog.type) {
+      case 'dispatch':
+        await handleMarkReady(confirmDialog.order);
+        break;
+      case 'reassign':
+        handleReassign(confirmDialog.order);
+        break;
+    }
+    closeConfirmDialog();
+  };
 
   useEffect(() => {
     if (!companyId) return;
@@ -110,11 +140,12 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
 
   if (loading) {
     return (
-      <Card className="border-orange-200 bg-orange-50">
-        <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">Loading stitched orders...</p>
-        </CardContent>
-      </Card>
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading stitched orders...</p>
+        </div>
+      </div>
     );
   }
 
@@ -185,7 +216,7 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button
                   size="sm"
-                  onClick={() => handleMarkReady(order)}
+                  onClick={() => openConfirmDialog('dispatch', order)}
                   disabled={updatingOrder === order.id}
                   className="whitespace-nowrap bg-green-600 hover:bg-green-700"
                 >
@@ -195,7 +226,7 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleReassign(order)}
+                  onClick={() => openConfirmDialog('reassign', order)}
                   disabled={updatingOrder === order.id}
                   className="whitespace-nowrap bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
                 >
@@ -207,6 +238,19 @@ export function StitchedOrders({ companyId, onReassign, onStitchedIdClick }: Sti
           </div>
         ))}
       </CardContent>
+
+      {/* Status Change Confirmation Dialog */}
+      <StatusChangeConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => !open && closeConfirmDialog()}
+        onConfirm={handleConfirmAction}
+        type={confirmDialog.type}
+        orderInfo={{
+          orderNo: confirmDialog.order?.stitchedId || confirmDialog.order?.serviceOrderNo,
+          customerName: confirmDialog.order?.customerName,
+        }}
+        isLoading={updatingOrder === confirmDialog.order?.id}
+      />
     </Card>
   );
 }

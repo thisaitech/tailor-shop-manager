@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/EmptyState';
+import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ import {
   Calendar,
   Check,
   X,
+  Spinner,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { OrderAllotment } from '@/lib/types';
@@ -57,6 +59,38 @@ export function JobWorkTailorDashboard() {
   const [markingStitched, setMarkingStitched] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: StatusChangeType;
+    order: OrderWithCustomer | null;
+  }>({ open: false, type: 'accept', order: null });
+
+  const openConfirmDialog = (type: StatusChangeType, order: OrderWithCustomer) => {
+    setConfirmDialog({ open: true, type, order });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({ open: false, type: 'accept', order: null });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog.order) return;
+
+    switch (confirmDialog.type) {
+      case 'accept':
+        await handleAccept(confirmDialog.order.id);
+        break;
+      case 'reject':
+        await handleReject(confirmDialog.order.id);
+        break;
+      case 'stitched':
+        await handleMarkAsStitched(confirmDialog.order.id);
+        break;
+    }
+    closeConfirmDialog();
+  };
 
   // Summary counts
   const assignedOrders = orders.filter(o =>
@@ -350,6 +384,18 @@ export function JobWorkTailorDashboard() {
     );
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading orders...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="container mx-auto px-4 py-6 space-y-6">
       {/* Page Title */}
@@ -530,7 +576,7 @@ export function JobWorkTailorDashboard() {
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleAccept(order.id);
+                                  openConfirmDialog('accept', order);
                                 }}
                                 disabled={acceptingOrder === order.id}
                                 className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
@@ -543,7 +589,7 @@ export function JobWorkTailorDashboard() {
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleReject(order.id);
+                                  openConfirmDialog('reject', order);
                                 }}
                                 disabled={rejectingOrder === order.id}
                                 className="text-[10px] sm:text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
@@ -559,7 +605,7 @@ export function JobWorkTailorDashboard() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMarkAsStitched(order.id);
+                                openConfirmDialog('stitched', order);
                               }}
                               disabled={markingStitched === order.id}
                               className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
@@ -622,6 +668,23 @@ export function JobWorkTailorDashboard() {
             onStatusUpdate={loadOrders}
           />
         )}
+
+        {/* Status Change Confirmation Dialog */}
+        <StatusChangeConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) => !open && closeConfirmDialog()}
+          onConfirm={handleConfirmAction}
+          type={confirmDialog.type}
+          orderInfo={{
+            orderNo: confirmDialog.order?.jobWorkNo || confirmDialog.order?.serviceOrderNo,
+            customerName: confirmDialog.order?.customerName,
+          }}
+          isLoading={
+            acceptingOrder === confirmDialog.order?.id ||
+            rejectingOrder === confirmDialog.order?.id ||
+            markingStitched === confirmDialog.order?.id
+          }
+        />
     </main>
   );
 }

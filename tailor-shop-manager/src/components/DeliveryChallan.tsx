@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Truck, MagnifyingGlass, Funnel, DotsThree, Spinner, CaretLeft, CaretRight, X, Eye } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Truck, MagnifyingGlass, Funnel, DotsThree, CaretLeft, CaretRight, X, Eye, Spinner } from '@phosphor-icons/react';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import {
   DeliveryChallan as DeliveryChallanType,
@@ -276,15 +276,10 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-xl font-bold">Delivery Challan</h1>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <Spinner size={32} className="animate-spin text-[#6A64F2]" />
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading delivery challans...</p>
         </div>
       </div>
     );

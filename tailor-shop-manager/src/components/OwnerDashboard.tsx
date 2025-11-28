@@ -31,6 +31,7 @@ import { OrderView } from '@/components/OrderView';
 import { EmployeeManagementFirestore } from '@/components/EmployeeManagementFirestore';
 import { VendorManagementFirestore } from '@/components/VendorManagementFirestore';
 import { toast } from 'sonner';
+import { Spinner } from '@phosphor-icons/react';
 import {
   addCustomer,
   getCustomersByCompany,
@@ -94,6 +95,9 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
   // Load customers, service orders, employees, vendors, and allotments from Firestore
   useEffect(() => {
     const loadData = async () => {
+      const startTime = Date.now();
+      const MIN_LOADING_TIME = 500; // Minimum loading time in ms to show loader
+
       try {
         setLoading(true);
 
@@ -141,6 +145,12 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
         setVendors(vendorsData);
         console.log('[OwnerDashboard] Loaded vendors:', vendorsData.length);
 
+        // Ensure minimum loading time for better UX
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < MIN_LOADING_TIME) {
+          await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsedTime));
+        }
+
         setLoading(false);
       } catch (error) {
         console.error('[OwnerDashboard] Error loading data:', error);
@@ -150,7 +160,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
     };
 
     loadData();
-  }, [companyId, user]);
+  }, [user]);
 
   const handleAddCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -426,38 +436,50 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
     <main className="container mx-auto px-4 py-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsListAnimated
-          className="grid w-full grid-cols-4 h-auto p-1 bg-muted/60 gap-1"
+          className="grid w-full grid-cols-4 h-auto p-2 gap-2 rounded-xl"
+          style={{ backgroundColor: '#E9E0FB' }}
           activeValue={activeTab}
           tabValues={['dashboard', 'employees', 'customers', 'track']}
         >
           <TabsTrigger
             value="dashboard"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'dashboard' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('dashboard')}
           </TabsTrigger>
           <TabsTrigger
             value="employees"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'employees' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('employees')}
           </TabsTrigger>
           <TabsTrigger
             value="customers"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'customers' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('customers')}
           </TabsTrigger>
           <TabsTrigger
             value="track"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'track' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             Jobwork Tailors
           </TabsTrigger>
         </TabsListAnimated>
 
         <TabsContent value="dashboard" className="space-y-6">
-          {selectedServiceOrder ? (
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <Spinner size={48} className="animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading dashboard...</p>
+              </div>
+            </div>
+          ) : selectedServiceOrder ? (
             <OrderView
               serviceOrder={selectedServiceOrder}
               orderAllotments={orderAllotments || []}
@@ -488,6 +510,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
           ) : orderFilter === 'overdue' ? (
             <OverDueOrdersList
               serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
             />
           ) : orderFilter === 'jobworkCompleted' ? (
@@ -548,7 +571,6 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
             <>
               <DashboardStats
                 totalCustomers={(customers || []).length}
-                orders={orders || []}
                 serviceOrders={serviceOrders || []}
                 orderAllotments={orderAllotments || []}
                 onStatClick={handleStatClick}
@@ -633,17 +655,26 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-6">
-          <CustomerList
-            customers={customers || []}
-            onAddCustomer={handleAddCustomer}
-            onUpdateCustomer={handleUpdateCustomer}
-            onDeleteCustomer={handleDeleteCustomer}
-            onSelectCustomer={(customer) => {
-              console.log('[OwnerDashboard] Customer selected:', customer.id, customer.name);
-              setSelectedCustomer(customer);
-              setActiveTab('dashboard');
-            }}
-          />
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <Spinner size={48} className="animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading customers...</p>
+              </div>
+            </div>
+          ) : (
+            <CustomerList
+              customers={customers || []}
+              onAddCustomer={handleAddCustomer}
+              onUpdateCustomer={handleUpdateCustomer}
+              onDeleteCustomer={handleDeleteCustomer}
+              onSelectCustomer={(customer) => {
+                console.log('[OwnerDashboard] Customer selected:', customer.id, customer.name);
+                setSelectedCustomer(customer);
+                setActiveTab('dashboard');
+              }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="track" className="space-y-6">

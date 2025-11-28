@@ -458,6 +458,7 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
               createdAt: selectedOrder.createdAt,
               updatedAt: selectedOrder.updatedAt,
             }}
+            orderAllotment={selectedOrder}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);

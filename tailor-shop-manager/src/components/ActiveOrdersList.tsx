@@ -129,8 +129,8 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
       </div>
 
       {/* Scrollable Orders List */}
-      <Card className="flex-1 min-h-0 overflow-hidden">
-        <CardContent className="p-4 h-full overflow-y-auto" style={{ background: viewConfig.bgColor }}>
+      <Card className="flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-transparent">
+        <CardContent className="p-0 h-full overflow-y-auto">
           {filteredOrders.length === 0 ? (
             <EmptyState
               icon={ViewIcon}
@@ -247,6 +247,7 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
         <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-4 rounded-lg">Loading...</div></div>}>
           <ServiceOrderDetailsDialog
             serviceOrder={selectedOrder}
+            orderAllotment={orderAllotments.find(a => a.serviceOrderNo === selectedOrder.id && !a.reassigned)}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);

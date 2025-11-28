@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
 import { TailorProfile } from '@/components/TailorProfile';
 import { EmptyState } from '@/components/EmptyState';
+import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ import {
   Eye,
   User,
   Calendar,
+  Spinner,
 } from '@phosphor-icons/react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -77,6 +79,38 @@ export function TailorDashboardFirestore() {
   const [markingReady, setMarkingReady] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: StatusChangeType;
+    order: OrderAllotment | null;
+  }>({ open: false, type: 'accept', order: null });
+
+  const openConfirmDialog = (type: StatusChangeType, order: OrderAllotment) => {
+    setConfirmDialog({ open: true, type, order });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({ open: false, type: 'accept', order: null });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog.order) return;
+
+    switch (confirmDialog.type) {
+      case 'accept':
+        await handleAcceptOrder(confirmDialog.order);
+        break;
+      case 'reject':
+        await handleRejectOrder(confirmDialog.order);
+        break;
+      case 'ready':
+        await handleMarkAsReady(confirmDialog.order);
+        break;
+    }
+    closeConfirmDialog();
+  };
 
   useEffect(() => {
     if (employee) {
@@ -419,6 +453,18 @@ export function TailorDashboardFirestore() {
     );
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Show Profile view
   if (currentView === 'profile') {
     return (
@@ -606,7 +652,7 @@ export function TailorDashboardFirestore() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAcceptOrder(order);
+                              openConfirmDialog('accept', order);
                             }}
                             disabled={acceptingOrder === order.id}
                             className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
@@ -619,7 +665,7 @@ export function TailorDashboardFirestore() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRejectOrder(order);
+                              openConfirmDialog('reject', order);
                             }}
                             disabled={rejectingOrder === order.id}
                             className="text-[10px] sm:text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border-red-300"
@@ -635,7 +681,7 @@ export function TailorDashboardFirestore() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleMarkAsReady(order);
+                            openConfirmDialog('ready', order);
                           }}
                           disabled={markingReady === order.id}
                           className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
@@ -696,6 +742,23 @@ export function TailorDashboardFirestore() {
           }}
         />
       )}
+
+      {/* Status Change Confirmation Dialog */}
+      <StatusChangeConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => !open && closeConfirmDialog()}
+        onConfirm={handleConfirmAction}
+        type={confirmDialog.type}
+        orderInfo={{
+          orderNo: confirmDialog.order?.serviceOrderNo,
+          customerName: confirmDialog.order?.customerName,
+        }}
+        isLoading={
+          acceptingOrder === confirmDialog.order?.id ||
+          rejectingOrder === confirmDialog.order?.id ||
+          markingReady === confirmDialog.order?.id
+        }
+      />
     </main>
   );
 }

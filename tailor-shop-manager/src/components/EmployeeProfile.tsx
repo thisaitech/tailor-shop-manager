@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Pencil, ArrowLeft, User, Phone, MapPin, Briefcase } from '@phosphor-icons/react';
+import { Pencil, ArrowLeft, User, Phone, MapPin, Briefcase, Spinner } from '@phosphor-icons/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { updateEmployee, getEmployee, EmployeeWithCompany } from '@/lib/firestore/employeeService';
@@ -97,10 +97,10 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading profile...</p>
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading profile...</p>
         </div>
       </div>
     );

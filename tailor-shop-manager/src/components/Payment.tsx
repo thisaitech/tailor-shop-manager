@@ -26,7 +26,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, CurrencyInr, FilePdf, Printer, MagnifyingGlass, Funnel, DotsThree, Spinner, ArrowLeft, CaretLeft, CaretRight, X } from '@phosphor-icons/react';
+import { Plus, CurrencyInr, FilePdf, Printer, MagnifyingGlass, Funnel, DotsThree, ArrowLeft, CaretLeft, CaretRight, X, Spinner } from '@phosphor-icons/react';
+import { StatusChangeConfirmDialog } from '@/components/StatusChangeConfirmDialog';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import {
   Payment as PaymentType,
@@ -78,6 +79,9 @@ export function Payment({ onBack }: PaymentProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 6;
+
+  // Confirmation dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -432,7 +436,24 @@ export function Payment({ onBack }: PaymentProps) {
     }
   };
 
+  const handleConfirmPayment = () => {
+    if (!selectedOrderId || !selectedOrder) {
+      toast.error('Please select a Service Order');
+      return;
+    }
+
+    if (!companyId || !user?.id) {
+      toast.error('Company profile not found');
+      return;
+    }
+
+    // Show confirmation dialog
+    setShowConfirmDialog(true);
+  };
+
   const handleSave = async () => {
+    setShowConfirmDialog(false);
+
     if (!selectedOrderId || !selectedOrder) {
       toast.error('Please select a Service Order');
       return;
@@ -561,15 +582,10 @@ export function Payment({ onBack }: PaymentProps) {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-xl font-bold">Payment</h1>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <Spinner size={32} className="animate-spin text-[#6A64F2]" />
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading payments...</p>
         </div>
       </div>
     );
@@ -912,12 +928,25 @@ export function Payment({ onBack }: PaymentProps) {
             <Button variant="outline" onClick={() => setShowDialog(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleConfirmPayment} disabled={saving}>
               {saving ? 'Creating...' : 'Create Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Status Change Confirmation Dialog */}
+      <StatusChangeConfirmDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+        onConfirm={handleSave}
+        type="delivered"
+        orderInfo={{
+          orderNo: selectedOrderId,
+          customerName: selectedOrder?.customerName,
+        }}
+        isLoading={saving}
+      />
     </div>
   );
 }

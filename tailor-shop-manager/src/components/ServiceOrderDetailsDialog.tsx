@@ -6,23 +6,101 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Package, User, Calendar, Ruler } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
+import { Package, User, Calendar, Ruler, UserCircle, ClockCounterClockwise, ArrowRight, FilePdf, Printer } from '@phosphor-icons/react';
 import { format } from 'date-fns';
-import { ServiceOrder } from '@/lib/types';
+import { ServiceOrder, OrderAllotment, DressItem } from '@/lib/types';
+import {
+  ProformaInvoiceData,
+  ProformaInvoiceItem,
+  downloadProformaInvoicePdf,
+  printProformaInvoice,
+} from '@/lib/proformaInvoiceTemplate';
+import { toast } from 'sonner';
 
 interface ServiceOrderDetailsDialogProps {
   serviceOrder: ServiceOrder;
+  orderAllotment?: OrderAllotment; // Allotment for this order (if assigned)
   open: boolean;
   onClose: () => void;
 }
 
-export function ServiceOrderDetailsDialog({ serviceOrder, open, onClose }: ServiceOrderDetailsDialogProps) {
+export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, onClose }: ServiceOrderDetailsDialogProps) {
+  // Build proforma invoice data from service order
+  const buildProformaInvoiceData = (): ProformaInvoiceData => {
+    // Build line items from dress items or use total
+    const items: ProformaInvoiceItem[] = serviceOrder.dressItems && serviceOrder.dressItems.length > 0
+      ? serviceOrder.dressItems.map((item: DressItem) => ({
+          name: item.name || item.dressName || 'Stitching',
+          quantity: item.qty || item.quantity || 1,
+          rate: item.rate || item.stitchingCost || 0,
+          amount: item.amount || (item.qty || item.quantity || 1) * (item.rate || item.stitchingCost || 0),
+        }))
+      : [{
+          name: 'Tailoring Service',
+          quantity: serviceOrder.orderQty,
+          rate: serviceOrder.stitchingCost,
+          amount: serviceOrder.stitchingCost,
+        }];
+
+    const totalAmount = serviceOrder.totalAmount || serviceOrder.stitchingCost || 0;
+    const advanceAmount = serviceOrder.advanceAmount || 0;
+    const balanceDue = serviceOrder.balanceAmount ?? (totalAmount - advanceAmount);
+
+    return {
+      proformaInvoiceNo: `PI-${serviceOrder.id}`,
+      invoiceDate: serviceOrder.serviceOrderDate,
+      serviceOrderNo: serviceOrder.id,
+      customerName: serviceOrder.customerName,
+      customerId: serviceOrder.customerId,
+      orderCategory: serviceOrder.orderCategory,
+      expectedDeliveryDate: serviceOrder.expectedDeliveryDate,
+      items,
+      subtotal: totalAmount,
+      advanceAmount,
+      balanceDue,
+      paymentMode: 'N/A',
+    };
+  };
+
+  // Handle download proforma invoice
+  const handleDownloadInvoice = () => {
+    try {
+      const invoiceData = buildProformaInvoiceData();
+      downloadProformaInvoicePdf(invoiceData);
+      toast.success('Proforma Invoice downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+      toast.error('Failed to download invoice');
+    }
+  };
+
+  // Handle print proforma invoice
+  const handlePrintInvoice = () => {
+    try {
+      const invoiceData = buildProformaInvoiceData();
+      printProformaInvoice(invoiceData);
+      toast.success('Proforma Invoice sent to printer');
+    } catch (error) {
+      console.error('Error printing invoice:', error);
+      toast.error('Failed to print invoice');
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'open':
         return <Badge variant="secondary">Open</Badge>;
       case 'allotment':
         return <Badge className="bg-orange-500">Allotment</Badge>;
+      case 'allotted':
+        return <Badge className="bg-amber-500">Awaiting Acceptance</Badge>;
+      case 'in_progress':
+        return <Badge className="bg-blue-500">In Progress</Badge>;
+      case 'stitched':
+        return <Badge className="bg-indigo-500">Stitched</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-500">Rejected</Badge>;
       case 'job-network':
         return <Badge className="bg-blue-500">Job Network</Badge>;
       case 'ready':
@@ -31,6 +109,21 @@ export function ServiceOrderDetailsDialog({ serviceOrder, open, onClose }: Servi
         return <Badge className="bg-gray-500">Delivered</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getHistoryActionLabel = (action: string) => {
+    switch (action) {
+      case 'created':
+        return 'Order Assigned';
+      case 'reassigned':
+        return 'Order Reassigned';
+      case 'status_changed':
+        return 'Status Changed';
+      case 'delivered':
+        return 'Delivered';
+      default:
+        return action;
     }
   };
 
@@ -44,10 +137,33 @@ export function ServiceOrderDetailsDialog({ serviceOrder, open, onClose }: Servi
         }}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2" style={{ color: '#6A64F2' }}>
-            <Package size={24} style={{ color: '#6A64F2' }} weight="duotone" />
-            Order Details
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2" style={{ color: '#6A64F2' }}>
+              <Package size={24} style={{ color: '#6A64F2' }} weight="duotone" />
+              Order Details
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrintInvoice}
+                className="flex items-center gap-1.5 border-2 hover:bg-purple-50"
+                style={{ borderColor: '#6A64F2', color: '#6A64F2' }}
+              >
+                <Printer size={16} weight="duotone" />
+                Print
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleDownloadInvoice}
+                className="flex items-center gap-1.5"
+                style={{ background: '#6A64F2', color: 'white' }}
+              >
+                <FilePdf size={16} weight="duotone" />
+                Download Invoice
+              </Button>
+            </div>
+          </div>
           <DialogDescription>
             <Badge
               variant="outline"
@@ -118,6 +234,119 @@ export function ServiceOrderDetailsDialog({ serviceOrder, open, onClose }: Servi
               </div>
             </div>
           </div>
+
+          {/* Assignment Information */}
+          {orderAllotment && (
+            <div
+              className="p-4 rounded-xl border-2"
+              style={{
+                background: '#FAF8FF',
+                borderColor: '#6A64F2',
+                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
+              }}
+            >
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#6A64F2' }}>
+                <UserCircle size={20} weight="duotone" />
+                Assignment Information
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Allotment Status</p>
+                  <div className="mt-1">{getStatusBadge(orderAllotment.status || 'allotted')}</div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Assignment Type</p>
+                  <Badge variant="outline" className="mt-1">
+                    {orderAllotment.stitchingAllotment === 'employee' ? 'In-House (Employee)' : 'Job Work (Vendor)'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Assigned To</p>
+                  <p className="font-medium text-gray-900">{orderAllotment.assignedName || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Job Work No</p>
+                  <p className="font-medium text-gray-900">{orderAllotment.id || '-'}</p>
+                </div>
+                {orderAllotment.assignedDate && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Assigned Date</p>
+                    <p className="font-medium text-gray-900">
+                      {format(new Date(orderAllotment.assignedDate), 'dd MMM yyyy, hh:mm a')}
+                    </p>
+                  </div>
+                )}
+                {orderAllotment.stitchedDate && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Stitched Date</p>
+                    <p className="font-medium text-gray-900">
+                      {format(new Date(orderAllotment.stitchedDate), 'dd MMM yyyy, hh:mm a')}
+                    </p>
+                  </div>
+                )}
+                {orderAllotment.deliveredDate && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Delivered Date</p>
+                    <p className="font-medium text-gray-900">
+                      {format(new Date(orderAllotment.deliveredDate), 'dd MMM yyyy, hh:mm a')}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Order History */}
+          {orderAllotment?.history && orderAllotment.history.length > 0 && (
+            <div
+              className="p-4 rounded-xl border-2"
+              style={{
+                background: '#FAF8FF',
+                borderColor: '#6A64F2',
+                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
+              }}
+            >
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#6A64F2' }}>
+                <ClockCounterClockwise size={20} weight="duotone" />
+                Order History
+              </h3>
+              <div className="space-y-3">
+                {orderAllotment.history.map((entry, index) => (
+                  <div
+                    key={index}
+                    className="p-3 rounded-lg border flex items-start gap-3"
+                    style={{ background: '#EADDFD', borderColor: 'rgba(106, 100, 242, 0.3)' }}
+                  >
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                      <span className="text-xs font-bold text-purple-600">{orderAllotment.history!.length - index}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-gray-900">{getHistoryActionLabel(entry.action)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(entry.timestamp), 'dd MMM yyyy, hh:mm a')}
+                        </span>
+                      </div>
+                      {entry.action === 'status_changed' && entry.previousStatus && entry.newStatus && (
+                        <div className="flex items-center gap-2 text-sm">
+                          {getStatusBadge(entry.previousStatus)}
+                          <ArrowRight size={14} className="text-gray-400" />
+                          {getStatusBadge(entry.newStatus)}
+                        </div>
+                      )}
+                      {entry.action === 'reassigned' && (
+                        <div className="text-sm text-gray-600">
+                          <span>{entry.previousAssignedName || 'Unknown'}</span>
+                          <ArrowRight size={14} className="inline mx-1 text-gray-400" />
+                          <span>{entry.newAssignedName || 'Unknown'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Order Details */}
           <div

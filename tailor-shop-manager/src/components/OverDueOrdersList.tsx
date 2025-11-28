@@ -12,7 +12,7 @@ import {
 import { ClockCountdown, ArrowLeft, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format, differenceInDays } from 'date-fns';
-import { ServiceOrder } from '@/lib/types';
+import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
 // Lazy load the dialog
 const ServiceOrderDetailsDialog = lazy(() =>
@@ -24,10 +24,11 @@ const ITEMS_PER_PAGE = 6;
 
 interface OverDueOrdersListProps {
   serviceOrders: ServiceOrder[];
+  orderAllotments: OrderAllotment[];
   onBack: () => void;
 }
 
-export function OverDueOrdersList({ serviceOrders, onBack }: OverDueOrdersListProps) {
+export function OverDueOrdersList({ serviceOrders, orderAllotments, onBack }: OverDueOrdersListProps) {
   // State for details dialog
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -391,6 +392,7 @@ export function OverDueOrdersList({ serviceOrders, onBack }: OverDueOrdersListPr
         <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-4 rounded-lg">Loading...</div></div>}>
           <ServiceOrderDetailsDialog
             serviceOrder={selectedOrder}
+            orderAllotment={orderAllotments.find(a => a.serviceOrderNo === selectedOrder.id && !a.reassigned)}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);

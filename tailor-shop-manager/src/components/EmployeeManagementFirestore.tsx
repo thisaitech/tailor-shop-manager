@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Key, Copy, Spinner, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, UserCircle, User, MapPin, Check } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Key, Copy, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, UserCircle, User, MapPin, Check, Spinner } from '@phosphor-icons/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { EmptyState } from './EmptyState';

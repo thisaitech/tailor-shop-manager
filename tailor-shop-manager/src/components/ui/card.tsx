@@ -7,14 +7,9 @@ function Card({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02]",
+        "bg-slate-50/50 text-card-foreground flex flex-col rounded-xl border border-slate-200/60 shadow-sm",
         className
       )}
-      style={{
-        background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)',
-        borderColor: 'rgba(196, 181, 253, 0.3)',
-        color: '#ffffff'
-      }}
       {...props}
     />
   )

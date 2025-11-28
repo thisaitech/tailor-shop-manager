@@ -15,43 +15,43 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-4", className)}
+      className={cn("p-5", className)}
       classNames={{
         // V9 class names for react-day-picker
-        root: "rdp-root w-[280px] min-h-[350px]",
+        root: "rdp-root w-[320px] min-h-[400px]",
         months: "flex flex-col sm:flex-row gap-4 w-full h-full",
         month: "flex flex-col gap-4 relative pt-2 w-full h-full",
-        month_caption: "flex justify-center pt-1 relative items-center h-10",
-        caption_label: "text-base font-semibold",
-        nav: "flex items-center justify-between absolute inset-x-0 top-3 max-w-[255px] mx-auto",
+        month_caption: "flex justify-center pt-1 relative items-center h-12",
+        caption_label: "text-lg font-bold text-gray-900",
+        nav: "flex items-center justify-between absolute inset-x-0 top-3 max-w-[290px] mx-auto",
         button_previous: cn(
           buttonVariants({ variant: "outline" }),
-          "size-10 bg-transparent p-0 opacity-70 hover:opacity-100"
+          "size-11 bg-transparent p-0 opacity-80 hover:opacity-100"
         ),
         button_next: cn(
           buttonVariants({ variant: "outline" }),
-          "size-10 bg-transparent p-0 opacity-70 hover:opacity-100"
+          "size-11 bg-transparent p-0 opacity-80 hover:opacity-100"
         ),
         month_grid: "w-full border-collapse",
         weekdays: "flex",
-        weekday: "text-muted-foreground rounded-md w-10 font-medium text-sm text-center",
+        weekday: "text-gray-600 rounded-md w-11 font-semibold text-sm text-center",
         week: "flex w-full mt-2",
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "size-10 p-0 font-normal aria-selected:opacity-100 text-sm"
+          "size-11 p-0 font-medium aria-selected:opacity-100 text-sm text-gray-800"
         ),
-        day_button: "size-10 p-0 font-normal cursor-pointer text-sm",
+        day_button: "size-11 p-0 font-medium cursor-pointer text-sm text-gray-800",
         range_start:
-          "day-range-start aria-selected:bg-primary aria-selected:text-primary-foreground",
+          "day-range-start aria-selected:bg-blue-600 aria-selected:text-white",
         range_end:
-          "day-range-end aria-selected:bg-primary aria-selected:text-primary-foreground",
+          "day-range-end aria-selected:bg-blue-600 aria-selected:text-white",
         selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-md",
-        today: "bg-accent text-accent-foreground font-semibold",
-        outside: "text-muted-foreground opacity-50",
-        disabled: "text-muted-foreground opacity-50",
+          "bg-blue-600 text-white hover:bg-blue-700 hover:text-white focus:bg-blue-600 focus:text-white rounded-md font-semibold",
+        today: "bg-blue-100 text-blue-700 font-bold",
+        outside: "text-gray-400 opacity-50",
+        disabled: "text-gray-400 opacity-50",
         range_middle:
-          "aria-selected:bg-accent aria-selected:text-accent-foreground",
+          "aria-selected:bg-blue-100 aria-selected:text-blue-700",
         hidden: "invisible",
         ...classNames,
       }}

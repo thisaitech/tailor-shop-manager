@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 
 interface HeaderProps {
   onDashboardClick?: () => void;
+  onCustomersClick?: () => void;
   onProfileClick?: () => void;
   onEmployeeClick?: () => void;
   onVendorClick?: () => void;
@@ -21,7 +22,7 @@ interface HeaderProps {
   onVendorProfileClick?: () => void;
 }
 
-export function Header({ onDashboardClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick }: HeaderProps) {
+export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick }: HeaderProps) {
   const { user, employee, vendor, logout } = useAuth();
   const { t } = useLanguage();
 
@@ -54,6 +55,7 @@ export function Header({ onDashboardClick, onProfileClick, onEmployeeClick, onVe
             {user?.role === 'owner' && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
               <AdminMenu
                 onDashboardClick={onDashboardClick}
+                onCustomersClick={onCustomersClick}
                 onProfileClick={onProfileClick}
                 onEmployeeClick={onEmployeeClick}
                 onVendorClick={onVendorClick}

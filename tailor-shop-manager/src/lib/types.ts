@@ -138,6 +138,37 @@ export interface DressItem {
   isAllotted?: boolean; // Whether this item has been assigned to a tailor
 }
 
+// Embedded allotment within ServiceOrder (unified structure)
+export interface EmbeddedAllotment {
+  id: string; // Job Work No (JOB0001, etc.)
+  jobWorkDate: number;
+  dressItemId?: string;
+  dressItemName?: string;
+  dressType?: string;
+  stitchingAllotment: StitchingAllotmentType;
+  assignedTo: string;
+  assignedName: string;
+  jobWorkNo?: string;
+  jobWorkTailorId?: string;
+  jobWorkTailorName?: string;
+  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected' | 'delivered';
+  assignedDate?: number;
+  orderNumber?: string;
+  stitchedId?: string;
+  stitchedDate?: number;
+  deliveredDate?: number;
+  reassigned?: boolean;
+  reassignedDate?: number;
+  rejectedDate?: number;
+  materialCost: number;
+  jobWorkCost: number;
+  expectedDeliveryDate: number;
+  orderStatus: OrderTicketStatus;
+  createdAt: number;
+  updatedAt: number;
+  history?: OrderAllotmentHistoryEntry[];
+}
+
 export interface ServiceOrder {
   id: string; // Service Order No (SO0001, SO0002, etc.)
   serviceOrderDate: number; // Auto-set to current date
@@ -154,6 +185,8 @@ export interface ServiceOrder {
   expectedDeliveryDate: number; // Delivery date timestamp
   reference?: string; // Notes, instructions
   orderStatus: ServiceOrderStatus; // In-Progress/Pending/Ready/Delivered
+  // Embedded allotments (unified structure - all order data in one place)
+  allotments?: EmbeddedAllotment[];
   createdAt: number;
   updatedAt: number;
 }

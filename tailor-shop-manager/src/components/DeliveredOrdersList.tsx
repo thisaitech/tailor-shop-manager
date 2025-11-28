@@ -178,6 +178,7 @@ export function DeliveredOrdersList({ serviceOrders, orderAllotments, onBack }: 
         <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-4 rounded-lg">Loading...</div></div>}>
           <ServiceOrderDetailsDialog
             serviceOrder={selectedOrder}
+            orderAllotment={orderAllotments.find(a => a.serviceOrderNo === selectedOrder.id && !a.reassigned)}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);

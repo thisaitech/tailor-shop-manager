@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, PencilSimple, Trash, UserCircle, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, Spinner, ArrowLeft, User, MapPin, Check, Copy } from '@phosphor-icons/react';
+import { Plus, PencilSimple, Trash, UserCircle, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, ArrowLeft, User, MapPin, Check, Copy, Spinner } from '@phosphor-icons/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { EmptyState } from './EmptyState';
@@ -512,15 +512,10 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-xl font-bold">Job Work Tailors</h1>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <Spinner size={32} className="animate-spin text-[#6A64F2]" />
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading job work tailors...</p>
         </div>
       </div>
     );

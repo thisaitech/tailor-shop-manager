@@ -45,7 +45,14 @@ function AppContent() {
 
   const handleDashboardClick = () => {
     setAdminView('dashboard');
+    setDashboardTab('dashboard');
     setDashboardKey(prev => prev + 1); // Force remount to reset all internal state
+  };
+
+  const handleCustomersClick = () => {
+    setAdminView('dashboard');
+    setDashboardTab('customers');
+    setDashboardKey(prev => prev + 1); // Force remount to show customers tab with loader
   };
 
   const handleProfileClick = () => {
@@ -101,6 +108,7 @@ function AppContent() {
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <Header
         onDashboardClick={user?.role === 'owner' ? handleDashboardClick : undefined}
+        onCustomersClick={user?.role === 'owner' ? handleCustomersClick : undefined}
         onProfileClick={user?.role === 'owner' ? handleProfileClick : undefined}
         onEmployeeClick={user?.role === 'owner' ? handleEmployeeClick : undefined}
         onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}

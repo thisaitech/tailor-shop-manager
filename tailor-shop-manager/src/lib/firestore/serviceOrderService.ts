@@ -12,7 +12,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ServiceOrder } from '@/lib/types';
+import { ServiceOrder, EmbeddedAllotment } from '@/lib/types';
 
 const SERVICE_ORDERS_COLLECTION = 'newOrder';
 
@@ -263,5 +263,126 @@ export async function updateServiceOrderStatus(
   } catch (error) {
     console.error('Error updating service order status:', error);
     throw new Error('Failed to update service order status');
+  }
+}
+
+/**
+ * Add an embedded allotment to a service order
+ * This keeps all order data in a single document
+ */
+export async function addEmbeddedAllotment(
+  serviceOrderId: string,
+  allotment: EmbeddedAllotment
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, serviceOrderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Service order ${serviceOrderId} not found`);
+    }
+
+    const data = orderDoc.data();
+    const existingAllotments: EmbeddedAllotment[] = data.allotments || [];
+
+    // Add new allotment to the array
+    const updatedAllotments = [...existingAllotments, allotment];
+
+    await updateDoc(orderRef, {
+      allotments: updatedAllotments,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`Embedded allotment ${allotment.id} added to service order ${serviceOrderId}`);
+  } catch (error) {
+    console.error('Error adding embedded allotment:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update an embedded allotment within a service order
+ */
+export async function updateEmbeddedAllotment(
+  serviceOrderId: string,
+  allotmentId: string,
+  updates: Partial<EmbeddedAllotment>
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, serviceOrderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Service order ${serviceOrderId} not found`);
+    }
+
+    const data = orderDoc.data();
+    const existingAllotments: EmbeddedAllotment[] = data.allotments || [];
+
+    // Find and update the specific allotment
+    const updatedAllotments = existingAllotments.map(allotment => {
+      if (allotment.id === allotmentId) {
+        return { ...allotment, ...updates, updatedAt: Date.now() };
+      }
+      return allotment;
+    });
+
+    await updateDoc(orderRef, {
+      allotments: updatedAllotments,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`Embedded allotment ${allotmentId} updated in service order ${serviceOrderId}`);
+  } catch (error) {
+    console.error('Error updating embedded allotment:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get embedded allotments from a service order
+ */
+export async function getEmbeddedAllotments(serviceOrderId: string): Promise<EmbeddedAllotment[]> {
+  try {
+    const order = await getServiceOrderById(serviceOrderId);
+    return order?.allotments || [];
+  } catch (error) {
+    console.error('Error getting embedded allotments:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete an embedded allotment from a service order
+ */
+export async function deleteEmbeddedAllotment(
+  serviceOrderId: string,
+  allotmentId: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, serviceOrderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Service order ${serviceOrderId} not found`);
+    }
+
+    const data = orderDoc.data();
+    const existingAllotments: EmbeddedAllotment[] = data.allotments || [];
+
+    // Remove the specific allotment
+    const updatedAllotments = existingAllotments.filter(
+      allotment => allotment.id !== allotmentId
+    );
+
+    await updateDoc(orderRef, {
+      allotments: updatedAllotments,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`Embedded allotment ${allotmentId} deleted from service order ${serviceOrderId}`);
+  } catch (error) {
+    console.error('Error deleting embedded allotment:', error);
+    throw error;
   }
 }

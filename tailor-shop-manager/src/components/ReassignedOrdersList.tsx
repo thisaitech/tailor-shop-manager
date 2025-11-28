@@ -30,6 +30,7 @@ interface AwaitingAcceptanceListProps {
 
 export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListProps) {
   const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
+  const [selectedOrderAllotment, setSelectedOrderAllotment] = useState<OrderAllotment | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState<string | null>(null);
 
@@ -114,6 +115,7 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
       const serviceOrder = await getServiceOrderById(order.serviceOrderNo);
       if (serviceOrder) {
         setSelectedServiceOrder(serviceOrder);
+        setSelectedOrderAllotment(order);
         setShowDetailsDialog(true);
       }
     } catch (error) {
@@ -447,10 +449,12 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
         <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-4 rounded-lg">Loading...</div></div>}>
           <ServiceOrderDetailsDialog
             serviceOrder={selectedServiceOrder}
+            orderAllotment={selectedOrderAllotment || undefined}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);
               setSelectedServiceOrder(null);
+              setSelectedOrderAllotment(null);
             }}
           />
         </Suspense>

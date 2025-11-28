@@ -22,27 +22,15 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className={`flex flex-col items-center justify-center py-12 px-6 rounded-2xl border-2 border-dashed ${className}`}
-      style={{
-        background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
-        borderColor: '#1e40af',
-      }}
+      className={`flex flex-col items-center justify-center py-10 px-6 rounded-xl bg-slate-50/30 ${className}`}
     >
       {/* Icon Container */}
-      <div
-        className="mb-4 p-4 rounded-2xl shadow-lg"
-        style={{
-          background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
-        }}
-      >
-        <Icon size={iconSize} className="text-white" weight="duotone" />
+      <div className="mb-4 p-4 rounded-2xl bg-primary/10">
+        <Icon size={iconSize} className="text-primary" weight="duotone" />
       </div>
 
       {/* Title */}
-      <h3
-        className="text-lg font-bold mb-1"
-        style={{ color: '#1e3a8a' }}
-      >
+      <h3 className="text-lg font-bold mb-1 text-foreground">
         {title}
       </h3>
 
@@ -57,10 +45,7 @@ export function EmptyState({
       {actionLabel && onAction && (
         <Button
           onClick={onAction}
-          className="h-11 px-6 font-semibold shadow-lg hover:shadow-xl transition-all"
-          style={{
-            background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
-          }}
+          className="h-11 px-6 font-semibold"
         >
           <Plus size={18} className="mr-2" weight="bold" />
           {actionLabel}
