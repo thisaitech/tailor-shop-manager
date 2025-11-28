@@ -1,6 +1,5 @@
-import { useLanguage } from '@/hooks/use-language';
 import { Card } from '@/components/ui/card';
-import { Users, Scissors, Package, CheckCircle, XCircle, Checks } from '@phosphor-icons/react';
+import { Scissors, Package, XCircle, Checks, ClockCountdown, CheckSquare, Truck } from '@phosphor-icons/react';
 import { Order, ServiceOrder, OrderAllotment } from '@/lib/types';
 
 interface DashboardStatsProps {
@@ -8,12 +7,10 @@ interface DashboardStatsProps {
   orders: Order[];
   serviceOrders?: ServiceOrder[];
   orderAllotments?: OrderAllotment[];
-  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => void;
+  onStatClick?: (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'overdue' | 'jobworkCompleted') => void;
 }
 
-export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAllotments, onStatClick }: DashboardStatsProps) {
-  const { t } = useLanguage();
-
+export function DashboardStats({ orders, serviceOrders, orderAllotments, onStatClick }: DashboardStatsProps) {
   // Use serviceOrders if available, otherwise fall back to old orders array
   const activeOrders = serviceOrders
     ? serviceOrders.filter((o) => o.orderStatus !== 'delivered').length
@@ -23,16 +20,13 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
     ? serviceOrders.filter((o) => o.orderStatus === 'ready').length
     : (orders || []).filter((o) => o.status === 'ready').length;
 
-  const completedOrders = serviceOrders
-    ? serviceOrders.filter((o) => o.orderStatus === 'delivered').length
-    : (orders || []).filter((o) => o.status === 'delivered').length;
-
   // Count rejected and stitched orders from order allotments
   const rejectedOrders = orderAllotments
     ? orderAllotments.filter((o) => o.status === 'rejected' && !o.reassigned).length
     : 0;
 
-  const stitchedOrders = orderAllotments
+  // Await Acceptance - stitched orders waiting for acceptance (previously "Jobwork Completed")
+  const awaitAcceptanceOrders = orderAllotments
     ? orderAllotments.filter((o) =>
         o.status === 'stitched' &&
         !o.reassigned &&
@@ -40,14 +34,36 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       ).length
     : 0;
 
+  // Jobwork Completed Orders - orders completed by vendors but goods not yet received at shop
+  const jobworkCompletedOrders = orderAllotments
+    ? orderAllotments.filter((o) =>
+        o.stitchingAllotment === 'vendor' &&
+        o.status === 'stitched' &&
+        !o.reassigned
+      ).length
+    : 0;
+
+  // Count overdue orders - orders past their expected delivery date and not delivered
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdueOrders = serviceOrders
+    ? serviceOrders.filter((o) => {
+        if (o.orderStatus === 'delivered') return false;
+        if (!o.expectedDeliveryDate) return false;
+        const deliveryDate = new Date(o.expectedDeliveryDate);
+        deliveryDate.setHours(0, 0, 0, 0);
+        return deliveryDate < today;
+      }).length
+    : 0;
+
   const stats = [
     {
-      label: t('totalCustomers'),
-      value: totalCustomers,
-      icon: Users,
-      color: 'text-violet-600',
-      bgColor: 'bg-violet-100',
-      filter: 'all' as const,
+      label: 'Over Due Orders',
+      value: overdueOrders,
+      icon: ClockCountdown,
+      color: 'text-red-600',
+      bgColor: 'bg-red-100',
+      filter: 'overdue' as const,
     },
     {
       label: 'Open Orders',
@@ -58,22 +74,6 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       filter: 'active' as const,
     },
     {
-      label: t('readyForDelivery'),
-      value: readyOrders,
-      icon: Package,
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-100',
-      filter: 'ready' as const,
-    },
-    {
-      label: t('completedOrders'),
-      value: completedOrders,
-      icon: CheckCircle,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-100',
-      filter: 'completed' as const,
-    },
-    {
       label: 'Rejected Orders',
       value: rejectedOrders,
       icon: XCircle,
@@ -82,12 +82,28 @@ export function DashboardStats({ totalCustomers, orders, serviceOrders, orderAll
       filter: 'rejected' as const,
     },
     {
-      label: 'Stitched Orders',
-      value: stitchedOrders,
+      label: 'Jobwork Completed Orders',
+      value: jobworkCompletedOrders,
+      icon: Truck,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
+      filter: 'jobworkCompleted' as const,
+    },
+    {
+      label: 'Await Acceptance',
+      value: awaitAcceptanceOrders,
       icon: Checks,
       color: 'text-teal-600',
       bgColor: 'bg-teal-100',
       filter: 'stitched' as const,
+    },
+    {
+      label: 'Ready to Delivery',
+      value: readyOrders,
+      icon: Package,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-100',
+      filter: 'ready' as const,
     },
   ];
 

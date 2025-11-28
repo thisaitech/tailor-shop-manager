@@ -60,6 +60,7 @@ interface OrderListProps {
   ) => void;
   onCreateCustomer: () => void;
   hideAddButton?: boolean;
+  onSelectOrder?: (order: ServiceOrder) => void;
 }
 
 export function OrderList({
@@ -74,6 +75,7 @@ export function OrderList({
   onAddServiceOrder,
   onCreateCustomer,
   hideAddButton = false,
+  onSelectOrder,
 }: OrderListProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
@@ -613,6 +615,7 @@ export function OrderList({
                     background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
                     borderColor: 'rgba(167, 139, 250, 0.3)'
                   }}
+                  onClick={() => onSelectOrder?.(serviceOrder)}
                 >
                   {/* Order details */}
                   <div className="flex-1 min-h-0 flex flex-col">

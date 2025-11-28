@@ -343,39 +343,39 @@ export function OrderAllotmentForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
             {reassignOrder ? 'Re-assign Stitched Order' : 'Job Allotment'}
           </DialogTitle>
           {reassignOrder && (
-            <p className="text-sm text-orange-600 mt-2">
-              Re-assigning Stitched Order: {reassignOrder.stitchedId || reassignOrder.jobWorkNo}
+            <p className="text-sm text-orange-600">
+              Re-assigning: {reassignOrder.stitchedId || reassignOrder.jobWorkNo}
             </p>
           )}
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Job Work Date - Read-only */}
+        <div className="space-y-6 py-4">
+          {/* Job Work Date */}
           <div className="space-y-2">
-            <Label>Job Work Date</Label>
+            <Label className="text-sm font-medium">Job Work Date</Label>
             <Input
               type="text"
               value={format(new Date(), 'MMM dd, yyyy')}
               disabled
-              className="bg-muted"
+              className="h-11 bg-muted"
             />
-            <p className="text-sm text-muted-foreground">Auto-set to today's date</p>
+            <p className="text-xs text-muted-foreground">Auto-set to today's date</p>
           </div>
 
           {/* Service Order Selection */}
           <div className="space-y-2">
-            <Label htmlFor="serviceOrderNo">Service Order *</Label>
+            <Label className="text-sm font-medium">Service Order *</Label>
             <Select value={serviceOrderNo} onValueChange={setServiceOrderNo}>
-              <SelectTrigger id="serviceOrderNo">
+              <SelectTrigger className="h-11" style={{ borderColor: '#6A64F2' }}>
                 <SelectValue placeholder="Select service order" />
               </SelectTrigger>
               <SelectContent>
                 {eligibleOrders.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground text-center">
+                  <div className="p-3 text-sm text-muted-foreground text-center">
                     No eligible service orders available.
                     <br />
                     <span className="text-xs">Orders must have status: Open or Allotment</span>
@@ -389,142 +389,153 @@ export function OrderAllotmentForm({
                 )}
               </SelectContent>
             </Select>
+
+            {/* Order Details Box */}
             {selectedOrder && (
-              <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-                <p className="font-semibold text-base mb-1">Order Details:</p>
-                <p>Customer: {selectedOrder.customerName}</p>
-                <p>Category: {selectedOrder.orderCategory}</p>
-                <p>Quantity: {selectedOrder.orderQty} {selectedOrder.uom}</p>
-                <p>Stitching Cost: ₹{selectedOrder.stitchingCost.toFixed(2)}</p>
-                <p>Expected Date: {format(new Date(selectedOrder.expectedDeliveryDate), 'dd MMM yyyy')}</p>
+              <div className="p-3 rounded-lg border" style={{ backgroundColor: '#f3e8ff', borderColor: '#6A64F2' }}>
+                <p className="font-semibold text-sm mb-2" style={{ color: '#6A64F2' }}>Order Details</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <p><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{selectedOrder.customerName}</span></p>
+                  <p><span className="text-muted-foreground">Category:</span> <span className="font-medium">{selectedOrder.orderCategory}</span></p>
+                  <p><span className="text-muted-foreground">Quantity:</span> <span className="font-medium">{selectedOrder.orderQty} {selectedOrder.uom}</span></p>
+                  <p><span className="text-muted-foreground">Cost:</span> <span className="font-medium text-green-600">₹{selectedOrder.stitchingCost.toFixed(2)}</span></p>
+                  <p className="col-span-2"><span className="text-muted-foreground">Expected:</span> <span className="font-medium">{format(new Date(selectedOrder.expectedDeliveryDate), 'dd MMM yyyy')}</span></p>
+                </div>
               </div>
             )}
           </div>
 
           {/* DRESS ITEMS ASSIGNMENT - shown when order has dress items */}
           {hasDressItems && dressItemAssignments.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-base font-semibold">Dress Items Assignment</Label>
-              <p className="text-sm text-muted-foreground">
-                Assign each dress item to a tailor. You can assign different items to different tailors.
-              </p>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Dress Items Assignment</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Assign each dress item to a tailor
+                </p>
+              </div>
 
-              {dressItemAssignments.map((item, index) => {
-                const assigneeList = item.stitchingAllotment === 'employee' ? tailorEmployees : vendors;
+              <div className="space-y-3">
+                {dressItemAssignments.map((item, index) => {
+                  const assigneeList = item.stitchingAllotment === 'employee' ? tailorEmployees : vendors;
 
-                return (
-                  <Card key={item.dressItemId} className="border-l-4 border-l-blue-500">
-                    <CardHeader className="py-3">
-                      <CardTitle className="text-sm flex justify-between items-center">
-                        <span>
-                          {index + 1}. {item.dressItemName}
-                          <span className="ml-2 text-muted-foreground font-normal">
-                            (Qty: {item.quantity}, Cost: ₹{item.stitchingCost})
+                  return (
+                    <Card key={item.dressItemId} className="border" style={{ borderColor: '#6A64F2' }}>
+                      <CardHeader className="py-3 px-4" style={{ backgroundColor: '#f3e8ff' }}>
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                            {index + 1}
                           </span>
-                        </span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="py-2 space-y-3">
-                      {/* Allotment Type */}
-                      <div className="flex items-center gap-4">
-                        <Label className="text-sm w-24">Assign to:</Label>
-                        <RadioGroup
-                          value={item.stitchingAllotment}
-                          onValueChange={(value) =>
-                            updateDressItemAssignment(item.dressItemId, 'stitchingAllotment', value)
-                          }
-                          className="flex gap-4"
-                        >
-                          <div className="flex items-center space-x-1">
-                            <RadioGroupItem value="employee" id={`emp-${item.dressItemId}`} />
-                            <Label htmlFor={`emp-${item.dressItemId}`} className="text-sm font-normal cursor-pointer">
-                              Employee
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <RadioGroupItem value="vendor" id={`vendor-${item.dressItemId}`} />
-                            <Label htmlFor={`vendor-${item.dressItemId}`} className="text-sm font-normal cursor-pointer">
-                              Job Work Tailor
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-
-                      {/* Assignee Selection */}
-                      <div className="flex items-center gap-4">
-                        <Label className="text-sm w-24">
-                          {item.stitchingAllotment === 'employee' ? 'Tailor:' : 'Job Work:'}
-                        </Label>
-                        <Select
-                          value={item.assignedTo}
-                          onValueChange={(value) =>
-                            updateDressItemAssignment(item.dressItemId, 'assignedTo', value)
-                          }
-                        >
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select assignee" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {assigneeList.length === 0 ? (
-                              <div className="p-2 text-sm text-muted-foreground text-center">
-                                No {item.stitchingAllotment === 'employee' ? 'tailors' : 'job work tailors'} available
-                              </div>
-                            ) : (
-                              assigneeList.map((assignee) => {
-                                const displayName = item.stitchingAllotment === 'employee'
-                                  ? (assignee as Employee).name
-                                  : (assignee as Vendor).tailorName;
-                                return (
-                                  <SelectItem key={assignee.id} value={assignee.id}>
-                                    {assignee.id} - {displayName}
-                                  </SelectItem>
-                                );
-                              })
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Costs */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm whitespace-nowrap">Material (₹):</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.materialCost}
-                            onChange={(e) =>
-                              updateDressItemAssignment(item.dressItemId, 'materialCost', parseFloat(e.target.value) || 0)
+                          <span className="font-semibold">{item.dressItemName}</span>
+                          <span className="text-muted-foreground font-normal text-xs">
+                            (Qty: {item.quantity}, ₹{item.stitchingCost})
+                          </span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-3 px-4 space-y-4">
+                        {/* Allotment Type */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Assign to</Label>
+                          <RadioGroup
+                            value={item.stitchingAllotment}
+                            onValueChange={(value) =>
+                              updateDressItemAssignment(item.dressItemId, 'stitchingAllotment', value)
                             }
-                            className="h-8"
-                          />
+                            className="flex gap-6"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="employee" id={`emp-${item.dressItemId}`} />
+                              <Label htmlFor={`emp-${item.dressItemId}`} className="text-sm font-normal cursor-pointer">
+                                Employee
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="vendor" id={`vendor-${item.dressItemId}`} />
+                              <Label htmlFor={`vendor-${item.dressItemId}`} className="text-sm font-normal cursor-pointer">
+                                Job Work Tailor
+                              </Label>
+                            </div>
+                          </RadioGroup>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm whitespace-nowrap">Job Work (₹):</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.jobWorkCost}
-                            onChange={(e) =>
-                              updateDressItemAssignment(item.dressItemId, 'jobWorkCost', parseFloat(e.target.value) || 0)
+
+                        {/* Assignee Selection */}
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">
+                            {item.stitchingAllotment === 'employee' ? 'Tailor Name' : 'Job Work Tailor Name'} *
+                          </Label>
+                          <Select
+                            value={item.assignedTo}
+                            onValueChange={(value) =>
+                              updateDressItemAssignment(item.dressItemId, 'assignedTo', value)
                             }
-                            className="h-8"
-                          />
+                          >
+                            <SelectTrigger className="h-11" style={{ borderColor: '#6A64F2' }}>
+                              <SelectValue placeholder="Select assignee" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {assigneeList.length === 0 ? (
+                                <div className="p-3 text-sm text-muted-foreground text-center">
+                                  No {item.stitchingAllotment === 'employee' ? 'tailors' : 'job work tailors'} available
+                                </div>
+                              ) : (
+                                assigneeList.map((assignee) => {
+                                  const displayName = item.stitchingAllotment === 'employee'
+                                    ? (assignee as Employee).name
+                                    : (assignee as Vendor).tailorName;
+                                  return (
+                                    <SelectItem key={assignee.id} value={assignee.id}>
+                                      {assignee.id} - {displayName}
+                                    </SelectItem>
+                                  );
+                                })
+                              )}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+
+                        {/* Costs */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Material Cost (₹)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.materialCost}
+                              onChange={(e) =>
+                                updateDressItemAssignment(item.dressItemId, 'materialCost', parseFloat(e.target.value) || 0)
+                              }
+                              className="h-11"
+                              style={{ borderColor: '#6A64F2' }}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Job Work Cost (₹)</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.jobWorkCost}
+                              onChange={(e) =>
+                                updateDressItemAssignment(item.dressItemId, 'jobWorkCost', parseFloat(e.target.value) || 0)
+                              }
+                              className="h-11"
+                              style={{ borderColor: '#6A64F2' }}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
 
               {/* Total for all dress items */}
-              <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md border border-green-200 dark:border-green-800">
-                <p className="text-base font-semibold text-green-800 dark:text-green-300">
+              <div className="p-3 rounded-lg" style={{ backgroundColor: '#dcfce7', border: '1px solid #86efac' }}>
+                <p className="text-sm font-semibold text-green-800">
                   Total Job Cost: ₹{totalDressItemsCost.toFixed(2)}
                 </p>
-                <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                <p className="text-xs text-green-600 mt-1">
                   {dressItemAssignments.filter(i => i.assignedTo).length} of {dressItemAssignments.length} items assigned
                 </p>
               </div>
@@ -536,11 +547,11 @@ export function OrderAllotmentForm({
             <>
               {/* Stitching Allotment Type */}
               <div className="space-y-2">
-                <Label>Stitching Allotment *</Label>
+                <Label className="text-sm font-medium">Stitching Allotment *</Label>
                 <RadioGroup
                   value={stitchingAllotment}
                   onValueChange={(value) => setStitchingAllotment(value as StitchingAllotmentType)}
-                  className="flex gap-4"
+                  className="flex gap-6"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="employee" id="employee" />
@@ -559,18 +570,18 @@ export function OrderAllotmentForm({
 
               {/* Employee/Job Work Tailor Selection */}
               <div className="space-y-2">
-                <Label htmlFor="assignedTo">
-                  {stitchingAllotment === 'employee' ? 'Tailor' : 'Job Work Tailor'} Name *
+                <Label className="text-sm font-medium">
+                  {stitchingAllotment === 'employee' ? 'Tailor Name' : 'Job Work Tailor Name'} *
                 </Label>
                 <Select value={assignedTo} onValueChange={setAssignedTo}>
-                  <SelectTrigger id="assignedTo">
+                  <SelectTrigger className="h-11" style={{ borderColor: '#6A64F2' }}>
                     <SelectValue
                       placeholder={`Select ${stitchingAllotment === 'employee' ? 'tailor' : 'job work tailor'}`}
                     />
                   </SelectTrigger>
                   <SelectContent>
                     {(stitchingAllotment === 'employee' ? tailorEmployees : vendors).length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">
+                      <div className="p-3 text-sm text-muted-foreground text-center">
                         No {stitchingAllotment === 'employee' ? 'tailors' : 'job work tailors'} available
                       </div>
                     ) : (
@@ -592,40 +603,44 @@ export function OrderAllotmentForm({
               {/* Material Cost and Job Work Cost - Only for Job Work Tailor */}
               {stitchingAllotment === 'vendor' && (
                 <>
-                  {/* Material Cost */}
-                  <div className="space-y-2">
-                    <Label htmlFor="materialCost">Material Cost (₹) *</Label>
-                    <Input
-                      id="materialCost"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={materialCost}
-                      onChange={(e) => setMaterialCost(parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Material Cost */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Material Cost (₹)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={materialCost}
+                        onChange={(e) => setMaterialCost(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="h-11"
+                        style={{ borderColor: '#6A64F2' }}
+                      />
+                    </div>
 
-                  {/* Job Work Cost */}
-                  <div className="space-y-2">
-                    <Label htmlFor="jobWorkCost">Job Work Cost (₹) *</Label>
-                    <Input
-                      id="jobWorkCost"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={jobWorkCost}
-                      onChange={(e) => setJobWorkCost(parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                    />
+                    {/* Job Work Cost */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Job Work Cost (₹)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={jobWorkCost}
+                        onChange={(e) => setJobWorkCost(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="h-11"
+                        style={{ borderColor: '#6A64F2' }}
+                      />
+                    </div>
                   </div>
 
                   {/* Total Cost Display */}
-                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md border border-green-200 dark:border-green-800">
-                    <p className="text-base font-semibold text-green-800 dark:text-green-300">
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#dcfce7', border: '1px solid #86efac' }}>
+                    <p className="text-sm font-semibold text-green-800">
                       Total Cost: ₹{totalJobCost.toFixed(2)}
                     </p>
-                    <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                    <p className="text-xs text-green-600 mt-1">
                       Material (₹{materialCost.toFixed(2)}) + Job Work (₹{jobWorkCost.toFixed(2)})
                     </p>
                   </div>
@@ -636,19 +651,20 @@ export function OrderAllotmentForm({
 
           {/* Expected Delivery Date */}
           <div className="space-y-2">
-            <Label htmlFor="expectedDeliveryDate">Expected Delivery Date *</Label>
+            <Label className="text-sm font-medium">Expected Delivery Date *</Label>
             <Input
-              id="expectedDeliveryDate"
               type="date"
               value={expectedDeliveryDate}
               onChange={(e) => setExpectedDeliveryDate(e.target.value)}
               min={format(new Date(), 'yyyy-MM-dd')}
+              className="h-11"
+              style={{ borderColor: '#6A64F2' }}
             />
-            <p className="text-sm text-muted-foreground">Must be a future date</p>
+            <p className="text-xs text-muted-foreground">Must be a future date</p>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -657,9 +673,11 @@ export function OrderAllotmentForm({
               Cancel
             </Button>
             <Button type="button" onClick={handleSubmit}>
-              {hasDressItems
-                ? `Create ${dressItemAssignments.filter(i => i.assignedTo).length} Allotment(s)`
-                : 'Create Allotment'}
+              {reassignOrder
+                ? 'Re-assign Order'
+                : hasDressItems
+                  ? `Create ${dressItemAssignments.filter(i => i.assignedTo).length} Allotment(s)`
+                  : 'Create Allotment'}
             </Button>
           </div>
         </div>

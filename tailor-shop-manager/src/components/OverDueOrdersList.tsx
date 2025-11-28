@@ -9,10 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ArrowLeft, Clock, Eye, MagnifyingGlass, Funnel, DotsThree, ArrowsClockwise } from '@phosphor-icons/react';
-import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { OrderAllotment, ServiceOrder } from '@/lib/types';
-import { getServiceOrderById } from '@/lib/firestore/serviceOrderService';
+import { ClockCountdown, ArrowLeft, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { format, differenceInDays } from 'date-fns';
+import { ServiceOrder } from '@/lib/types';
 
 // Lazy load the dialog
 const ServiceOrderDetailsDialog = lazy(() =>
@@ -22,15 +21,27 @@ const ServiceOrderDetailsDialog = lazy(() =>
 type DateFilter = 'all' | 'exact' | 'range';
 const ITEMS_PER_PAGE = 6;
 
-interface AwaitingAcceptanceListProps {
-  orders: OrderAllotment[];
+interface OverDueOrdersListProps {
+  serviceOrders: ServiceOrder[];
   onBack: () => void;
 }
 
-export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListProps) {
-  const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
+export function OverDueOrdersList({ serviceOrders, onBack }: OverDueOrdersListProps) {
+  // State for details dialog
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  const [loadingOrder, setLoadingOrder] = useState<string | null>(null);
+
+  // Filter overdue orders - orders past their expected delivery date and not delivered
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const overdueOrders = serviceOrders.filter((o) => {
+    if (o.orderStatus === 'delivered') return false;
+    if (!o.expectedDeliveryDate) return false;
+    const deliveryDate = new Date(o.expectedDeliveryDate);
+    deliveryDate.setHours(0, 0, 0, 0);
+    return deliveryDate < today;
+  });
 
   // Search, filter, and pagination states
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,48 +52,20 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filter orders awaiting acceptance from employee or job-work tailor
-  // status='allotted' means newly allotted, reassigned=true means it was reassigned
-  const awaitingAcceptanceOrders = orders.filter(o =>
-    o.status === 'allotted' || (o.reassigned === true && o.status !== 'delivered' && o.status !== 'stitched')
-  );
-
-  // Date filter logic
-  const getDateRange = (filter: DateFilter): { start: Date; end: Date } | null => {
-    switch (filter) {
-      case 'exact':
-        if (!exactDate) return null;
-        const exact = new Date(exactDate);
-        return { start: startOfDay(exact), end: endOfDay(exact) };
-      case 'range':
-        if (!startDate || !endDate) return null;
-        return { start: startOfDay(new Date(startDate)), end: endOfDay(new Date(endDate)) };
-      default:
-        return null;
-    }
-  };
-
   // Filter orders
-  const filteredOrders = awaitingAcceptanceOrders.filter((order) => {
+  const filteredOrders = overdueOrders.filter((order) => {
     const matchesSearch =
-      (order.jobWorkNo?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      order.serviceOrderNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.assignedName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (order.dressItemName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const dateRange = getDateRange(dateFilter);
-    const orderDate = order.reassignedDate || order.assignedDate;
-    const matchesDate = !dateRange || (orderDate && isWithinInterval(new Date(orderDate), dateRange));
-
-    return matchesSearch && matchesDate;
+    return matchesSearch;
   });
 
-  // Sort by date (newest first)
+  // Sort by how overdue (most overdue first)
   const sortedOrders = filteredOrders.sort((a, b) => {
-    const dateA = a.reassignedDate || a.assignedDate || 0;
-    const dateB = b.reassignedDate || b.assignedDate || 0;
-    return dateB - dateA;
+    const dateA = a.expectedDeliveryDate || 0;
+    const dateB = b.expectedDeliveryDate || 0;
+    return dateA - dateB; // Oldest delivery date first (most overdue)
   });
 
   // Pagination logic
@@ -107,46 +90,24 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
 
   const hasActiveFilters = searchTerm || dateFilter !== 'all';
 
-  const handleViewDetails = async (order: OrderAllotment) => {
-    try {
-      setLoadingOrder(order.id);
-      const serviceOrder = await getServiceOrderById(order.serviceOrderNo);
-      if (serviceOrder) {
-        setSelectedServiceOrder(serviceOrder);
-        setShowDetailsDialog(true);
-      }
-    } catch (error) {
-      console.error('Error loading service order:', error);
-    } finally {
-      setLoadingOrder(null);
-    }
+  // Calculate days overdue
+  const getDaysOverdue = (deliveryDate: number) => {
+    const delivery = new Date(deliveryDate);
+    delivery.setHours(0, 0, 0, 0);
+    return differenceInDays(today, delivery);
   };
 
-  // Get status display info
-  const getStatusInfo = (order: OrderAllotment) => {
-    const isReassigned = order.reassigned === true;
-    if (isReassigned) {
-      return { text: 'Reassigned', color: 'bg-purple-100 text-purple-700 border-purple-200' };
-    }
-    switch (order.status) {
-      case 'allotted':
-        return { text: 'Newly Allotted', color: 'bg-orange-100 text-orange-700 border-orange-200' };
-      case 'in_progress':
-        return { text: 'In Progress', color: 'bg-blue-100 text-blue-700 border-blue-200' };
-      case 'stitched':
-        return { text: 'Job Completed', color: 'bg-green-100 text-green-700 border-green-200' };
-      case 'rejected':
-        return { text: 'Rejected', color: 'bg-red-100 text-red-700 border-red-200' };
-      default:
-        return { text: order.status || 'Unknown', color: 'bg-gray-100 text-gray-700 border-gray-200' };
-    }
+  // Handle view details
+  const handleViewDetails = (order: ServiceOrder) => {
+    setSelectedOrder(order);
+    setShowDetailsDialog(true);
   };
 
   // Pagination component
   const Pagination = () => {
     if (!showPagination) return null;
     return (
-      <div className="flex items-center justify-between pt-4 border-t border-purple-200">
+      <div className="flex items-center justify-between pt-4 border-t border-red-200">
         <p className="text-xs sm:text-sm text-gray-600">
           Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedOrders.length)} of {sortedOrders.length}
         </p>
@@ -176,7 +137,7 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
                     variant={currentPage === page ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setCurrentPage(page)}
-                    className="h-8 w-8 p-0 text-xs"
+                    className={`h-8 w-8 p-0 text-xs ${currentPage === page ? 'bg-red-600 hover:bg-red-700' : ''}`}
                   >
                     {page}
                   </Button>
@@ -204,7 +165,7 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
         variant={dateFilter === 'all' ? 'default' : 'outline'}
         size="sm"
         onClick={() => setDateFilter('all')}
-        className={dateFilter === 'all' ? 'bg-[#6A64F2] hover:bg-[#5b55e0]' : ''}
+        className={dateFilter === 'all' ? 'bg-red-600 hover:bg-red-700' : ''}
       >
         All
       </Button>
@@ -212,7 +173,7 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
         variant={dateFilter === 'exact' ? 'default' : 'outline'}
         size="sm"
         onClick={() => setDateFilter('exact')}
-        className={dateFilter === 'exact' ? 'bg-[#6A64F2] hover:bg-[#5b55e0]' : ''}
+        className={dateFilter === 'exact' ? 'bg-red-600 hover:bg-red-700' : ''}
       >
         Exact Date
       </Button>
@@ -220,7 +181,7 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
         variant={dateFilter === 'range' ? 'default' : 'outline'}
         size="sm"
         onClick={() => setDateFilter('range')}
-        className={dateFilter === 'range' ? 'bg-[#6A64F2] hover:bg-[#5b55e0]' : ''}
+        className={dateFilter === 'range' ? 'bg-red-600 hover:bg-red-700' : ''}
       >
         Date Range
       </Button>
@@ -246,8 +207,8 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
             <ArrowLeft size={20} />
           </Button>
           <div>
-            <h1 className="text-xl font-bold">Re-assign Jobwork Orders</h1>
-            <p className="text-sm text-muted-foreground">{awaitingAcceptanceOrders.length} total orders</p>
+            <h1 className="text-xl font-bold">Over Due Orders</h1>
+            <p className="text-sm text-muted-foreground">{overdueOrders.length} total orders</p>
           </div>
         </div>
       </div>
@@ -259,17 +220,17 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
           <div className="relative flex-1">
             <MagnifyingGlass size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by job work no, service order, customer, tailor..."
+              placeholder="Search by order no, customer name, phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 border-purple-300 focus:border-purple-500 focus:ring-purple-500"
+              className="pl-10 h-10 border-red-300 focus:border-red-500 focus:ring-red-500"
             />
           </div>
           <Button
             variant="outline"
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className={showFilters ? 'bg-[#EADDFD] border-[#6A64F2]' : 'border-purple-300'}
+            className={showFilters ? 'bg-red-100 border-red-500' : 'border-red-300'}
           >
             <Funnel size={18} />
           </Button>
@@ -277,7 +238,7 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
 
         {/* Filter Options */}
         {showFilters && (
-          <div className="p-4 rounded-lg border" style={{ background: '#FAF8FF' }}>
+          <div className="p-4 rounded-lg border border-red-200" style={{ background: '#FEF2F2' }}>
             <FilterButtons />
             {dateFilter === 'exact' && (
               <div className="mt-3">
@@ -320,10 +281,10 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
       {sortedOrders.length === 0 ? (
         <Card className="p-12">
           <div className="text-center">
-            <ArrowsClockwise size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No reassigned orders found</h3>
+            <ClockCountdown size={64} className="mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No overdue orders found</h3>
             <p className="text-muted-foreground">
-              {hasActiveFilters ? 'Try a different search term or filter' : 'No orders are awaiting acceptance'}
+              {hasActiveFilters ? 'Try a different search term or filter' : 'All orders are on track!'}
             </p>
           </div>
         </Card>
@@ -331,27 +292,26 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
         <div
           className="rounded-xl border-2 p-4 space-y-3"
           style={{
-            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
-            borderColor: 'rgba(196, 181, 253, 0.5)',
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 50%, #fecaca 100%)',
+            borderColor: 'rgba(239, 68, 68, 0.4)',
           }}
         >
           <h3 className="text-base font-semibold text-gray-800">
-            {hasActiveFilters ? `Search Results (${sortedOrders.length})` : `Reassigned Jobwork Orders (${sortedOrders.length})`}
+            {hasActiveFilters ? `Search Results (${sortedOrders.length})` : `Over Due Orders (${sortedOrders.length})`}
           </h3>
           {/* Rectangle cards: 1 col mobile, 2 cols tablet, 3 cols desktop */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedOrders.map((order, index) => {
-              const statusInfo = getStatusInfo(order);
-              const isReassigned = order.reassigned === true;
+              const daysOverdue = order.expectedDeliveryDate ? getDaysOverdue(order.expectedDeliveryDate) : 0;
 
               return (
                 <div
                   key={order.id}
                   className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
                   style={{
-                    background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
-                    borderColor: '#6A64F2',
-                    boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)',
+                    background: 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)',
+                    borderColor: '#ef4444',
+                    boxShadow: '0 4px 12px -2px rgba(239, 68, 68, 0.2), 0 2px 6px -2px rgba(239, 68, 68, 0.15)',
                   }}
                   onClick={() => handleViewDetails(order)}
                 >
@@ -359,9 +319,9 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
                   <div className="flex-shrink-0 flex items-center">
                     <div
                       className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                      style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+                      style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}
                     >
-                      <ArrowsClockwise size={24} weight="bold" />
+                      <ClockCountdown size={24} weight="bold" />
                     </div>
                   </div>
 
@@ -372,35 +332,21 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
                         {order.customerName}
                       </p>
                     </div>
-                    <p className="text-[10px] sm:text-xs font-bold text-purple-600 mb-1">
-                      {order.jobWorkNo || order.id.slice(0, 12)}
+                    <p className="text-[10px] sm:text-xs font-bold text-red-600 mb-1">
+                      {order.id}
                     </p>
                     <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
-                      <span className="font-medium">{order.serviceOrderNo}</span>
-                      <span>•</span>
-                      <Badge variant="outline" className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold ${statusInfo.color}`}>
-                        {statusInfo.text}
+                      <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-red-100 text-red-700 border-red-200">
+                        {daysOverdue} days overdue
                       </Badge>
                     </div>
-                    {order.dressItemName && (
-                      <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1 truncate">
-                        Item: {order.dressItemName}
-                      </p>
-                    )}
-                    <p className="text-[9px] sm:text-[10px] text-gray-500">
-                      To: {order.assignedName} ({order.stitchingAllotment})
-                    </p>
-                    <p className="text-[9px] sm:text-[10px] text-gray-400">
-                      {isReassigned && order.reassignedDate && typeof order.reassignedDate === 'number'
-                        ? `Reassigned: ${format(new Date(order.reassignedDate), 'dd MMM yyyy')}`
-                        : order.assignedDate && typeof order.assignedDate === 'number'
-                        ? `Allotted: ${format(new Date(order.assignedDate), 'dd MMM yyyy')}`
-                        : ''}
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">
+                      Due: {order.expectedDeliveryDate ? format(new Date(order.expectedDeliveryDate), 'dd MMM yyyy') : 'N/A'}
                     </p>
                   </div>
 
                   {/* Right side: Actions */}
-                  <div className="flex-shrink-0 flex flex-col items-end justify-between gap-2">
+                  <div className="flex-shrink-0 flex flex-col items-end justify-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
@@ -413,11 +359,10 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
                             e.stopPropagation();
                             handleViewDetails(order);
                           }}
-                          disabled={loadingOrder === order.id}
                           className="font-medium"
                         >
                           <Eye size={18} className="mr-2" weight="bold" />
-                          {loadingOrder === order.id ? 'Loading...' : 'View Details'}
+                          View Details
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -430,11 +375,10 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
                         e.stopPropagation();
                         handleViewDetails(order);
                       }}
-                      disabled={loadingOrder === order.id}
-                      className="text-[10px] sm:text-xs h-7 px-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300"
+                      className="text-[10px] sm:text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border-red-300 mt-2"
                     >
                       <Eye size={14} className="mr-1" />
-                      {loadingOrder === order.id ? 'Loading...' : 'View'}
+                      View Details
                     </Button>
                   </div>
                 </div>
@@ -446,14 +390,14 @@ export function ReassignedOrdersList({ orders, onBack }: AwaitingAcceptanceListP
       )}
 
       {/* Service Order Details Dialog - Lazy Loaded */}
-      {selectedServiceOrder && (
+      {selectedOrder && (
         <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-4 rounded-lg">Loading...</div></div>}>
           <ServiceOrderDetailsDialog
-            serviceOrder={selectedServiceOrder}
+            serviceOrder={selectedOrder}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);
-              setSelectedServiceOrder(null);
+              setSelectedOrder(null);
             }}
           />
         </Suspense>

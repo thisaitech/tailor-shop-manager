@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,22 +9,37 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { XCircle, ArrowLeft, ArrowCounterClockwise, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { Truck, ArrowLeft, Package, MagnifyingGlass, Funnel, DotsThree, Eye, Spinner } from '@phosphor-icons/react';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { OrderAllotment } from '@/lib/types';
+import { toast } from 'sonner';
+import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+// Lazy load the dialog
+const ServiceOrderDetailsDialog = lazy(() =>
+  import('@/components/ServiceOrderDetailsDialog').then(m => ({ default: m.ServiceOrderDetailsDialog }))
+);
 
 type DateFilter = 'all' | 'exact' | 'range';
 const ITEMS_PER_PAGE = 6;
 
-interface RejectedOrdersListProps {
+interface JobworkCompletedOrdersListProps {
   orders: OrderAllotment[];
   onBack: () => void;
-  onReassign: (order: OrderAllotment) => void;
 }
 
-export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrdersListProps) {
-  // Filter rejected orders: status='rejected' AND not reassigned
-  const rejectedOrders = orders.filter(o => o.status === 'rejected' && !o.reassigned);
+export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedOrdersListProps) {
+  const [receivingGoods, setReceivingGoods] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderAllotment | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+
+  // Filter jobwork completed orders: vendor orders with status='stitched' (goods not yet received)
+  const jobworkCompletedOrders = orders.filter(o =>
+    o.stitchingAllotment === 'vendor' &&
+    o.status === 'stitched' &&
+    !o.reassigned
+  );
 
   // Search, filter, and pagination states
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,22 +66,24 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
   };
 
   // Filter orders
-  const filteredOrders = rejectedOrders.filter((order) => {
+  const filteredOrders = jobworkCompletedOrders.filter((order) => {
     const matchesSearch =
       (order.jobWorkNo?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (order.stitchedId?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
       order.serviceOrderNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (order.assignedName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (order.jobWorkTailorName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
       (order.dressItemName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
 
     const dateRange = getDateRange(dateFilter);
-    const matchesDate = !dateRange || (order.assignedDate && isWithinInterval(new Date(order.assignedDate), dateRange));
+    const matchesDate = !dateRange || (order.stitchedDate && isWithinInterval(new Date(order.stitchedDate), dateRange));
 
     return matchesSearch && matchesDate;
   });
 
-  // Sort by assigned date (newest first)
-  const sortedOrders = filteredOrders.sort((a, b) => (b.assignedDate || 0) - (a.assignedDate || 0));
+  // Sort by stitched date (newest first)
+  const sortedOrders = filteredOrders.sort((a, b) => (b.stitchedDate || 0) - (a.stitchedDate || 0));
 
   // Pagination logic
   const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
@@ -90,20 +107,38 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
 
   const hasActiveFilters = searchTerm || dateFilter !== 'all';
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  const handleGoodsReceipt = async (order: OrderAllotment) => {
+    try {
+      setReceivingGoods(order.id);
+
+      // Update order allotment: set status to 'delivered' (goods received at shop)
+      await updateDoc(doc(db, 'orderAllotment', order.id), {
+        status: 'delivered',
+        deliveredDate: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      console.log(`[JobworkCompletedOrdersList] Goods received for order ${order.id}. Status updated to delivered.`);
+
+      toast.success('Goods received successfully!');
+    } catch (error) {
+      console.error('Error receiving goods:', error);
+      toast.error('Failed to mark goods as received');
+    } finally {
+      setReceivingGoods(null);
+    }
+  };
+
+  const handleViewDetails = (order: OrderAllotment) => {
+    setSelectedOrder(order);
+    setShowDetailsDialog(true);
   };
 
   // Pagination component
   const Pagination = () => {
     if (!showPagination) return null;
     return (
-      <div className="flex items-center justify-between pt-4 border-t border-purple-200">
+      <div className="flex items-center justify-between pt-4 border-t border-orange-200">
         <p className="text-xs sm:text-sm text-gray-600">
           Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedOrders.length)} of {sortedOrders.length}
         </p>
@@ -133,7 +168,7 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                     variant={currentPage === page ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setCurrentPage(page)}
-                    className="h-8 w-8 p-0 text-xs"
+                    className={`h-8 w-8 p-0 text-xs ${currentPage === page ? 'bg-orange-500 hover:bg-orange-600' : ''}`}
                   >
                     {page}
                   </Button>
@@ -161,7 +196,7 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
         variant={dateFilter === 'all' ? 'default' : 'outline'}
         size="sm"
         onClick={() => setDateFilter('all')}
-        className={dateFilter === 'all' ? 'bg-[#6A64F2] hover:bg-[#5b55e0]' : ''}
+        className={dateFilter === 'all' ? 'bg-orange-500 hover:bg-orange-600' : ''}
       >
         All
       </Button>
@@ -169,7 +204,7 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
         variant={dateFilter === 'exact' ? 'default' : 'outline'}
         size="sm"
         onClick={() => setDateFilter('exact')}
-        className={dateFilter === 'exact' ? 'bg-[#6A64F2] hover:bg-[#5b55e0]' : ''}
+        className={dateFilter === 'exact' ? 'bg-orange-500 hover:bg-orange-600' : ''}
       >
         Exact Date
       </Button>
@@ -177,7 +212,7 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
         variant={dateFilter === 'range' ? 'default' : 'outline'}
         size="sm"
         onClick={() => setDateFilter('range')}
-        className={dateFilter === 'range' ? 'bg-[#6A64F2] hover:bg-[#5b55e0]' : ''}
+        className={dateFilter === 'range' ? 'bg-orange-500 hover:bg-orange-600' : ''}
       >
         Date Range
       </Button>
@@ -203,8 +238,8 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
             <ArrowLeft size={20} />
           </Button>
           <div>
-            <h1 className="text-xl font-bold">Rejected Orders</h1>
-            <p className="text-sm text-muted-foreground">{rejectedOrders.length} total orders</p>
+            <h1 className="text-xl font-bold">Jobwork Completed Orders</h1>
+            <p className="text-sm text-muted-foreground">{jobworkCompletedOrders.length} orders pending goods receipt</p>
           </div>
         </div>
       </div>
@@ -219,14 +254,14 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
               placeholder="Search by job work no, service order, customer, tailor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 border-purple-300 focus:border-purple-500 focus:ring-purple-500"
+              className="pl-10 h-10 border-orange-300 focus:border-orange-500 focus:ring-orange-500"
             />
           </div>
           <Button
             variant="outline"
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className={showFilters ? 'bg-[#EADDFD] border-[#6A64F2]' : 'border-purple-300'}
+            className={showFilters ? 'bg-orange-100 border-orange-500' : 'border-orange-300'}
           >
             <Funnel size={18} />
           </Button>
@@ -234,7 +269,7 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
 
         {/* Filter Options */}
         {showFilters && (
-          <div className="p-4 rounded-lg border" style={{ background: '#FAF8FF' }}>
+          <div className="p-4 rounded-lg border" style={{ background: '#FFF7ED' }}>
             <FilterButtons />
             {dateFilter === 'exact' && (
               <div className="mt-3">
@@ -273,14 +308,14 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
         )}
       </div>
 
-      {/* Rejected Orders Grid */}
+      {/* Jobwork Completed Orders Grid */}
       {sortedOrders.length === 0 ? (
         <Card className="p-12">
           <div className="text-center">
-            <XCircle size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No rejected orders found</h3>
+            <Truck size={64} className="mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No jobwork completed orders</h3>
             <p className="text-muted-foreground">
-              {hasActiveFilters ? 'Try a different search term or filter' : 'All orders are in good standing'}
+              {hasActiveFilters ? 'Try a different search term or filter' : 'No orders from vendors pending goods receipt'}
             </p>
           </div>
         </Card>
@@ -288,12 +323,12 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
         <div
           className="rounded-xl border-2 p-4 space-y-3"
           style={{
-            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
-            borderColor: 'rgba(196, 181, 253, 0.5)',
+            background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
+            borderColor: 'rgba(251, 146, 60, 0.5)',
           }}
         >
           <h3 className="text-base font-semibold text-gray-800">
-            {hasActiveFilters ? `Search Results (${sortedOrders.length})` : `Rejected Orders (${sortedOrders.length})`}
+            {hasActiveFilters ? `Search Results (${sortedOrders.length})` : `Pending Goods Receipt (${sortedOrders.length})`}
           </h3>
           {/* Rectangle cards: 1 col mobile, 2 cols tablet, 3 cols desktop */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -302,18 +337,19 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                 key={order.id}
                 className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
                 style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
-                  borderColor: '#ef4444',
-                  boxShadow: '0 4px 12px -2px rgba(239, 68, 68, 0.2), 0 2px 6px -2px rgba(239, 68, 68, 0.15)',
+                  background: 'linear-gradient(135deg, #ffffff 0%, #fffbf5 100%)',
+                  borderColor: '#f97316',
+                  boxShadow: '0 4px 12px -2px rgba(249, 115, 22, 0.2), 0 2px 6px -2px rgba(249, 115, 22, 0.15)',
                 }}
+                onClick={() => handleViewDetails(order)}
               >
                 {/* Left side: Avatar/Icon */}
                 <div className="flex-shrink-0 flex items-center">
                   <div
                     className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                    style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}
+                    style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
                   >
-                    <XCircle size={24} weight="bold" />
+                    <Truck size={24} weight="bold" />
                   </div>
                 </div>
 
@@ -324,14 +360,14 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                       {order.customerName}
                     </p>
                   </div>
-                  <p className="text-[10px] sm:text-xs font-bold text-red-600 mb-1">
-                    {order.jobWorkNo || order.id.slice(0, 12)}
+                  <p className="text-[10px] sm:text-xs font-bold text-orange-600 mb-1">
+                    {order.stitchedId || order.jobWorkNo || order.id.slice(0, 12)}
                   </p>
                   <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
                     <span className="font-medium">{order.serviceOrderNo}</span>
                     <span>•</span>
-                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-red-100 text-red-700 border-red-200">
-                      Rejected
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-orange-100 text-orange-700 border-orange-200">
+                      Pending Receipt
                     </Badge>
                   </div>
                   {order.dressItemName && (
@@ -340,13 +376,13 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                     </p>
                   )}
                   <p className="text-[9px] sm:text-[10px] text-gray-500">
-                    Was: {order.assignedName}
-                    {order.assignedDate && ` • ${format(order.assignedDate, 'dd MMM yyyy')}`}
+                    By: {order.jobWorkTailorName || order.assignedName}
+                    {order.stitchedDate && typeof order.stitchedDate === 'number' && ` • ${format(new Date(order.stitchedDate), 'dd MMM yyyy')}`}
                   </p>
                 </div>
 
                 {/* Right side: Actions */}
-                <div className="flex-shrink-0 flex flex-col items-end justify-between">
+                <div className="flex-shrink-0 flex flex-col items-end justify-between gap-2">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
@@ -354,29 +390,43 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onReassign(order)} className="font-medium">
-                        <ArrowCounterClockwise size={18} className="mr-2" weight="bold" />
-                        Re-assign
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGoodsReceipt(order);
+                        }}
+                        disabled={receivingGoods === order.id}
+                        className="font-medium"
+                      >
+                        <Package size={18} className="mr-2" weight="bold" />
+                        {receivingGoods === order.id ? 'Processing...' : 'Goods Receipt'}
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="font-medium">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(order);
+                        }}
+                        className="font-medium"
+                      >
                         <Eye size={18} className="mr-2" weight="bold" />
                         View Details
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
 
-                  {/* Re-assign button */}
+                  {/* Goods Receipt button */}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onReassign(order);
+                      handleGoodsReceipt(order);
                     }}
+                    disabled={receivingGoods === order.id}
                     className="text-[10px] sm:text-xs h-7 px-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
                   >
-                    <ArrowCounterClockwise size={14} className="mr-1" />
-                    Re-assign
+                    <Package size={14} className="mr-1" />
+                    {receivingGoods === order.id ? 'Processing...' : 'Goods Receipt'}
                   </Button>
                 </div>
               </div>
@@ -384,6 +434,40 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
           </div>
           <Pagination />
         </div>
+      )}
+
+      {/* Order Details Dialog */}
+      {selectedOrder && (
+        <Suspense fallback={
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-4 rounded-lg">
+              <Spinner size={32} className="animate-spin text-orange-500" />
+            </div>
+          </div>
+        }>
+          <ServiceOrderDetailsDialog
+            serviceOrder={{
+              id: selectedOrder.serviceOrderNo,
+              serviceOrderDate: selectedOrder.createdAt,
+              customerId: selectedOrder.customerId,
+              customerName: selectedOrder.customerName,
+              orderCategory: 'male',
+              orderQty: 1,
+              uom: 'Nos',
+              designList: [],
+              stitchingCost: selectedOrder.jobWorkCost || 0,
+              expectedDeliveryDate: selectedOrder.expectedDeliveryDate,
+              orderStatus: selectedOrder.serviceOrderStatus || 'open',
+              createdAt: selectedOrder.createdAt,
+              updatedAt: selectedOrder.updatedAt,
+            }}
+            open={showDetailsDialog}
+            onClose={() => {
+              setShowDetailsDialog(false);
+              setSelectedOrder(null);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -28,6 +28,7 @@ type VendorView = 'dashboard' | 'profile';
 function AppContent() {
   const { user, employee, vendor, isAuthenticated, isLoading } = useAuth();
   const [adminView, setAdminView] = useState<AdminView>('dashboard');
+  const [dashboardTab, setDashboardTab] = useState<string>('dashboard');
   const [employeeView, setEmployeeView] = useState<EmployeeView>('dashboard');
   const [vendorView, setVendorView] = useState<VendorView>('dashboard');
 
@@ -49,6 +50,7 @@ function AppContent() {
   };
 
   const handleVendorClick = () => {
+    // Navigate to Job Work Tailors page
     setAdminView('vendors');
   };
 
@@ -95,7 +97,7 @@ function AppContent() {
           onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
         />
       )}
-      {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard />}
+      {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard initialTab={dashboardTab} />}
       {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}

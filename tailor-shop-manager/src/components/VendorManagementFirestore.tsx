@@ -3,11 +3,30 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash, UserCircle } from '@phosphor-icons/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Plus, PencilSimple, Trash, UserCircle, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, Spinner, ArrowLeft } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { sendWhatsAppMessage } from '@/lib/utils';
 import { Vendor, VendorGender, VendorBusinessType } from '@/lib/types';
 import {
   addVendor,
@@ -59,6 +78,9 @@ const STATE_CITIES: Record<string, string[]> = {
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
 
+type DateFilter = 'all' | 'exact' | 'range';
+const ITEMS_PER_PAGE = 6;
+
 interface VendorManagementProps {
   onBack: () => void;
 }
@@ -74,6 +96,16 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState<string>('');
   const [newVendorInfo, setNewVendorInfo] = useState<{ name: string; phone: string }>({ name: '', phone: '' });
+  const [deleteVendorId, setDeleteVendorId] = useState<string | null>(null);
+
+  // Search, filter, and pagination states
+  const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [exactDate, setExactDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [formData, setFormData] = useState<Partial<Vendor>>({
     tailorName: '',
@@ -120,6 +152,65 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
     }
   };
 
+  // Date filter logic
+  const getDateRange = (filter: DateFilter): { start: Date; end: Date } | null => {
+    switch (filter) {
+      case 'exact':
+        if (!exactDate) return null;
+        const exact = new Date(exactDate);
+        return { start: startOfDay(exact), end: endOfDay(exact) };
+      case 'range':
+        if (!startDate || !endDate) return null;
+        return { start: startOfDay(new Date(startDate)), end: endOfDay(new Date(endDate)) };
+      default:
+        return null;
+    }
+  };
+
+  const filteredVendors = (vendors || []).filter((v) => {
+    const matchesSearch =
+      v.tailorName.toLowerCase().includes(search.toLowerCase()) ||
+      v.contactNumber.includes(search) ||
+      (v.city && v.city.toLowerCase().includes(search.toLowerCase())) ||
+      (v.tailorCode && v.tailorCode.toLowerCase().includes(search.toLowerCase())) ||
+      v.businessType.toLowerCase().includes(search.toLowerCase());
+
+    const dateRange = getDateRange(dateFilter);
+    const matchesDate = !dateRange || (v.createdAt && isWithinInterval(new Date(v.createdAt), dateRange));
+
+    return matchesSearch && matchesDate;
+  });
+
+  // Sort vendors by creation date (newest first)
+  const sortedVendors = filteredVendors.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedVendors.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedVendors = sortedVendors.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const showPagination = sortedVendors.length > ITEMS_PER_PAGE;
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (filter: DateFilter) => {
+    setDateFilter(filter);
+    setCurrentPage(1);
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const dateFilterOptions: { value: DateFilter; label: string }[] = [
+    { value: 'all', label: 'All Tailors' },
+    { value: 'exact', label: 'Exact Date' },
+    { value: 'range', label: 'Date Range' },
+  ];
+
   const handleAddNew = () => {
     setEditingVendor(null);
     setFormData({
@@ -147,13 +238,19 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
     setShowDialog(true);
   };
 
-  const handleDelete = async (vendorId: string) => {
-    if (!confirm('Are you sure you want to delete this vendor?')) return;
+  const handleDeleteClick = (vendorId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteVendorId(vendorId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteVendorId) return;
 
     try {
-      await deleteVendor(vendorId);
-      setVendors(vendors.filter(v => v.id !== vendorId));
+      await deleteVendor(deleteVendorId);
+      setVendors(vendors.filter(v => v.id !== deleteVendorId));
       toast.success('Vendor deleted successfully');
+      setDeleteVendorId(null);
     } catch (error) {
       console.error('Error deleting vendor:', error);
       toast.error('Failed to delete vendor');
@@ -233,99 +330,332 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
     }
   };
 
+  // Pagination component
+  const Pagination = () => (
+    <div className="flex items-center justify-between pt-4 border-t border-purple-200">
+      <p className="text-xs sm:text-sm text-gray-600">
+        Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, sortedVendors.length)} of {sortedVendors.length}
+      </p>
+      <div className="flex gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          className="h-8 px-2 sm:px-3 text-xs"
+        >
+          Prev
+        </Button>
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter((page) => {
+            if (totalPages <= 5) return true;
+            if (page === 1 || page === totalPages) return true;
+            if (Math.abs(page - currentPage) <= 1) return true;
+            return false;
+          })
+          .map((page, index, array) => {
+            const showEllipsis = index > 0 && page - array[index - 1] > 1;
+            return (
+              <span key={page} className="flex items-center">
+                {showEllipsis && <span className="px-1 text-gray-400 text-xs">...</span>}
+                <Button
+                  variant={currentPage === page ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setCurrentPage(page)}
+                  className="h-8 w-8 p-0 text-xs"
+                >
+                  {page}
+                </Button>
+              </span>
+            );
+          })}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          className="h-8 px-2 sm:px-3 text-xs"
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+
+  // Filter buttons component
+  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
+    <div className={`flex flex-wrap gap-2 ${inModal ? '' : 'hidden sm:flex'}`}>
+      {dateFilterOptions.map((option) => (
+        <Button
+          key={option.value}
+          variant={dateFilter === option.value ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleFilterChange(option.value)}
+          className={`text-xs ${
+            dateFilter === option.value
+              ? 'bg-purple-600 hover:bg-purple-700 text-white'
+              : 'border-purple-300 text-purple-700 hover:bg-purple-50'
+          }`}
+        >
+          {option.label}
+        </Button>
+      ))}
+      {dateFilter === 'exact' && (
+        <Input
+          type="date"
+          value={exactDate}
+          onChange={(e) => {
+            setExactDate(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="h-8 w-32 text-xs border-purple-300"
+        />
+      )}
+      {dateFilter === 'range' && (
+        <div className="flex gap-1 items-center">
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="h-8 w-32 text-xs border-purple-300"
+          />
+          <span className="text-gray-500 text-xs">to</span>
+          <Input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="h-8 w-32 text-xs border-purple-300"
+          />
+        </div>
+      )}
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading vendors...</p>
+      <div className="container mx-auto px-4 py-6 max-w-6xl">
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft size={20} />
+          </Button>
+          <h1 className="text-xl font-bold">Job Work Tailors</h1>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <Spinner size={32} className="animate-spin text-[#6A64F2]" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-6xl">
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" size="icon" onClick={onBack}>
-          <ArrowLeft size={20} />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Job Work Tailors</h1>
-          <p className="text-muted-foreground">Manage tailors and vendors</p>
+    <div className="container mx-auto px-4 py-6 max-w-6xl space-y-4">
+      {/* Header with Back Button and Title */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft size={20} />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold">Job Work Tailors</h1>
+            <p className="text-sm text-muted-foreground">{vendors.length} total tailors</p>
+          </div>
         </div>
+        <Button onClick={handleAddNew} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
+          <Plus size={18} className="mr-1" />
+          <span className="hidden sm:inline">Add Tailor</span>
+        </Button>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Tailors ({vendors.length})</CardTitle>
-              <CardDescription>List of all registered tailors</CardDescription>
-            </div>
-            <Button onClick={handleAddNew}>
-              <Plus size={20} className="mr-2" />
-              Add Tailor
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {vendors.length === 0 ? (
-            <div className="text-center py-12">
-              <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No tailors yet</h3>
-              <p className="text-muted-foreground mb-4">Get started by adding your first tailor</p>
-              <Button onClick={handleAddNew}>
+      {/* Search and Filter Row */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <MagnifyingGlass
+            size={18}
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+          />
+          <Input
+            type="text"
+            placeholder="Search by name, phone, city, code..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-9 pr-4 h-10 border-purple-300 focus:border-purple-500 focus:ring-purple-500"
+          />
+        </div>
+        {/* Mobile filter button */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="sm:hidden border-purple-300"
+          onClick={() => setShowFilterModal(true)}
+        >
+          <Funnel size={18} />
+        </Button>
+      </div>
+
+      {/* Desktop Filter Buttons */}
+      <FilterButtons />
+
+      {/* Vendors List */}
+      {sortedVendors.length === 0 ? (
+        <Card className="p-12">
+          <div className="text-center">
+            <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No tailors found</h3>
+            <p className="text-muted-foreground mb-4">
+              {search ? 'Try a different search term' : 'Get started by adding your first tailor'}
+            </p>
+            {!search && (
+              <Button onClick={handleAddNew} className="bg-purple-600 hover:bg-purple-700">
                 <Plus size={20} className="mr-2" />
                 Add Tailor
               </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {vendors.map((vendor) => (
-                <div
-                  key={vendor.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-semibold text-lg">{vendor.tailorName}</h3>
-                      <span className="px-2 py-1 bg-primary text-primary-foreground text-xs rounded">
-                        {vendor.tailorCode}
-                      </span>
-                      {vendor.aliasName && (
-                        <span className="text-sm text-muted-foreground">({vendor.aliasName})</span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
-                      <div>
-                        <span className="font-medium">Gender:</span> {vendor.gender}
-                      </div>
-                      <div>
-                        <span className="font-medium">Business:</span> {vendor.businessType.replace('_', ' ')}
-                      </div>
-                      <div>
-                        <span className="font-medium">Contact:</span> {vendor.contactNumber}
-                      </div>
-                      <div>
-                        <span className="font-medium">City:</span> {vendor.city}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={() => handleEdit(vendor)}>
-                      <Pencil size={18} />
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={() => handleDelete(vendor.id)}>
-                      <Trash size={18} />
-                    </Button>
+            )}
+          </div>
+        </Card>
+      ) : (
+        <div
+          className="rounded-xl border-2 p-4 space-y-3"
+          style={{
+            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.5)',
+          }}
+        >
+          <h3 className="text-base font-semibold text-gray-800">
+            {search ? `Search Results (${sortedVendors.length})` : `Job Work Tailors (${sortedVendors.length})`}
+          </h3>
+          {/* Rectangle cards: 1 col mobile, 2 cols tablet, 3 cols desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {paginatedVendors.map((vendor, index) => (
+              <div
+                key={vendor.id}
+                className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                  borderColor: '#6A64F2',
+                  boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)',
+                }}
+                onClick={() => handleEdit(vendor)}
+              >
+                {/* Left side: Avatar/Icon */}
+                <div className="flex-shrink-0 flex items-center">
+                  <div
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+                  >
+                    {getInitials(vendor.tailorName)}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+                {/* Middle: Vendor details */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">{vendor.tailorName}</p>
+                  </div>
+                  <p className="text-[10px] sm:text-xs font-bold text-purple-700 mb-1">{vendor.tailorCode}</p>
+                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
+                    <span className="font-bold text-purple-700">{vendor.contactNumber}</span>
+                    <span>•</span>
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-purple-100 text-purple-700 border-purple-200 capitalize">
+                      {vendor.businessType.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  {vendor.city && (
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">
+                      {vendor.city}, {vendor.state}
+                    </p>
+                  )}
+                </div>
+
+                {/* Right side: Actions */}
+                <div className="flex-shrink-0 flex flex-col items-end justify-between">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                        <DotsThree size={20} weight="bold" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(vendor); }} className="font-medium">
+                        <PencilSimple size={18} className="mr-2" weight="bold" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => handleDeleteClick(vendor.id, e)}
+                        className="text-destructive focus:text-destructive font-medium"
+                      >
+                        <Trash size={18} className="mr-2" weight="bold" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={`tel:${vendor.contactNumber}`}
+                      className="text-primary hover:text-primary/80 transition-colors p-1.5 touch-manipulation rounded-full hover:bg-purple-100"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Call"
+                    >
+                      <Phone size={16} weight="fill" />
+                    </a>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendWhatsAppMessage(vendor.whatsappNumber || vendor.contactNumber, `Hello ${vendor.tailorName},`);
+                      }}
+                      className="text-green-600 hover:text-green-700 transition-colors p-1.5 touch-manipulation rounded-full hover:bg-green-100"
+                      title="WhatsApp"
+                    >
+                      <WhatsappLogo size={16} weight="fill" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {showPagination && <Pagination />}
+        </div>
+      )}
+
+      {/* Mobile Filter Modal */}
+      <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Filter Tailors</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <FilterButtons inModal />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteVendorId} onOpenChange={() => setDeleteVendorId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Tailor?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the tailor from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Add/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

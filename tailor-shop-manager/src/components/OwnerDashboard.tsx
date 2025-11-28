@@ -20,7 +20,16 @@ import { CustomerForm } from '@/components/CustomerForm';
 import { OrderAllotmentForm } from '@/components/OrderAllotmentForm';
 import { RejectedOrdersList } from '@/components/RejectedOrdersList';
 import { StitchedOrdersList } from '@/components/StitchedOrdersList';
+import { ActiveOrdersList } from '@/components/ActiveOrdersList';
+import { ReadyToDeliverList } from '@/components/ReadyToDeliverList';
+import { DeliveredOrdersList } from '@/components/DeliveredOrdersList';
+import { ReassignedOrdersList } from '@/components/ReassignedOrdersList';
+import { OverDueOrdersList } from '@/components/OverDueOrdersList';
+import { JobworkCompletedOrdersList } from '@/components/JobworkCompletedOrdersList';
 import { CustomerView } from '@/components/CustomerView';
+import { OrderView } from '@/components/OrderView';
+import { EmployeeManagementFirestore } from '@/components/EmployeeManagementFirestore';
+import { VendorManagementFirestore } from '@/components/VendorManagementFirestore';
 import { toast } from 'sonner';
 import {
   addCustomer,
@@ -47,7 +56,12 @@ import {
 } from '@/lib/firestore/advancePaymentService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 
-export function OwnerDashboard() {
+interface OwnerDashboardProps {
+  initialTab?: string;
+  onEmployeeClick?: () => void;
+}
+
+export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: OwnerDashboardProps) {
   const { t } = useLanguage();
   const { user, employee } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -59,8 +73,8 @@ export function OwnerDashboard() {
   const [inventory, setInventory] = useStorage<InventoryItem[]>('inventory', []);
   const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
   const [tailors] = useStorage<Tailor[]>('tailors', []);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched'>('all');
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'overdue' | 'jobworkCompleted'>('all');
   const [showServiceOrderForm, setShowServiceOrderForm] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
@@ -71,6 +85,7 @@ export function OwnerDashboard() {
   const [reassignOrder, setReassignOrder] = useState<OrderAllotment | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';
@@ -293,14 +308,10 @@ export function OwnerDashboard() {
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 
-  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => {
+  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched' | 'overdue' | 'jobworkCompleted') => {
     setOrderFilter(filter);
-    if (filter === 'rejected' || filter === 'stitched') {
-      // Keep on dashboard tab to show the list
-      setActiveTab('dashboard');
-    } else {
-      setActiveTab('track');
-    }
+    // Keep on dashboard tab to show the dedicated list pages
+    setActiveTab('dashboard');
   };
 
   const handleReassignOrder = (order: OrderAllotment) => {
@@ -438,14 +449,21 @@ export function OwnerDashboard() {
           </TabsTrigger>
           <TabsTrigger
             value="track"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight data-[state=active]:bg-teal-600 data-[state=active]:text-white"
+            className="py-2.5 px-1.5 text-[10px] sm:text-sm whitespace-nowrap leading-tight data-[state=active]:bg-purple-600 data-[state=active]:text-white"
           >
-            {t('track')}
+            Jobwork Tailors
           </TabsTrigger>
         </TabsListAnimated>
 
         <TabsContent value="dashboard" className="space-y-6">
-          {selectedCustomer ? (
+          {selectedServiceOrder ? (
+            <OrderView
+              serviceOrder={selectedServiceOrder}
+              orderAllotments={orderAllotments || []}
+              customer={customers.find(c => c.id === selectedServiceOrder.customerId)}
+              onBack={() => setSelectedServiceOrder(null)}
+            />
+          ) : selectedCustomer ? (
             <CustomerView
               customer={selectedCustomer}
               serviceOrders={serviceOrders || []}
@@ -466,6 +484,16 @@ export function OwnerDashboard() {
                 }
               }}
             />
+          ) : orderFilter === 'overdue' ? (
+            <OverDueOrdersList
+              serviceOrders={serviceOrders || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'jobworkCompleted' ? (
+            <JobworkCompletedOrdersList
+              orders={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
           ) : orderFilter === 'rejected' ? (
             <RejectedOrdersList
               orders={orderAllotments || []}
@@ -477,6 +505,24 @@ export function OwnerDashboard() {
               orders={orderAllotments || []}
               onBack={handleBackToDashboard}
               onReassign={handleReassignOrder}
+            />
+          ) : orderFilter === 'active' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'ready' ? (
+            <ReadyToDeliverList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'completed' ? (
+            <DeliveredOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
             />
           ) : (
             <>
@@ -555,96 +601,15 @@ export function OwnerDashboard() {
                   onAddServiceOrder={handleAddServiceOrder}
                   onCreateCustomer={handleCreateCustomerFromOrder}
                   hideAddButton
+                  onSelectOrder={(order) => setSelectedServiceOrder(order)}
                 />
               </div>
             </>
           )}
         </TabsContent>
 
-        <TabsContent value="employees" className="space-y-4">
-          {/* Employee List */}
-          <div
-            className="flex flex-col gap-4 p-4 sm:p-5 rounded-xl border"
-            style={{
-              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
-              borderColor: 'rgba(196, 181, 253, 0.5)',
-              boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -2px rgba(139, 92, 246, 0.1)'
-            }}
-          >
-            {/* Header Row */}
-            <div
-              className="grid grid-cols-3 gap-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold text-white"
-              style={{
-                background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)',
-                boxShadow: '0 4px 15px -3px rgba(124, 58, 237, 0.4), 0 2px 6px -2px rgba(124, 58, 237, 0.2)'
-              }}
-            >
-              <div>Name</div>
-              <div>Employee ID</div>
-              <div>Role</div>
-            </div>
-
-            {/* Employee Cards */}
-            {(employees || []).length === 0 ? (
-              <div
-                className="rounded-xl border p-8 flex flex-col items-center justify-center"
-                style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
-                  borderColor: 'rgba(167, 139, 250, 0.3)',
-                  boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -2px rgba(139, 92, 246, 0.1)'
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" viewBox="0 0 256 256" className="text-purple-400 mb-4">
-                  <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"></path>
-                </svg>
-                <p className="text-lg font-medium text-gray-900">No employees yet</p>
-                <p className="text-sm text-gray-500">Add your first employee to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(employees || []).map((emp, index) => {
-                  // Format role for display
-                  const roleDisplay = emp.role ? emp.role.charAt(0).toUpperCase() + emp.role.slice(1) : 'Staff';
-
-                  return (
-                    <div
-                      key={emp.id}
-                      className={`grid grid-cols-3 gap-2 px-4 py-4 rounded-xl border-l-4 transition-all hover:scale-[1.01] animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
-                      style={{
-                        background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
-                        borderLeftColor: emp.isActive ? '#10b981' : '#a855f7',
-                        borderTopColor: 'rgba(167, 139, 250, 0.2)',
-                        borderRightColor: 'rgba(167, 139, 250, 0.2)',
-                        borderBottomColor: 'rgba(167, 139, 250, 0.2)',
-                        borderTopWidth: '1px',
-                        borderRightWidth: '1px',
-                        borderBottomWidth: '1px',
-                        boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.15), 0 2px 4px -2px rgba(139, 92, 246, 0.1)'
-                      }}
-                    >
-                      <div className="flex flex-col justify-center">
-                        <p className="text-sm sm:text-base font-semibold text-gray-900">{emp.name}</p>
-                        {emp.aliasName && (
-                          <p className="text-xs text-gray-500">{emp.aliasName}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center">
-                        <p className="text-xs sm:text-sm font-medium text-purple-700">{emp.employeeCode || emp.id}</p>
-                      </div>
-                      <div className="flex items-center">
-                        <span
-                          className="px-2 py-1 text-xs sm:text-sm font-medium rounded-lg bg-purple-100 text-purple-700"
-                          style={{ boxShadow: '0 1px 2px rgba(139, 92, 246, 0.1)' }}
-                        >
-                          {roleDisplay}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        <TabsContent value="employees" className="space-y-6">
+          <EmployeeManagementFirestore onBack={() => setActiveTab('dashboard')} />
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-6">
@@ -661,17 +626,8 @@ export function OwnerDashboard() {
           />
         </TabsContent>
 
-        <TabsContent value="track" className="min-h-[calc(100vh-180px)]">
-          <Suspense fallback={
-            <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-sm text-muted-foreground font-medium">Loading Jobwork Tailors...</p>
-              </div>
-            </div>
-          }>
-            <OrderTracking orders={orders || []} initialFilter={orderFilter} />
-          </Suspense>
+        <TabsContent value="track" className="space-y-6">
+          <VendorManagementFirestore onBack={() => setActiveTab('dashboard')} />
         </TabsContent>
       </Tabs>
 
@@ -718,7 +674,7 @@ export function OwnerDashboard() {
               setCustomers(prevCustomers =>
                 prevCustomers.map(c =>
                   c.id === editingCustomer.id
-                    ? { ...c, ...customerData, updatedAt: new Date().toISOString() }
+                    ? { ...c, ...customerData, updatedAt: Date.now() }
                     : c
                 )
               );

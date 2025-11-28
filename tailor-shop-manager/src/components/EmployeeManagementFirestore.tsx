@@ -18,11 +18,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Eye, EyeSlash, Key, Copy, Spinner } from '@phosphor-icons/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Key, Copy, Spinner, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, UserCircle } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { sendWhatsAppMessage } from '@/lib/utils';
+
+type DateFilter = 'all' | 'exact' | 'range';
+const ITEMS_PER_PAGE = 6;
 
 // State to Cities/Districts mapping
 const STATE_CITIES: Record<string, string[]> = {
@@ -84,6 +105,17 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   const [duplicateEmployee, setDuplicateEmployee] = useState<EmployeeWithCompany | null>(null);
   const [phoneError, setPhoneError] = useState('');
   const [whatsappError, setWhatsappError] = useState('');
+  const [deleteEmployeeId, setDeleteEmployeeId] = useState<string | null>(null);
+
+  // Search, filter, and pagination states
+  const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [exactDate, setExactDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [formData, setFormData] = useState({
     name: '',
     aliasName: '',
@@ -135,6 +167,64 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
     loadData();
   }, [user?.id]);
+
+  // Date filter logic
+  const getDateRange = (filter: DateFilter): { start: Date; end: Date } | null => {
+    switch (filter) {
+      case 'exact':
+        if (!exactDate) return null;
+        const exact = new Date(exactDate);
+        return { start: startOfDay(exact), end: endOfDay(exact) };
+      case 'range':
+        if (!startDate || !endDate) return null;
+        return { start: startOfDay(new Date(startDate)), end: endOfDay(new Date(endDate)) };
+      default:
+        return null;
+    }
+  };
+
+  const filteredEmployees = (employees || []).filter((e) => {
+    const matchesSearch =
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.contactNumber.includes(search) ||
+      (e.email && e.email.toLowerCase().includes(search.toLowerCase())) ||
+      e.role.toLowerCase().includes(search.toLowerCase());
+
+    const dateRange = getDateRange(dateFilter);
+    const matchesDate = !dateRange || (e.createdAt && isWithinInterval(new Date(e.createdAt), dateRange));
+
+    return matchesSearch && matchesDate;
+  });
+
+  // Sort employees by creation date (newest first)
+  const sortedEmployees = filteredEmployees.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedEmployees.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedEmployees = sortedEmployees.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const showPagination = sortedEmployees.length > ITEMS_PER_PAGE;
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (filter: DateFilter) => {
+    setDateFilter(filter);
+    setCurrentPage(1);
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const dateFilterOptions: { value: DateFilter; label: string }[] = [
+    { value: 'all', label: 'All Employees' },
+    { value: 'exact', label: 'Exact Date' },
+    { value: 'range', label: 'Date Range' },
+  ];
 
   const handleOpenDialog = (employee?: EmployeeWithCompany) => {
     if (employee) {
@@ -355,15 +445,19 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     }
   };
 
-  const handleDelete = async (employeeId: string) => {
-    if (!window.confirm('Are you sure you want to delete this employee?')) {
-      return;
-    }
+  const handleDeleteClick = (employeeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteEmployeeId(employeeId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteEmployeeId) return;
 
     try {
-      await deleteEmployee(employeeId);
-      setEmployees(employees.filter(emp => emp.id !== employeeId));
+      await deleteEmployee(deleteEmployeeId);
+      setEmployees(employees.filter(emp => emp.id !== deleteEmployeeId));
       toast.success('Employee deleted successfully!');
+      setDeleteEmployeeId(null);
     } catch (error) {
       console.error('Error deleting employee:', error);
       toast.error('Failed to delete employee');
@@ -408,6 +502,156 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     toast.success('Password copied to clipboard!');
   };
 
+  // Filter buttons component
+  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
+    <div className="space-y-3">
+      {/* Filter Type Selection */}
+      <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
+        {dateFilterOptions.map((option) => (
+          <Button
+            key={option.value}
+            variant={dateFilter === option.value ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              handleFilterChange(option.value);
+              if (inModal && option.value === 'all') setShowFilterModal(false);
+            }}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Exact Date Picker */}
+      {dateFilter === 'exact' && (
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-foreground">Select Date</label>
+          <Input
+            type="date"
+            value={exactDate}
+            onChange={(e) => setExactDate(e.target.value)}
+            className={`h-10 text-sm ${inModal ? 'w-full' : ''}`}
+            placeholder="Select date"
+          />
+          {exactDate && (
+            <p className="text-xs text-muted-foreground">
+              Showing {filteredEmployees.length} employee(s) on {format(new Date(exactDate), 'MMM dd, yyyy')}
+            </p>
+          )}
+
+          {inModal && exactDate && (
+            <Button
+              onClick={() => setShowFilterModal(false)}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Apply Filter
+            </Button>
+          )}
+
+          {inModal && exactDate && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExactDate('');
+                handleFilterChange('all');
+              }}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Reset Filter
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Date Range Picker */}
+      {dateFilter === 'range' && (
+        <div className="space-y-3">
+          <label className="text-xs font-medium text-foreground">Date Range Filter</label>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground font-medium">From Date</label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-10 text-sm w-full"
+              placeholder="Select start date"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground font-medium">To Date</label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate}
+              className="h-10 text-sm w-full"
+              placeholder="Select end date"
+            />
+          </div>
+
+          {startDate && endDate && (
+            <p className="text-xs text-muted-foreground">
+              Showing {filteredEmployees.length} employee(s) from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
+            </p>
+          )}
+
+          {inModal && startDate && endDate && (
+            <Button
+              onClick={() => setShowFilterModal(false)}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Apply Filter
+            </Button>
+          )}
+
+          {inModal && (startDate || endDate) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                handleFilterChange('all');
+              }}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Reset Filter
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // Pagination component
+  const Pagination = () => (
+    <div className="flex items-center justify-center gap-2 pt-3">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+        disabled={currentPage === 1}
+        className="h-8 px-3 text-xs font-semibold"
+      >
+        Previous
+      </Button>
+      <span className="text-xs text-muted-foreground font-medium">
+        Page {currentPage} of {totalPages}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+        disabled={currentPage === totalPages}
+        className="h-8 px-3 text-xs font-semibold"
+      >
+        Next
+      </Button>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
@@ -420,118 +664,210 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <div className="mb-6 flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack} className="gap-2">
-          <ArrowLeft size={20} />
-          Back
-        </Button>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus size={20} />
-          Add Employee
-        </Button>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col gap-2 sm:gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="relative flex-1">
+            <MagnifyingGlass
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={20}
+            />
+            <Input
+              placeholder="Search employees by name, phone, email or role..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 h-10 touch-manipulation"
+            />
+          </div>
+          <Button onClick={() => handleOpenDialog()} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
+            <Plus size={18} className="mr-1.5" weight="bold" />
+            Add Employee
+          </Button>
+        </div>
+
+        {/* Mobile: Filter button that opens modal */}
+        <div className="sm:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilterModal(true)}
+            className="text-xs font-semibold touch-manipulation h-8 px-3 w-full justify-between"
+          >
+            <span className="flex items-center gap-1.5">
+              <Funnel size={14} weight="bold" />
+              Filter: {dateFilterOptions.find(o => o.value === dateFilter)?.label}
+            </span>
+            <Badge variant="secondary" className="text-[10px]">{filteredEmployees.length}</Badge>
+          </Button>
+        </div>
+
+        {/* Desktop: Inline filter buttons */}
+        <div className="hidden sm:block">
+          <FilterButtons />
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Employee List</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {employees.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No employees added yet.</p>
-              <p className="text-sm mt-2">Click "Add Employee" to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {employees.map(employee => (
-                <Card key={employee.id} className={!employee.isActive ? 'opacity-60' : ''}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-lg">{employee.name}</h3>
-                          {!employee.isActive && (
-                            <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Employee ID:</span> {employee.id}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Company ID:</span> {employee.companyId}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Role:</span>{' '}
-                            {employee.role.charAt(0).toUpperCase() + employee.role.slice(1)}
-                          </div>
-                          {employee.designation && (
-                            <div>
-                              <span className="text-muted-foreground">Designation:</span> {employee.designation}
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-muted-foreground">Contact:</span> {employee.contactNumber}
-                          </div>
-                          {employee.email && (
-                            <div>
-                              <span className="text-muted-foreground">Email:</span> {employee.email}
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-muted-foreground">Joined:</span>{' '}
-                            {format(employee.joiningDate, 'dd MMM yyyy')}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Password:</span>{' '}
-                            <code className="bg-gray-100 px-2 py-1 rounded text-xs">{employee.password}</code>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 ml-4 flex-wrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleResetPassword(employee.id)}
-                          title="Reset Password"
-                        >
-                          <Key size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleStatus(employee)}
-                          title={employee.isActive ? 'Deactivate' : 'Activate'}
-                        >
-                          <CheckSquare size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenDialog(employee)}
-                        >
-                          <PencilSimple size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(employee.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash size={16} />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+      {filteredEmployees.length === 0 ? (
+        <Card className="p-8 sm:p-12 text-center">
+          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
+          <p className="text-base text-muted-foreground mb-4 font-medium">
+            {search ? 'No employees found matching your search.' : 'No employees added yet.'}
+          </p>
+          {!search && (
+            <Button onClick={() => handleOpenDialog()} className="h-10 touch-manipulation text-xs sm:text-sm">
+              <Plus size={18} className="mr-1.5" weight="bold" />
+              Add Employee
+            </Button>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      ) : (
+        <div
+          className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+          style={{
+            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.5)'
+          }}
+        >
+          <h3 className="text-base font-semibold text-gray-800">
+            {search ? `Search Results (${sortedEmployees.length})` : `Employees (${sortedEmployees.length})`}
+          </h3>
+          {/* Rectangle cards: 1 col mobile, 2 cols tablet, 3 cols desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {paginatedEmployees.map((employee, index) => (
+              <div
+                key={employee.id}
+                className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1} ${!employee.isActive ? 'opacity-60' : ''}`}
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                  borderColor: '#6A64F2',
+                  boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
+                }}
+                onClick={() => handleOpenDialog(employee)}
+              >
+                {/* Left side: Avatar/Icon */}
+                <div className="flex-shrink-0 flex items-center">
+                  <div
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+                  >
+                    {getInitials(employee.name)}
+                  </div>
+                </div>
+
+                {/* Middle: Employee details */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">{employee.name}</p>
+                    {!employee.isActive && (
+                      <Badge variant="outline" className="text-[8px] px-1.5 py-0.5 font-semibold bg-red-100 text-red-700 border-red-200">
+                        INACTIVE
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[10px] sm:text-xs font-bold text-purple-700 mb-1">{employee.employeeCode || employee.id}</p>
+                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
+                    <span className="font-bold text-purple-700">{employee.contactNumber}</span>
+                    <span>•</span>
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-purple-100 text-purple-700 border-purple-200 capitalize">
+                      {employee.role}
+                    </Badge>
+                  </div>
+                  {employee.joiningDate && (
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">
+                      Joined: {format(new Date(employee.joiningDate), 'MMM dd, yyyy')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Right side: Actions */}
+                <div className="flex-shrink-0 flex flex-col items-end justify-between">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                        <DotsThree size={20} weight="bold" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDialog(employee); }} className="font-medium">
+                        <PencilSimple size={18} className="mr-2" weight="bold" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleResetPassword(employee.id); }} className="font-medium">
+                        <Key size={18} className="mr-2" weight="bold" />
+                        Reset Password
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleToggleStatus(employee); }} className="font-medium">
+                        <CheckSquare size={18} className="mr-2" weight="bold" />
+                        {employee.isActive ? 'Deactivate' : 'Activate'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => handleDeleteClick(employee.id, e)}
+                        className="text-destructive focus:text-destructive font-medium"
+                      >
+                        <Trash size={18} className="mr-2" weight="bold" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={`tel:${employee.contactNumber}`}
+                      className="text-primary hover:text-primary/80 transition-colors p-1.5 touch-manipulation rounded-full hover:bg-purple-100"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Call"
+                    >
+                      <Phone size={16} weight="fill" />
+                    </a>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendWhatsAppMessage(employee.whatsappNumber || employee.contactNumber, `Hello ${employee.name},`);
+                      }}
+                      className="text-green-600 hover:text-green-700 transition-colors p-1.5 touch-manipulation rounded-full hover:bg-green-100"
+                      title="WhatsApp"
+                    >
+                      <WhatsappLogo size={16} weight="fill" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {showPagination && <Pagination />}
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteEmployeeId !== null} onOpenChange={() => setDeleteEmployeeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this employee? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mobile Filter Modal */}
+      <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Filter by Date</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <FilterButtons inModal />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Employee Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
