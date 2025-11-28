@@ -506,20 +506,17 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
       {/* Vendors List */}
       {sortedVendors.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center">
-            <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No tailors found</h3>
-            <p className="text-muted-foreground mb-4">
-              {search ? 'Try a different search term' : 'Get started by adding your first tailor'}
-            </p>
-            {!search && (
-              <Button onClick={handleAddNew} className="bg-purple-600 hover:bg-purple-700">
-                <Plus size={20} className="mr-2" />
-                Add Tailor
-              </Button>
-            )}
-          </div>
+        <Card className="p-8 sm:p-12 text-center">
+          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
+          <p className="text-base text-muted-foreground mb-4 font-medium">
+            {search ? 'No tailors found matching your search.' : 'No tailors added yet.'}
+          </p>
+          {!search && (
+            <Button onClick={handleAddNew} className="h-10 touch-manipulation text-xs sm:text-sm">
+              <Plus size={18} className="mr-1.5" weight="bold" />
+              Add Tailor
+            </Button>
+          )}
         </Card>
       ) : (
         <div
