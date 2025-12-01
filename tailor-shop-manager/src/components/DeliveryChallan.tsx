@@ -44,9 +44,10 @@ import {
 
 interface DeliveryChallanProps {
   onBack: () => void;
+  initialOrderId?: string; // Pre-select this order and open dialog
 }
 
-export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
+export function DeliveryChallan({ onBack, initialOrderId }: DeliveryChallanProps) {
   const { user } = useAuth();
   const [challans, setChallans] = useState<DeliveryChallanType[]>([]);
   const [ordersWaitingForDC, setOrdersWaitingForDC] = useState<ServiceOrderWithCompany[]>([]);
@@ -74,6 +75,21 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
   useEffect(() => {
     loadData();
   }, [user]);
+
+  // Auto-open dialog with pre-selected order if initialOrderId is provided
+  useEffect(() => {
+    if (initialOrderId && ordersWaitingForDC.length > 0 && !loading) {
+      // Find the order by ID or jobWorkNo
+      const order = ordersWaitingForDC.find(o => o.id === initialOrderId || o.jobWorkNo === initialOrderId);
+      if (order) {
+        // Use order.id as the value since SelectItem uses order.id as value
+        setJobWorkNo(order.id);
+        setShipmentType('');
+        setConsignmentNo('');
+        setShowDialog(true);
+      }
+    }
+  }, [initialOrderId, ordersWaitingForDC, loading]);
 
   const loadData = async () => {
     if (!user?.id) return;
@@ -519,7 +535,7 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
             {/* Shipment Type */}
             <div className="space-y-2">
               <Label htmlFor="shipmentType">Shipment Type *</Label>
-              <Select value={shipmentType} onValueChange={setShipmentType}>
+              <Select value={shipmentType} onValueChange={(value) => setShipmentType(value as ShipmentType | '')}>
                 <SelectTrigger id="shipmentType">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>

@@ -7,8 +7,8 @@ import {
   Truck,
   HourglassMedium,
   Spinner,
-  CheckCircle,
-  FileText
+  FileText,
+  ClipboardText
 } from '@phosphor-icons/react';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
@@ -142,12 +142,12 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
       filter: 'ready' as const,
     },
     {
-      label: 'Delivered Orders',
-      value: deliveredOrders,
-      icon: CheckCircle,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-100',
-      filter: 'delivered' as const,
+      label: 'Waiting for DC',
+      value: waitingForDC,
+      icon: ClipboardText,
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-100',
+      filter: 'waitingForDC' as const,
     },
   ];
 

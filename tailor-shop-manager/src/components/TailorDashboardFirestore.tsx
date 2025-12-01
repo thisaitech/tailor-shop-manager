@@ -34,6 +34,7 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
   getOrdersByEmployee,
+  subscribeToEmployeeOrders,
   acceptOrder,
   rejectOrder,
   markOrderReady,
@@ -115,52 +116,55 @@ export function TailorDashboardFirestore() {
   };
 
   useEffect(() => {
-    if (employee) {
-      loadDashboardData();
-    }
-  }, [employee]);
-
-  const loadDashboardData = async () => {
     if (!employee) return;
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      // Fetch orders assigned to this employee from the newOrders collection
-      const employeeOrders = await getOrdersByEmployee(employee.id);
-      console.log(`[TailorDashboard] Loaded ${employeeOrders.length} orders for employee ${employee.id}`);
+    // Subscribe to real-time updates for employee orders
+    const unsubscribe = subscribeToEmployeeOrders(
+      employee.id,
+      (employeeOrders) => {
+        console.log(`[TailorDashboard] Real-time update: ${employeeOrders.length} orders for employee ${employee.id}`);
 
-      // Store all orders for detailed views
-      setAllOrders(employeeOrders);
+        // Store all orders for detailed views
+        setAllOrders(employeeOrders);
 
-      // Calculate stats using new status flow
-      const awaitingOrders = employeeOrders.filter((o) => o.orderStatus === 'awaiting').length;
-      const inProgress = employeeOrders.filter((o) => o.orderStatus === 'inprogress').length;
-      const readyToDeliver = employeeOrders.filter((o) => o.orderStatus === 'ready').length;
-      const rejectedOrders = employeeOrders.filter((o) => o.orderStatus === 'rejected').length;
-      const totalOrders = employeeOrders.length;
+        // Calculate stats using new status flow
+        const awaitingOrders = employeeOrders.filter((o) => o.orderStatus === 'awaiting').length;
+        const inProgress = employeeOrders.filter((o) => o.orderStatus === 'inprogress').length;
+        const readyToDeliver = employeeOrders.filter((o) => o.orderStatus === 'ready').length;
+        const rejectedOrders = employeeOrders.filter((o) => o.orderStatus === 'rejected').length;
+        const totalOrders = employeeOrders.length;
 
-      setStats({
-        awaitingOrders,
-        inProgress,
-        readyToDeliver,
-        rejectedOrders,
-        totalOrders,
-      });
+        setStats({
+          awaitingOrders,
+          inProgress,
+          readyToDeliver,
+          rejectedOrders,
+          totalOrders,
+        });
 
-      // Get recent orders (last 10, sorted by creation date descending)
-      const sortedRecent = [...employeeOrders]
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        .slice(0, 10);
+        // Get recent orders (last 10, sorted by creation date descending)
+        const sortedRecent = [...employeeOrders]
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+          .slice(0, 10);
 
-      setRecentOrders(sortedRecent);
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
+        setRecentOrders(sortedRecent);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error in employee orders subscription:', error);
+        toast.error('Failed to load dashboard data');
+        setLoading(false);
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('[TailorDashboard] Unsubscribing from employee orders');
+      unsubscribe();
+    };
+  }, [employee]);
 
   // Handle accept order - for employees, goes directly from 'awaiting' to 'inprogress' (no DC step)
   const handleAcceptOrder = async (order: ServiceOrderWithCompany) => {
@@ -174,9 +178,7 @@ export function TailorDashboardFirestore() {
 
       console.log(`[TailorDashboard] Order ${order.id} accepted. Status updated to inprogress.`);
       toast.success('Order accepted and marked as In Progress');
-
-      // Reload dashboard data
-      await loadDashboardData();
+      // Real-time subscription will automatically update the UI
     } catch (error) {
       console.error('Error accepting order:', error);
       toast.error('Failed to accept order');
@@ -221,7 +223,7 @@ export function TailorDashboardFirestore() {
       }
 
       toast.success('Order rejected successfully. Admin has been notified.');
-      await loadDashboardData();
+      // Real-time subscription will automatically update the UI
     } catch (error) {
       console.error('Error rejecting order:', error);
       toast.error('Failed to reject order');
@@ -280,8 +282,7 @@ export function TailorDashboardFirestore() {
         console.error('[TailorDashboard] Error sending notification:', notificationError);
         toast.success('Order marked as Ready to Deliver!');
       }
-
-      await loadDashboardData();
+      // Real-time subscription will automatically update the UI
     } catch (error) {
       console.error('Error marking order as ready:', error);
       toast.error('Failed to mark order as ready');
@@ -301,7 +302,7 @@ export function TailorDashboardFirestore() {
       await markOrderDelivered(order.id, employee.id, employee.name);
 
       toast.success('Order marked as delivered successfully!');
-      await loadDashboardData();
+      // Real-time subscription will automatically update the UI
     } catch (error) {
       console.error('Error marking order as delivered:', error);
       toast.error('Failed to mark order as delivered');

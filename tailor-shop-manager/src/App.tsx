@@ -35,6 +35,7 @@ function AppContent() {
   const [dashboardKey, setDashboardKey] = useState(0); // Key to force remount and reset dashboard state
   const [employeeView, setEmployeeView] = useState<EmployeeView>('dashboard');
   const [vendorView, setVendorView] = useState<VendorView>('dashboard');
+  const [selectedOrderForDC, setSelectedOrderForDC] = useState<string | undefined>(); // Pre-selected order for Delivery Challan
 
   // Show loader during initial app loading
   if (isLoading) {
@@ -145,7 +146,16 @@ function AppContent() {
         onVendorProfileClick={vendor ? handleVendorProfileClick : undefined}
         onNotificationsClick={handleNotificationsClick}
       />
-      {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard key={dashboardKey} initialTab={dashboardTab} />}
+      {user?.role === 'owner' && adminView === 'dashboard' && (
+        <OwnerDashboard 
+          key={dashboardKey} 
+          initialTab={dashboardTab}
+          onNavigateToDeliveryChallan={(orderId) => {
+            setSelectedOrderForDC(orderId);
+            setAdminView('delivery-challan');
+          }}
+        />
+      )}
       {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}
       {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}
@@ -154,7 +164,13 @@ function AppContent() {
         <Payment onBack={handleBackToDashboard} />
       )}
       {user?.role === 'owner' && adminView === 'delivery-challan' && (
-        <DeliveryChallan onBack={handleBackToDashboard} />
+        <DeliveryChallan 
+          onBack={() => {
+            setSelectedOrderForDC(undefined); // Clear the selected order on back
+            handleBackToDashboard();
+          }} 
+          initialOrderId={selectedOrderForDC}
+        />
       )}
       {user?.role === 'owner' && adminView === 'goods-receipt' && (
         <GoodsReceipt onBack={handleBackToDashboard} />

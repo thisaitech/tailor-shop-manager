@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { ServiceOrder, ServiceOrderStatus } from '@/lib/types';
 import {
   getOrdersByVendor,
+  subscribeToVendorOrders,
   acceptOrder,
   rejectOrder,
   markJobCompleted,
@@ -104,25 +105,31 @@ export function JobWorkTailorDashboard() {
   const totalOrders = orders.length;
 
   useEffect(() => {
-    loadOrders();
-  }, [vendor]);
-
-  const loadOrders = async () => {
     if (!vendor?.tailorCode) return;
 
-    try {
-      setLoading(true);
-      // Fetch orders from newOrders collection where assignedTo = vendor.tailorCode
-      const vendorOrders = await getOrdersByVendor(vendor.tailorCode);
-      console.log(`[JobWorkTailorDashboard] Loaded ${vendorOrders.length} orders for vendor ${vendor.tailorCode}`);
-      setOrders(vendorOrders);
-    } catch (error) {
-      console.error('Error loading orders:', error);
-      toast.error('Failed to load orders');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setLoading(true);
+
+    // Subscribe to real-time updates for vendor orders
+    const unsubscribe = subscribeToVendorOrders(
+      vendor.tailorCode,
+      (vendorOrders) => {
+        console.log(`[JobWorkTailorDashboard] Real-time update: ${vendorOrders.length} orders for vendor ${vendor.tailorCode}`);
+        setOrders(vendorOrders);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error in vendor orders subscription:', error);
+        toast.error('Failed to load orders');
+        setLoading(false);
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('[JobWorkTailorDashboard] Unsubscribing from vendor orders');
+      unsubscribe();
+    };
+  }, [vendor]);
 
   // Handle accept order - moves from 'awaiting' to 'waitingForDC'
   const handleAccept = async (orderId: string) => {
@@ -695,7 +702,9 @@ export function JobWorkTailorDashboard() {
             serviceOrderNo={selectedOrderNo}
             open={showOrderDetails}
             onOpenChange={setShowOrderDetails}
-            onStatusUpdate={loadOrders}
+            onStatusUpdate={() => {
+              // Real-time subscription handles updates automatically
+            }}
           />
         )}
 

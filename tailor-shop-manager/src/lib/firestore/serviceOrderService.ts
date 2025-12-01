@@ -10,6 +10,8 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
+  onSnapshot,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ServiceOrder, EmbeddedAllotment, ServiceOrderStatus, StitchingAllotmentType, OrderHistoryEntry } from '@/lib/types';
@@ -189,6 +191,48 @@ export async function getServiceOrdersByCompany(companyId: string): Promise<Serv
     console.error('Error fetching service orders:', error);
     throw new Error('Failed to fetch service orders');
   }
+}
+
+/**
+ * Subscribe to real-time service orders updates for a company
+ * Returns an unsubscribe function to stop listening
+ */
+export function subscribeToServiceOrders(
+  companyId: string,
+  onUpdate: (orders: ServiceOrderWithCompany[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+  const q = query(ordersRef, where('companyId', '==', companyId));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const orders: ServiceOrderWithCompany[] = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          createdAt: convertTimestamp(data.createdAt),
+          updatedAt: convertTimestamp(data.updatedAt),
+          serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+          expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+        } as ServiceOrderWithCompany;
+      });
+
+      // Sort by serviceOrderDate descending (newest first)
+      orders.sort((a, b) => b.serviceOrderDate - a.serviceOrderDate);
+
+      console.log(`[Real-time] Service orders updated: ${orders.length} orders for company ${companyId}`);
+      onUpdate(orders);
+    },
+    (error) => {
+      console.error('[Real-time] Error in service orders subscription:', error);
+      if (onError) {
+        onError(error);
+      }
+    }
+  );
 }
 
 /**
@@ -1138,6 +1182,92 @@ export async function getOrdersByEmployee(employeeId: string): Promise<ServiceOr
     console.error('Error fetching employee orders:', error);
     throw error;
   }
+}
+
+/**
+ * Subscribe to real-time orders updates for an employee
+ */
+export function subscribeToEmployeeOrders(
+  employeeId: string,
+  onUpdate: (orders: ServiceOrderWithCompany[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+  const q = query(ordersRef, where('assignedTo', '==', employeeId));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const orders = snapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            ...data,
+            id: doc.id,
+            createdAt: convertTimestamp(data.createdAt),
+            updatedAt: convertTimestamp(data.updatedAt),
+            serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+            expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+          } as ServiceOrderWithCompany;
+        })
+        .filter(order => order.assignmentType === 'employee');
+
+      // Sort by serviceOrderDate descending
+      orders.sort((a, b) => b.serviceOrderDate - a.serviceOrderDate);
+
+      console.log(`[Real-time] Employee orders updated: ${orders.length} orders for employee ${employeeId}`);
+      onUpdate(orders);
+    },
+    (error) => {
+      console.error('[Real-time] Error in employee orders subscription:', error);
+      if (onError) {
+        onError(error);
+      }
+    }
+  );
+}
+
+/**
+ * Subscribe to real-time orders updates for a vendor
+ */
+export function subscribeToVendorOrders(
+  vendorId: string,
+  onUpdate: (orders: ServiceOrderWithCompany[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+  const q = query(ordersRef, where('assignedTo', '==', vendorId));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const orders = snapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            ...data,
+            id: doc.id,
+            createdAt: convertTimestamp(data.createdAt),
+            updatedAt: convertTimestamp(data.updatedAt),
+            serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+            expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+          } as ServiceOrderWithCompany;
+        })
+        .filter(order => order.assignmentType === 'vendor');
+
+      // Sort by serviceOrderDate descending
+      orders.sort((a, b) => b.serviceOrderDate - a.serviceOrderDate);
+
+      console.log(`[Real-time] Vendor orders updated: ${orders.length} orders for vendor ${vendorId}`);
+      onUpdate(orders);
+    },
+    (error) => {
+      console.error('[Real-time] Error in vendor orders subscription:', error);
+      if (onError) {
+        onError(error);
+      }
+    }
+  );
 }
 
 /**

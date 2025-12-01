@@ -26,9 +26,9 @@ import { PhotoGallery } from './PhotoGallery';
 import { Customer, Tailor } from '@/lib/types';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
-// Display status type for combined status from both collections
-type DisplayStatus = 'pending' | 'in-progress' | 'delivered' | 'completed';
-type ServiceOrderFilter = 'all' | 'in-progress' | 'pending' | 'delivered' | 'completed' | 'overdue';
+// Display status type based on unified ServiceOrder.orderStatus
+type DisplayStatus = 'open' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'rejected' | 'ready' | 'job-completed' | 'received-note' | 'delivered';
+type ServiceOrderFilter = 'all' | 'open' | 'awaiting' | 'inprogress' | 'ready' | 'delivered' | 'overdue';
 type DateFilter = 'all' | 'exact' | 'range';
 
 const ITEMS_PER_PAGE = 6;
@@ -93,60 +93,11 @@ export function OrderList({
   const [currentPage, setCurrentPage] = useState(1);
 
   /**
-   * Get the display status for a service order based on allotment status
-   * Status logic:
-   * - Not assigned → 'Pending'
-   * - In progress → 'In Progress'
-   * - Ready to deliver / Ready to dispatch → 'Delivered'
-   * - Reassigned → 'Pending'
-   * - Final payment completed → 'Completed'
+   * Get the display status for a service order from unified orderStatus field
    */
   const getDisplayStatus = (serviceOrder: ServiceOrder): DisplayStatus => {
-    // Find the allotment for this service order (exclude reassigned orders)
-    const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
-
-    // If no allotment exists or order is reassigned → Pending
-    if (!allotment) {
-      return 'pending';
-    }
-
-    // Check allotment status fields
-    // - status: used by job work tailors (vendors) - values: 'allotted', 'in_progress', 'stitched', 'rejected', 'delivered'
-    // - orderStatus: used by employee tailors - values: 'open', 'in-progress', 'closed'
-    // - serviceOrderStatus: status synced to service order - values: 'pending', 'in-progress', 'ready', 'delivered'
-    const allotmentStatus = allotment.status; // Job work tailor status
-    const orderTicketStatus = allotment.orderStatus; // Employee tailor status
-    const serviceOrderStatus = allotment.serviceOrderStatus;
-
-    // If final payment is completed → Completed
-    // Check if serviceOrder.orderStatus is 'delivered' and payment is complete
-    if (serviceOrder.orderStatus === 'delivered') {
-      return 'completed';
-    }
-
-    // Ready to deliver or ready to dispatch → Delivered
-    // Job work: status='stitched' or 'delivered'
-    // Employee: serviceOrderStatus='ready'
-    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
-      return 'delivered';
-    }
-
-    // In progress
-    // Job work: status='in_progress'
-    // Employee: orderStatus='in-progress'
-    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress') {
-      return 'in-progress';
-    }
-
-    // Allotted but not started → Pending
-    // Job work: status='allotted'
-    // Employee: orderStatus='open'
-    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
-      return 'pending';
-    }
-
-    // Default to pending
-    return 'pending';
+    // Use the unified orderStatus directly from ServiceOrder
+    return serviceOrder.orderStatus as DisplayStatus;
   };
 
   const filteredOrders = (orders || []).filter((o) => {
@@ -215,14 +166,22 @@ export function OrderList({
       o.orderCategory.toLowerCase().includes(searchLower) ||
       hasMeasurementMatch(o.measurements, searchLower);
 
-    // Status filter using display status
+    // Status filter using unified orderStatus
     let matchesStatus = true;
     if (serviceOrderFilter !== 'all') {
       if (serviceOrderFilter === 'overdue') {
         matchesStatus = isServiceOrderOverdue(o);
       } else {
-        // Use getDisplayStatus for filtering
-        matchesStatus = getDisplayStatus(o) === serviceOrderFilter;
+        // Map filter values to orderStatus values
+        const statusMap: Record<string, string[]> = {
+          'open': ['open'],
+          'awaiting': ['awaiting', 'waitingForDC'],
+          'inprogress': ['inprogress'],
+          'ready': ['ready', 'job-completed', 'received-note'],
+          'delivered': ['delivered'],
+        };
+        const validStatuses = statusMap[serviceOrderFilter] || [serviceOrderFilter];
+        matchesStatus = validStatuses.includes(o.orderStatus);
       }
     }
 
@@ -239,16 +198,25 @@ export function OrderList({
     if (filter === 'overdue') {
       return (serviceOrders || []).filter(o => isServiceOrderOverdue(o)).length;
     }
-    // Use getDisplayStatus for filtering counts
-    return (serviceOrders || []).filter(o => getDisplayStatus(o) === filter).length;
+    // Map filter values to orderStatus values
+    const statusMap: Record<string, string[]> = {
+      'open': ['open'],
+      'awaiting': ['awaiting', 'waitingForDC'],
+      'inprogress': ['inprogress'],
+      'ready': ['ready', 'job-completed', 'received-note'],
+      'delivered': ['delivered'],
+    };
+    const validStatuses = statusMap[filter] || [filter];
+    return (serviceOrders || []).filter(o => validStatuses.includes(o.orderStatus)).length;
   };
 
   const serviceOrderFilterOptions: { value: ServiceOrderFilter; label: string }[] = [
     { value: 'all', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'in-progress', label: 'In Progress' },
+    { value: 'open', label: 'Open' },
+    { value: 'awaiting', label: 'Awaiting' },
+    { value: 'inprogress', label: 'In Progress' },
+    { value: 'ready', label: 'Ready' },
     { value: 'delivered', label: 'Delivered' },
-    { value: 'completed', label: 'Completed' },
     { value: 'overdue', label: 'Overdue' },
   ];
 
@@ -486,9 +454,9 @@ export function OrderList({
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const showPagination = filteredServiceOrders.length > ITEMS_PER_PAGE;
 
-  // Get paginated service orders (filtered and sorted)
+  // Get paginated service orders (filtered and sorted by serviceOrderDate in descending order)
   const recentServiceOrders = filteredServiceOrders
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => b.serviceOrderDate - a.serviceOrderDate)
     .slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // Reset to page 1 when filters change
@@ -504,30 +472,52 @@ export function OrderList({
 
   const getServiceOrderStatusColor = (status: string) => {
     switch (status) {
-      case 'in-progress':
-        return 'bg-blue-600 text-white dark:bg-blue-700';
-      case 'pending':
+      case 'open':
+        return 'bg-purple-600 text-white dark:bg-purple-700';
+      case 'awaiting':
         return 'bg-amber-500 text-white dark:bg-amber-600';
+      case 'waitingForDC':
+        return 'bg-teal-500 text-white dark:bg-teal-600';
+      case 'inprogress':
+        return 'bg-blue-600 text-white dark:bg-blue-700';
+      case 'rejected':
+        return 'bg-red-600 text-white dark:bg-red-700';
+      case 'ready':
+        return 'bg-indigo-600 text-white dark:bg-indigo-700';
+      case 'job-completed':
+        return 'bg-orange-600 text-white dark:bg-orange-700';
+      case 'received-note':
+        return 'bg-cyan-600 text-white dark:bg-cyan-700';
       case 'delivered':
         return 'bg-green-600 text-white dark:bg-green-700';
-      case 'completed':
-        return 'bg-purple-600 text-white dark:bg-purple-700';
       default:
         return 'bg-gray-500 text-white';
     }
   };
 
   // Get display status label for UI
-  const getDisplayStatusLabel = (status: DisplayStatus): string => {
+  const getDisplayStatusLabel = (status: string): string => {
     switch (status) {
-      case 'pending':
-        return 'PENDING';
-      case 'in-progress':
+      case 'open':
+        return 'OPEN';
+      case 'awaiting':
+        return 'AWAITING';
+      case 'waitingForDC':
+        return 'WAITING DC';
+      case 'inprogress':
         return 'IN PROGRESS';
+      case 'rejected':
+        return 'REJECTED';
+      case 'ready':
+        return 'READY';
+      case 'job-completed':
+        return 'JOB DONE';
+      case 'received-note':
+        return 'RECEIVED';
       case 'delivered':
         return 'DELIVERED';
-      case 'completed':
-        return 'COMPLETED';
+      default:
+        return status.toUpperCase();
     }
   };
 

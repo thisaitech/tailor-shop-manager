@@ -8,7 +8,7 @@ import {
   Timestamp,
   orderBy,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db } from '../firebase';
 import type { AssignedUser, OrderStatus } from './newOrderService';
 
 const ORDER_HISTORY_COLLECTION = 'orderHistory';

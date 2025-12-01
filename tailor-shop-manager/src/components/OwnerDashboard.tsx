@@ -23,7 +23,7 @@ import { StitchedOrdersList } from '@/components/StitchedOrdersList';
 import { ActiveOrdersList } from '@/components/ActiveOrdersList';
 import { ReadyToDeliverList } from '@/components/ReadyToDeliverList';
 import { ReceivedNoteList } from '@/components/ReceivedNoteList';
-import { DeliveredOrdersList } from '@/components/DeliveredOrdersList';
+import { WaitingForDCList } from '@/components/WaitingForDCList';
 import { ReassignedOrdersList } from '@/components/ReassignedOrdersList';
 import { OverDueOrdersList } from '@/components/OverDueOrdersList';
 import { JobworkCompletedOrdersList } from '@/components/JobworkCompletedOrdersList';
@@ -42,6 +42,7 @@ import {
 import {
   addServiceOrder,
   getServiceOrdersByCompany,
+  subscribeToServiceOrders,
   assignOrder,
 } from '@/lib/firestore/serviceOrderService';
 import {
@@ -61,9 +62,10 @@ import { getCompanyProfile } from '@/lib/firestore/companyService';
 interface OwnerDashboardProps {
   initialTab?: string;
   onEmployeeClick?: () => void;
+  onNavigateToDeliveryChallan?: (orderId?: string) => void; // Navigate to DC page with optional pre-selected order
 }
 
-export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: OwnerDashboardProps) {
+export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNavigateToDeliveryChallan }: OwnerDashboardProps) {
   const { t } = useLanguage();
   const { user, employee } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -95,6 +97,8 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
 
   // Load customers, service orders, employees, vendors, and allotments from Firestore
   useEffect(() => {
+    let unsubscribeOrders: (() => void) | null = null;
+
     const loadData = async () => {
       const startTime = Date.now();
       const MIN_LOADING_TIME = 500; // Minimum loading time in ms to show loader
@@ -126,10 +130,17 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
         setCustomers(customersData);
         console.log('[OwnerDashboard] Loaded customers:', customersData.length);
 
-        // Load service orders from Firestore
-        const ordersData = await getServiceOrdersByCompany(realCompanyId);
-        setServiceOrders(ordersData);
-        console.log('[OwnerDashboard] Loaded service orders:', ordersData.length);
+        // Subscribe to real-time service orders updates
+        unsubscribeOrders = subscribeToServiceOrders(
+          realCompanyId,
+          (ordersData) => {
+            setServiceOrders(ordersData);
+            console.log('[OwnerDashboard] Real-time service orders update:', ordersData.length);
+          },
+          (error) => {
+            console.error('[OwnerDashboard] Service orders subscription error:', error);
+          }
+        );
 
         // Load order allotments from Firestore
         const allotmentsData = await getOrderAllotmentsByCompany(realCompanyId);
@@ -161,6 +172,14 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
     };
 
     loadData();
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (unsubscribeOrders) {
+        console.log('[OwnerDashboard] Unsubscribing from service orders');
+        unsubscribeOrders();
+      }
+    };
   }, [user]);
 
   const handleAddCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -594,11 +613,17 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
                 setServiceOrders(ordersData);
               }}
             />
-          ) : orderFilter === 'delivered' ? (
-            <DeliveredOrdersList
+          ) : orderFilter === 'waitingForDC' ? (
+            <WaitingForDCList
               serviceOrders={serviceOrders || []}
               orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
+              onCreateDC={(orderId) => {
+                // Navigate to Delivery Challan page with pre-filled order ID
+                if (onNavigateToDeliveryChallan) {
+                  onNavigateToDeliveryChallan(orderId);
+                }
+              }}
             />
           ) : (
             <>
