@@ -65,6 +65,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 interface EmployeeManagementFirestoreProps {
   onBack: () => void;
@@ -94,12 +96,12 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     whatsappNumber: '',
     address1: '',
     address2: '',
-    city: '',
+    city: DEFAULT_CITY,
     pincode: '',
     region: 'none',
-    state: '',
+    state: DEFAULT_STATE,
     country: 'India',
-    role: 'staff' as EmployeeRole,
+    role: 'tailor' as EmployeeRole,
     designation: '',
     joiningDate: Date.now(),
     accessPermissions: [] as string[],
@@ -149,10 +151,10 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         whatsappNumber: employee.whatsappNumber || '',
         address1: employee.address1 || '',
         address2: employee.address2 || '',
-        city: employee.city || '',
+        city: employee.city || (employee.state === DEFAULT_STATE ? DEFAULT_CITY : ''),
         pincode: employee.pincode || '',
         region: employee.region || '',
-        state: employee.state || '',
+        state: employee.state || DEFAULT_STATE,
         country: employee.country || 'India',
         role: employee.role,
         designation: employee.designation || '',
@@ -173,12 +175,12 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         whatsappNumber: '',
         address1: '',
         address2: '',
-        city: '',
+        city: DEFAULT_CITY,
         pincode: '',
         region: 'none',
-        state: '',
+        state: DEFAULT_STATE,
         country: 'India',
-        role: 'staff',
+        role: 'tailor',
         designation: '',
         joiningDate: Date.now(),
         accessPermissions: [],
@@ -669,16 +671,29 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                 />
               </div>
 
-              {/* Address 2 */}
-              <div className="space-y-2">
-                <Label htmlFor="empAddress2">Address Line 2</Label>
-                <Input
-                  id="empAddress2"
-                  maxLength={40}
-                  value={formData.address2}
-                  onChange={(e) => handleChange('address2', e.target.value)}
-                  placeholder="Enter address"
-                />
+              {/* Address 2 + Pincode */}
+              <div className="md:col-span-2 grid grid-cols-3 gap-4">
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="empAddress2">Address Line 2</Label>
+                  <Input
+                    id="empAddress2"
+                    maxLength={40}
+                    value={formData.address2}
+                    onChange={(e) => handleChange('address2', e.target.value)}
+                    placeholder="Enter address"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="empPincode">Pincode</Label>
+                  <Input
+                    id="empPincode"
+                    maxLength={6}
+                    value={formData.pincode}
+                    onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
+                    placeholder="6 digits"
+                  />
+                </div>
               </div>
 
               {/* State */}
@@ -721,29 +736,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                 </Select>
               </div>
 
-              {/* Pincode */}
-              <div className="space-y-2">
-                <Label htmlFor="empPincode">Pincode</Label>
-                <Input
-                  id="empPincode"
-                  maxLength={6}
-                  value={formData.pincode}
-                  onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
-                  placeholder="6 digits"
-                />
-              </div>
-
-              {/* Region */}
-              <div className="space-y-2">
-                <Label htmlFor="empRegion">Region</Label>
-                <Input
-                  id="empRegion"
-                  value={formData.region}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
               {/* Country */}
               <div className="space-y-2">
                 <Label htmlFor="empCountry">Country</Label>
@@ -755,46 +747,51 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                 />
               </div>
 
-              {/* Role */}
-              <div className="space-y-2">
-                <Label htmlFor="empRole">Role *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => handleChange('role', value)}
-                >
-                  <SelectTrigger id="empRole">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="tailor">Tailor</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {/* Role */}
+                <div className="space-y-2">
+                  <Label htmlFor="empRole">Role *</Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value) => handleChange('role', value)}
+                  >
+                    <SelectTrigger id="empRole">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="accountant">Accountant</SelectItem>
+                      <SelectItem value="staff">Staff</SelectItem>
+                      <SelectItem value="tailor">Tailor</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Designation */}
-              <div className="space-y-2">
-                <Label htmlFor="empDesignation">Designation</Label>
-                <Input
-                  id="empDesignation"
-                  value={formData.designation}
-                  onChange={(e) => handleChange('designation', e.target.value)}
-                  placeholder="Enter designation"
-                />
-              </div>
+                {/* Joining Date beside Role */}
+                <div className="space-y-2">
+                  <Label htmlFor="empJoiningDate">Joining Date *</Label>
+                  <Input
+                    id="empJoiningDate"
+                    type="date"
+                    value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
+                    onChange={(e) =>
+                      handleChange('joiningDate', new Date(e.target.value).getTime())
+                    }
+                    className="w-36"
+                  />
+                </div>
 
-              {/* Joining Date */}
-              <div className="space-y-2">
-                <Label htmlFor="empJoiningDate">Joining Date *</Label>
-                <Input
-                  id="empJoiningDate"
-                  type="date"
-                  value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
-                  onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
-                />
+                {/* Designation on new row */}
+                <div className="space-y-2 col-span-3">
+                  <Label htmlFor="empDesignation">Designation</Label>
+                  <Input
+                    id="empDesignation"
+                    value={formData.designation}
+                    onChange={(e) => handleChange('designation', e.target.value)}
+                    placeholder="Enter designation"
+                  />
+                </div>
               </div>
             </div>
 

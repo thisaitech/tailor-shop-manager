@@ -369,18 +369,6 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
                 </div>
 
                 <div>
-                  <Label htmlFor="region">
-                    Region <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="region"
-                    value={formData.region}
-                    onChange={(e) => handleInputChange('region', e.target.value)}
-                    placeholder="Enter region"
-                  />
-                </div>
-
-                <div>
                   <Label htmlFor="state">
                     State <span className="text-red-500">*</span>
                   </Label>

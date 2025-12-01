@@ -233,12 +233,6 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
                     <p className="font-medium">{employeeData.pincode}</p>
                   </div>
                 )}
-                {employeeData.region && (
-                  <div>
-                    <Label className="text-muted-foreground">Region</Label>
-                    <p className="font-medium">{employeeData.region}</p>
-                  </div>
-                )}
                 {employeeData.state && (
                   <div>
                     <Label className="text-muted-foreground">State</Label>
@@ -348,17 +342,6 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
                   value={editFormData.pincode}
                   onChange={(e) => setEditFormData({ ...editFormData, pincode: e.target.value.replace(/\D/g, '') })}
                   placeholder="6 digits"
-                />
-              </div>
-
-              {/* Region */}
-              <div className="space-y-2">
-                <Label htmlFor="editRegion">Region</Label>
-                <Input
-                  id="editRegion"
-                  value={editFormData.region}
-                  onChange={(e) => setEditFormData({ ...editFormData, region: e.target.value })}
-                  placeholder="Enter region"
                 />
               </div>
 

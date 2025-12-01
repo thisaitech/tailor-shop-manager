@@ -425,17 +425,6 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
                 />
               </div>
 
-              {/* Region */}
-              <div className="space-y-2">
-                <Label htmlFor="editRegion">Region</Label>
-                <Input
-                  id="editRegion"
-                  value={editFormData.region}
-                  onChange={(e) => setEditFormData({ ...editFormData, region: e.target.value })}
-                  placeholder="Enter region"
-                />
-              </div>
-
               {/* State */}
               <div className="space-y-2">
                 <Label htmlFor="editState">State</Label>

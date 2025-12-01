@@ -156,6 +156,13 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
     }
   };
 
+  const formatLabel = (key: string) =>
+    key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .trim();
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent
@@ -166,34 +173,13 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
         }}
       >
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <DialogTitle className="flex items-center gap-2" style={{ color: '#6A64F2' }}>
               <Package size={24} style={{ color: '#6A64F2' }} weight="duotone" />
               Order Details
             </DialogTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintInvoice}
-                className="flex items-center gap-1.5 border-2 hover:bg-purple-50"
-                style={{ borderColor: '#6A64F2', color: '#6A64F2' }}
-              >
-                <Printer size={16} weight="duotone" />
-                Print
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleDownloadInvoice}
-                className="flex items-center gap-1.5"
-                style={{ background: '#6A64F2', color: 'white' }}
-              >
-                <FilePdf size={16} weight="duotone" />
-                Download Invoice
-              </Button>
-            </div>
           </div>
-          <DialogDescription>
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge
               variant="outline"
               className="font-mono text-sm"
@@ -201,6 +187,28 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
             >
               {serviceOrder.id}
             </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrintInvoice}
+              className="flex items-center gap-1.5 border-2 hover:bg-purple-50"
+              style={{ borderColor: '#6A64F2', color: '#6A64F2' }}
+            >
+              <Printer size={16} weight="duotone" />
+              Print
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDownloadInvoice}
+              className="flex items-center gap-1.5"
+              style={{ background: '#6A64F2', color: 'white' }}
+            >
+              <FilePdf size={16} weight="duotone" />
+              Download Invoice
+            </Button>
+          </div>
+          <DialogDescription className="sr-only">
+            Order details for {serviceOrder.id}
           </DialogDescription>
         </DialogHeader>
 
@@ -214,12 +222,10 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
               boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
             }}
           >
-            <h3 className="text-lg font-semibold mb-3" style={{ color: '#6A64F2' }}>Order Information</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <h3 className="text-lg font-semibold" style={{ color: '#6A64F2' }}>Order Information</h3>
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Order Number</p>
-                <p className="font-medium text-gray-900">{serviceOrder.id}</p>
-              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Order Status</p>
                 <div className="mt-1">{getStatusBadge(serviceOrder.orderStatus)}</div>
@@ -463,14 +469,30 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
             <div className="p-4 rounded-xl bg-purple-50/70">
               <h3 className="text-lg font-semibold mb-3 text-purple-700">Measurements</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {Object.entries(serviceOrder.measurements).map(([key, value]) => (
-                  value && (
+                {Object.entries(serviceOrder.measurements).map(([key, value]) => {
+                  if (value === undefined || value === null || value === '') return null;
+
+                  const isObject = typeof value === 'object' && value !== null;
+                  return (
                     <div key={key} className="bg-white rounded-lg p-2.5">
-                      <span className="text-xs text-gray-500 capitalize block">{key}</span>
-                      <span className="font-semibold text-gray-900">{String(value)}</span>
+                      <span className="text-xs text-gray-500 capitalize block">{formatLabel(key)}</span>
+                      {isObject ? (
+                        <div className="text-sm text-gray-900 space-y-1">
+                          {Object.entries(value as Record<string, any>).map(([subKey, subVal]) => (
+                            <div key={subKey} className="flex items-center justify-between gap-2 text-xs">
+                              <span className="text-muted-foreground capitalize">{formatLabel(subKey)}</span>
+                              <span className="font-semibold text-gray-900 break-words">
+                                {subVal !== undefined && subVal !== null && subVal !== '' ? String(subVal) : '-'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-gray-900 break-words">{String(value)}</span>
+                      )}
                     </div>
-                  )
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

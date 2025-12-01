@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
 import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransaction, ServiceOrder, OrderAllotment, Employee, Vendor, AdvancePayment } from '@/lib/types';
@@ -305,6 +305,31 @@ export function OwnerDashboard() {
   const handleBackToDashboard = () => {
     setOrderFilter('all');
   };
+
+  const renderLoading = (label: string) => (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="text-center">
+        <Spinner size={48} className="animate-spin mx-auto mb-4" />
+        <p className="text-muted-foreground">Loading {label}...</p>
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    const label =
+      activeTab === 'dashboard'
+        ? 'dashboard'
+        : activeTab === 'employees'
+        ? 'employees'
+        : activeTab === 'customers'
+        ? 'customers'
+        : 'jobwork tailors';
+    return (
+      <main className="container mx-auto px-4 py-6">
+        {renderLoading(label)}
+      </main>
+    );
+  }
 
   const handleAddServiceOrder = async (
     orderData: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'>,

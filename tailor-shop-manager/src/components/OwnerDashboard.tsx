@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
 import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransaction, ServiceOrder, OrderAllotment, Employee, Vendor, AdvancePayment } from '@/lib/types';
@@ -81,6 +81,8 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
   const [customerFormFromOrder, setCustomerFormFromOrder] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
+  const tabLoadingTimer = useRef<NodeJS.Timeout | null>(null);
   const [companyId, setCompanyId] = useState<string>('');
   const [newlyCreatedCustomerId, setNewlyCreatedCustomerId] = useState<string | undefined>();
   const [reassignOrder, setReassignOrder] = useState<OrderAllotment | null>(null);
@@ -334,6 +336,38 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
     setOrderFilter('all');
   };
 
+  const handleTabChange = (value: 'dashboard' | 'employees' | 'customers' | 'track') => {
+    setActiveTab(value);
+    if (tabLoadingTimer.current) clearTimeout(tabLoadingTimer.current);
+    setTabLoading(true);
+    tabLoadingTimer.current = setTimeout(() => setTabLoading(false), 400);
+  };
+
+  const renderLoading = (label: string) => (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="text-center">
+        <Spinner size={48} className="animate-spin mx-auto mb-4" />
+        <p className="text-muted-foreground">Loading {label}...</p>
+      </div>
+    </div>
+  );
+
+  if (loading || tabLoading) {
+    const label =
+      activeTab === 'dashboard'
+        ? 'dashboard'
+        : activeTab === 'employees'
+        ? 'employees'
+        : activeTab === 'customers'
+        ? 'customers'
+        : 'jobwork tailors';
+    return (
+      <main className="container mx-auto px-4 py-6">
+        {renderLoading(label)}
+      </main>
+    );
+  }
+
   const handleAddServiceOrder = async (
     orderData: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'>,
     advancePaymentData?: Omit<AdvancePayment, 'id' | 'proformaInvoiceNo' | 'invoiceNo' | 'createdAt' | 'updatedAt'>
@@ -434,7 +468,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
 
   return (
     <main className="container mx-auto px-4 py-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsListAnimated
           className="grid w-full grid-cols-4 h-auto p-2 gap-2 rounded-xl"
           style={{ backgroundColor: '#E9E0FB' }}
@@ -473,12 +507,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
 
         <TabsContent value="dashboard" className="space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <Spinner size={48} className="animate-spin mx-auto mb-4" />
-                <p className="text-muted-foreground">Loading dashboard...</p>
-              </div>
-            </div>
+            renderLoading('dashboard')
           ) : selectedServiceOrder ? (
             <OrderView
               serviceOrder={selectedServiceOrder}
@@ -656,12 +685,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
 
         <TabsContent value="customers" className="space-y-6">
           {loading ? (
-            <div className="flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <Spinner size={48} className="animate-spin mx-auto mb-4" />
-                <p className="text-muted-foreground">Loading customers...</p>
-              </div>
-            </div>
+            renderLoading('customers')
           ) : (
             <CustomerList
               customers={customers || []}

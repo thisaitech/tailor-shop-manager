@@ -89,6 +89,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 interface EmployeeManagementFirestoreProps {
   onBack: () => void;
@@ -129,10 +131,10 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     whatsappNumber: '',
     address1: '',
     address2: '',
-    city: '',
+    city: DEFAULT_CITY,
     pincode: '',
-    state: '',
-    role: 'staff' as EmployeeRole,
+    state: DEFAULT_STATE,
+    role: 'tailor' as EmployeeRole,
     designation: '',
     joiningDate: Date.now(),
     isActive: true,
@@ -238,9 +240,9 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         whatsappNumber: employee.whatsappNumber || '',
         address1: employee.address1 || '',
         address2: employee.address2 || '',
-        city: employee.city || '',
+        city: employee.city || (employee.state === DEFAULT_STATE ? DEFAULT_CITY : ''),
         pincode: employee.pincode || '',
-        state: employee.state || '',
+        state: employee.state || DEFAULT_STATE,
         role: employee.role,
         designation: employee.designation || '',
         joiningDate: employee.joiningDate,
@@ -258,10 +260,10 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         whatsappNumber: '',
         address1: '',
         address2: '',
-        city: '',
+        city: DEFAULT_CITY,
         pincode: '',
-        state: '',
-        role: 'staff',
+        state: DEFAULT_STATE,
+        role: 'tailor',
         designation: '',
         joiningDate: Date.now(),
         isActive: true,
@@ -1055,7 +1057,7 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                   {/* Work Information */}
                   <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
                     <h3 className="text-sm font-semibold text-muted-foreground">Work Information</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-3 gap-4">
                       {/* Role */}
                       <div className="space-y-2">
                         <Label htmlFor="empRole" className="text-sm font-medium">Role *</Label>
@@ -1076,8 +1078,20 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                         </Select>
                       </div>
 
-                      {/* Designation */}
+                      {/* Joining Date beside Role */}
                       <div className="space-y-2">
+                      <Label htmlFor="empJoiningDate" className="text-sm font-medium">Joining Date *</Label>
+                      <Input
+                        id="empJoiningDate"
+                        type="date"
+                        value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
+                        onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
+                        className="h-11 w-36"
+                      />
+                    </div>
+
+                      {/* Designation on new row */}
+                      <div className="space-y-2 col-span-3">
                         <Label htmlFor="empDesignation" className="text-sm font-medium">Designation</Label>
                         <Input
                           id="empDesignation"
@@ -1087,31 +1101,19 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                           className="h-11"
                         />
                       </div>
+                    </div>
 
-                      {/* Joining Date */}
-                      <div className="space-y-2">
-                        <Label htmlFor="empJoiningDate" className="text-sm font-medium">Joining Date *</Label>
-                        <Input
-                          id="empJoiningDate"
-                          type="date"
-                          value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
-                          onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
-                          className="h-11"
+                    {/* Active Status */}
+                    <div className="space-y-2 flex items-end">
+                      <div className="flex items-center gap-3 h-11">
+                        <input
+                          type="checkbox"
+                          id="isActive"
+                          checked={formData.isActive ?? true}
+                          onChange={(e) => handleChange('isActive', e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-300"
                         />
-                      </div>
-
-                      {/* Active Status */}
-                      <div className="space-y-2 flex items-end">
-                        <div className="flex items-center gap-3 h-11">
-                          <input
-                            type="checkbox"
-                            id="isActive"
-                            checked={formData.isActive ?? true}
-                            onChange={(e) => handleChange('isActive', e.target.checked)}
-                            className="w-5 h-5 rounded border-gray-300"
-                          />
-                          <Label htmlFor="isActive" className="cursor-pointer font-medium">Active Employee</Label>
-                        </div>
+                        <Label htmlFor="isActive" className="cursor-pointer font-medium">Active Employee</Label>
                       </div>
                     </div>
                   </div>
@@ -1136,19 +1138,32 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                     />
                   </div>
 
-                  {/* Street / Area / Landmark */}
-                  <div className="space-y-2">
-                    <Label htmlFor="empAddress2" className="text-sm font-medium">
-                      Street / Area / Landmark *
-                    </Label>
-                    <Input
-                      id="empAddress2"
-                      maxLength={40}
-                      value={formData.address2}
-                      onChange={(e) => handleChange('address2', e.target.value)}
-                      placeholder="e.g., Main Road, Near Bus Stand"
-                      className="h-11"
-                    />
+                  {/* Street / Area / Landmark + Pincode */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="empAddress2" className="text-sm font-medium">
+                        Street / Area / Landmark *
+                      </Label>
+                      <Input
+                        id="empAddress2"
+                        maxLength={40}
+                        value={formData.address2}
+                        onChange={(e) => handleChange('address2', e.target.value)}
+                        placeholder="e.g., Main Road, Near Bus Stand"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="empPincode" className="text-sm font-medium">Pincode</Label>
+                      <Input
+                        id="empPincode"
+                        maxLength={6}
+                        value={formData.pincode}
+                        onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
+                        placeholder="e.g., 600001"
+                        className="h-11"
+                      />
+                    </div>
                   </div>
 
                   {/* State and City in same row */}
@@ -1192,18 +1207,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
                     </div>
                   </div>
 
-                  {/* Pincode */}
-                  <div className="space-y-2 max-w-[200px]">
-                    <Label htmlFor="empPincode" className="text-sm font-medium">Pincode</Label>
-                    <Input
-                      id="empPincode"
-                      maxLength={6}
-                      value={formData.pincode}
-                      onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
-                      placeholder="e.g., 600001"
-                      className="h-11"
-                    />
-                  </div>
                 </div>
               </TabsContent>
             </div>

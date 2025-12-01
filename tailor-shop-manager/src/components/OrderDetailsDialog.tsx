@@ -61,11 +61,39 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
     }
   };
 
+  const formatLabel = (key: string) =>
+    key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .trim();
+
+  const groupedMeasurements = (() => {
+    const measurements = serviceOrder?.measurements;
+    if (!measurements || typeof measurements !== 'object') return {};
+
+    const grouped: Record<string, { label: string; value: string | number | object }[]> = {};
+    Object.entries(measurements).forEach(([category, values]) => {
+      if (!values || typeof values !== 'object') return;
+      const entries = Object.entries(values as Record<string, any>).filter(
+        ([, val]) => val !== undefined && val !== null && val !== ''
+      );
+      if (entries.length === 0) return;
+      grouped[category] = entries.map(([k, v]) => ({
+        label: formatLabel(k),
+        value: v as string | number | object,
+      }));
+    });
+    return grouped;
+  })();
+
+  const hasMeasurements = Object.keys(groupedMeasurements).length > 0;
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
+      <DialogContent className="relative max-w-3xl max-h-[90vh] overflow-y-auto pt-4 pr-12">
+        <DialogHeader className="flex flex-col gap-2">
+          <div className="flex items-start justify-between pr-8">
             <DialogTitle className="flex items-center gap-2">
               <Package size={24} className="text-primary" />
               Order Details
@@ -74,7 +102,7 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
               <X size={20} />
             </Button>
           </div>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Complete details for order {allotment.serviceOrderNo}
           </DialogDescription>
         </DialogHeader>
@@ -90,13 +118,22 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
         ) : (
           <div className="space-y-6">
             {/* Order Information */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Order Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Order Number</p>
-                  <p className="font-medium">{serviceOrder.id}</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-lg font-semibold">Order Information</h3>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center rounded-md border px-2 py-0.5 font-medium w-fit whitespace-nowrap font-mono text-sm bg-secondary text-secondary-foreground">
+                    {serviceOrder?.id || allotment.serviceOrderNo}
+                  </span>
+                  <Button size="sm" variant="outline">
+                    Print
+                  </Button>
+                  <Button size="sm">
+                    Download Invoice
+                  </Button>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Order Status</p>
                   <div className="mt-1">{getStatusBadge(serviceOrder.orderStatus)}</div>
@@ -203,15 +240,33 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
             </div>
 
             {/* Measurements */}
-            {serviceOrder.measurements && Object.keys(serviceOrder.measurements).length > 0 && (
+            {hasMeasurements && (
               <>
                 <Separator />
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Measurements</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="text-sm overflow-auto">
-                      {JSON.stringify(serviceOrder.measurements, null, 2)}
-                    </pre>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(groupedMeasurements).map(([category, items]) => (
+                      <div key={category} className="bg-white rounded-lg p-3 border">
+                        <div className="text-xs text-gray-500 uppercase font-semibold mb-2">
+                          {formatLabel(category)}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          {items.map(({ label, value }) => {
+                            const display =
+                              typeof value === 'object'
+                                ? JSON.stringify(value)
+                                : value;
+                            return (
+                              <div key={label}>
+                                <p className="text-muted-foreground text-xs">{label}</p>
+                                <p className="font-semibold text-gray-900 break-words">{display}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </>

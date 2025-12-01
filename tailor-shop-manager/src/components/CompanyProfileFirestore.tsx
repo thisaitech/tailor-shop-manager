@@ -51,8 +51,6 @@ const indianStates = [
   'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
 ];
 
-const indianRegions = ['North', 'South', 'East', 'West', 'Central', 'Northeast'];
-
 export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -179,10 +177,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
         toast.error('Please enter a valid 6-digit pincode');
         return;
       }
-      if (!formData.region) {
-        toast.error('Region is required');
-        return;
-      }
       if (!formData.state) {
         toast.error('State is required');
         return;
@@ -250,15 +244,16 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
 
   return (
     <main className="container mx-auto px-4 py-6">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-3">
         <Button variant="outline" size="icon" onClick={onBack}>
           <ArrowLeft size={20} />
         </Button>
-      </div>
-
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Company Profile</h2>
-        <p className="text-muted-foreground">Welcome, {companyData?.companyName || 'Admin'}</p>
+        <div>
+          <h2 className="text-2xl font-bold">Company Profile</h2>
+          <p className="text-muted-foreground">
+            Welcome, {companyData?.companyName || 'Admin'}
+          </p>
+        </div>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
@@ -282,18 +277,21 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
             <div className="flex items-center justify-between p-4 border-b border-purple-200/50">
               <div className="flex items-center gap-3">
                 <div
-                  className="p-2.5 rounded-xl"
-                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
-                >
-                  <Buildings size={24} className="text-white" weight="duotone" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Company Information</h3>
-                </div>
-              </div>
-              <Button
-                onClick={() => handleEditProfile('company')}
-                size="sm"
+              className="p-2.5 rounded-xl"
+              style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+            >
+              <Buildings size={24} className="text-white" weight="duotone" />
+            </div>
+            <div className="flex flex-col">
+              <p className="text-[11px] text-gray-600 uppercase tracking-wide mb-0.5">Company ID</p>
+              <h3 className="font-semibold text-gray-900">
+                {companyData?.id || 'Auto-generated on save'}
+              </h3>
+            </div>
+          </div>
+          <Button
+            onClick={() => handleEditProfile('company')}
+            size="sm"
                 variant="ghost"
                 className="gap-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
               >
@@ -322,16 +320,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
             <div className="p-4 bg-white/60 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Company Name</p>
-                  <p className="font-semibold text-gray-900">{companyData?.companyName || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Alias Name</p>
-                  <p className="font-semibold text-gray-900">{companyData?.aliasName || '-'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
                   <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Business Type</p>
                   <p className="font-semibold text-gray-900">{getBusinessTypeLabel(companyData?.businessType || '-')}</p>
                 </div>
@@ -339,10 +327,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
                   <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Product Category</p>
                   <p className="font-semibold text-gray-900">{companyData?.productCategory || '-'}</p>
                 </div>
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Company ID</p>
-                <p className="font-semibold text-purple-600">{companyData?.id || 'Auto-generated'}</p>
               </div>
             </div>
           </div>
@@ -477,15 +461,9 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
                   <p className="font-semibold text-gray-900">{companyData?.state || '-'}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Pincode</p>
-                  <p className="font-semibold text-gray-900">{companyData?.pincode || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Region</p>
-                  <p className="font-semibold text-gray-900">{companyData?.region || '-'}</p>
-                </div>
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Pincode</p>
+                <p className="font-semibold text-gray-900">{companyData?.pincode || '-'}</p>
               </div>
               <div>
                 <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Country</p>
@@ -589,17 +567,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
                     value={formData.companyName}
                     onChange={(e) => handleChange('companyName', e.target.value)}
                     placeholder="Enter company name"
-                    disabled={saving}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="aliasName">Alias Name</Label>
-                  <Input
-                    id="aliasName"
-                    maxLength={40}
-                    value={formData.aliasName}
-                    onChange={(e) => handleChange('aliasName', e.target.value)}
-                    placeholder="Enter alias name"
                     disabled={saving}
                   />
                 </div>
@@ -740,23 +707,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
                     placeholder="Enter 6-digit pincode"
                     disabled={saving}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="region">Region *</Label>
-                  <Select
-                    value={formData.region}
-                    onValueChange={(value) => handleChange('region', value)}
-                    disabled={saving}
-                  >
-                    <SelectTrigger id="region">
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {indianRegions.map(region => (
-                        <SelectItem key={region} value={region}>{region}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="state">State *</Label>

@@ -58,6 +58,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 interface VendorManagementProps {
   onBack: () => void;
@@ -83,10 +85,10 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
     email: '',
     address1: '',
     address2: '',
-    city: '',
+    city: DEFAULT_CITY,
     pincode: '',
     region: 'none',
-    state: '',
+    state: DEFAULT_STATE,
     country: 'India',
     contactNumber: '',
     whatsappNumber: '',
@@ -130,10 +132,10 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
       email: '',
       address1: '',
       address2: '',
-      city: '',
+      city: DEFAULT_CITY,
       pincode: '',
       region: 'none',
-      state: '',
+      state: DEFAULT_STATE,
       country: 'India',
       contactNumber: '',
       whatsappNumber: '',
@@ -143,7 +145,11 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
   const handleEdit = (vendor: Vendor) => {
     setEditingVendor(vendor);
-    setFormData(vendor);
+    setFormData({
+      ...vendor,
+      state: vendor.state || DEFAULT_STATE,
+      city: vendor.city || (vendor.state === DEFAULT_STATE ? DEFAULT_CITY : ''),
+    });
     setShowDialog(true);
   };
 
@@ -331,7 +337,7 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
+            <DialogTitle>{editingVendor ? 'Edit Vendor' : 'Add New Jobwork Tailor'}</DialogTitle>
             <DialogDescription>
               {editingVendor ? 'Update vendor information' : 'Fill in the details to add a new vendor'}
             </DialogDescription>
@@ -404,16 +410,28 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
               />
             </div>
 
-            {/* Address 2 */}
-            <div className="space-y-2">
-              <Label htmlFor="address2">Address Line 2</Label>
-              <Input
-                id="address2"
-                maxLength={40}
-                value={formData.address2}
-                onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
-                placeholder="Enter address"
-              />
+            {/* Address 2 + Pincode */}
+            <div className="md:col-span-2 grid grid-cols-3 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="address2">Address Line 2</Label>
+                <Input
+                  id="address2"
+                  maxLength={40}
+                  value={formData.address2}
+                  onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
+                  placeholder="Enter address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pincode">Pincode *</Label>
+                <Input
+                  id="pincode"
+                  maxLength={6}
+                  value={formData.pincode}
+                  onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
+                  placeholder="6 digits"
+                />
+              </div>
             </div>
 
             {/* City */}
@@ -433,29 +451,6 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Pincode */}
-            <div className="space-y-2">
-              <Label htmlFor="pincode">Pincode *</Label>
-              <Input
-                id="pincode"
-                maxLength={6}
-                value={formData.pincode}
-                onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
-                placeholder="6 digits"
-              />
-            </div>
-
-            {/* Region */}
-            <div className="space-y-2">
-              <Label htmlFor="region">Region</Label>
-              <Input
-                id="region"
-                value={formData.region}
-                disabled
-                className="bg-muted"
-              />
             </div>
 
             {/* State */}

@@ -50,8 +50,6 @@ const indianStates = [
   'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
 ];
 
-const indianRegions = ['North', 'South', 'East', 'West', 'Central', 'Northeast'];
-
 export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -146,11 +144,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
 
     if (!formData.pincode || !validatePincode(formData.pincode)) {
       toast.error('Please enter a valid 6-digit pincode');
-      return;
-    }
-
-    if (!formData.region) {
-      toast.error('Region is required');
       return;
     }
 
@@ -363,24 +356,6 @@ export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps
                   placeholder="Enter 6-digit pincode"
                   disabled={saving}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="region">Region *</Label>
-                <Select
-                  value={formData.region}
-                  onValueChange={(value) => handleChange('region', value)}
-                  disabled={saving}
-                >
-                  <SelectTrigger id="region">
-                    <SelectValue placeholder="Select region" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {indianRegions.map(region => (
-                      <SelectItem key={region} value={region}>{region}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="space-y-2">

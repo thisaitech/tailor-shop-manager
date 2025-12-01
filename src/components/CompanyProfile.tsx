@@ -49,8 +49,6 @@ const indianStates = [
   'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
 ];
 
-const indianRegions = ['North', 'South', 'East', 'West', 'Central', 'Northeast'];
-
 export function CompanyProfile({ onBack }: CompanyProfileProps) {
   const [companyProfile, setCompanyProfile] = useStorage<CompanyProfile | null>('company_profile', null);
   const [formData, setFormData] = useState<Partial<CompanyProfile>>({
@@ -121,11 +119,6 @@ export function CompanyProfile({ onBack }: CompanyProfileProps) {
 
     if (!formData.pincode || !validatePincode(formData.pincode)) {
       toast.error('Please enter a valid 6-digit pincode');
-      return;
-    }
-
-    if (!formData.region) {
-      toast.error('Region is required');
       return;
     }
 
@@ -326,23 +319,6 @@ export function CompanyProfile({ onBack }: CompanyProfileProps) {
                   onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
                   placeholder="Enter 6-digit pincode"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="region">Region *</Label>
-                <Select
-                  value={formData.region}
-                  onValueChange={(value) => handleChange('region', value)}
-                >
-                  <SelectTrigger id="region">
-                    <SelectValue placeholder="Select region" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {indianRegions.map(region => (
-                      <SelectItem key={region} value={region}>{region}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="space-y-2">

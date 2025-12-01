@@ -15,7 +15,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { HourglassMedium, ArrowLeft, ArrowCounterClockwise, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
+import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
+import { HourglassMedium, ArrowLeft, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { OrderAllotment } from '@/lib/types';
@@ -45,6 +46,8 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
   const [endDate, setEndDate] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState<OrderAllotment | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   // Date filter logic
   const getDateRange = (filter: DateFilter): { start: Date; end: Date } | null => {
@@ -341,6 +344,10 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                   borderColor: '#f59e0b',
                   boxShadow: '0 4px 12px -2px rgba(245, 158, 11, 0.2), 0 2px 6px -2px rgba(245, 158, 11, 0.15)',
                 }}
+                onClick={() => {
+                  setSelectedOrder(order);
+                  setShowDetails(true);
+                }}
               >
                 {/* Left side: Avatar/Icon */}
                 <div className="flex-shrink-0 flex items-center">
@@ -389,33 +396,12 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onReassign(order)} className="font-medium">
-                        <ArrowCounterClockwise size={18} className="mr-2" weight="bold" />
-                        Re-assign
-                      </DropdownMenuItem>
                       <DropdownMenuItem className="font-medium">
                         <Eye size={18} className="mr-2" weight="bold" />
                         View Details
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-
-                  {/* Action buttons */}
-                  <div className="flex flex-col gap-1.5">
-                    {/* Re-assign button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReassign(order);
-                      }}
-                      className="text-[10px] sm:text-xs h-7 px-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-300"
-                    >
-                      <ArrowCounterClockwise size={14} className="mr-1" />
-                      Re-assign
-                    </Button>
-                  </div>
                 </div>
               </div>
             ))}
@@ -435,6 +421,17 @@ export function StitchedOrdersList({ orders, onBack, onReassign }: StitchedOrder
           </div>
         </DialogContent>
       </Dialog>
+
+      {selectedOrder && (
+        <OrderDetailsDialog
+          allotment={selectedOrder}
+          open={showDetails}
+          onClose={() => {
+            setShowDetails(false);
+            setSelectedOrder(null);
+          }}
+        />
+      )}
     </div>
   );
 }

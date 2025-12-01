@@ -82,6 +82,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 type DateFilter = 'all' | 'exact' | 'range';
 const ITEMS_PER_PAGE = 6;
@@ -122,10 +124,10 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
     email: '',
     address1: '',
     address2: '',
-    city: '',
+    city: DEFAULT_CITY,
     pincode: '',
     region: '',
-    state: '',
+    state: DEFAULT_STATE,
     country: 'India',
     contactNumber: '',
     whatsappNumber: '',
@@ -228,10 +230,10 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
       email: '',
       address1: '',
       address2: '',
-      city: '',
+      city: DEFAULT_CITY,
       pincode: '',
       region: '',
-      state: '',
+      state: DEFAULT_STATE,
       country: 'India',
       contactNumber: '',
       whatsappNumber: '',
@@ -243,7 +245,11 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
   const handleEdit = (vendor: Vendor) => {
     setEditingVendor(vendor);
-    setFormData(vendor);
+    setFormData({
+      ...vendor,
+      state: vendor.state || DEFAULT_STATE,
+      city: vendor.city || (vendor.state === DEFAULT_STATE ? DEFAULT_CITY : ''),
+    });
     setActiveTab('basic');
     setPhoneError('');
     setShowDialog(true);
@@ -728,7 +734,7 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
         >
           <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
             <DialogTitle className="flex items-center gap-3 text-white">
-              <span>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</span>
+              <span>{editingVendor ? 'Edit Vendor' : 'Add New Jobwork Tailor'}</span>
               {editingVendor && (
                 <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
                   {editingVendor.tailorCode || editingVendor.id}
@@ -924,19 +930,32 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
                     />
                   </div>
 
-                  {/* Street / Area / Landmark */}
-                  <div className="space-y-2">
-                    <Label htmlFor="vendorAddress2" className="text-sm font-medium">
-                      Street / Area / Landmark *
-                    </Label>
-                    <Input
-                      id="vendorAddress2"
-                      maxLength={40}
-                      value={formData.address2}
-                      onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
-                      placeholder="e.g., Main Road, Near Bus Stand"
-                      className="h-11"
-                    />
+                  {/* Street / Area / Landmark + Pincode */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="vendorAddress2" className="text-sm font-medium">
+                        Street / Area / Landmark *
+                      </Label>
+                      <Input
+                        id="vendorAddress2"
+                        maxLength={40}
+                        value={formData.address2}
+                        onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
+                        placeholder="e.g., Main Road, Near Bus Stand"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vendorPincode" className="text-sm font-medium">Pincode</Label>
+                      <Input
+                        id="vendorPincode"
+                        maxLength={6}
+                        value={formData.pincode}
+                        onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
+                        placeholder="e.g., 600001"
+                        className="h-11"
+                      />
+                    </div>
                   </div>
 
                   {/* State and City in same row */}
@@ -977,18 +996,6 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
                     </div>
                   </div>
 
-                  {/* Pincode */}
-                  <div className="space-y-2 max-w-[200px]">
-                    <Label htmlFor="vendorPincode" className="text-sm font-medium">Pincode</Label>
-                    <Input
-                      id="vendorPincode"
-                      maxLength={6}
-                      value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '') })}
-                      placeholder="e.g., 600001"
-                      className="h-11"
-                    />
-                  </div>
                 </div>
               </TabsContent>
             </div>

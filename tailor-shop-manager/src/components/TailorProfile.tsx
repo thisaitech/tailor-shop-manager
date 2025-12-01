@@ -344,12 +344,6 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
                     <p className="font-semibold text-gray-900">{vendor.pincode}</p>
                   </div>
                 )}
-                {vendor.region && (
-                  <div>
-                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Region</p>
-                    <p className="font-semibold text-gray-900">{vendor.region}</p>
-                  </div>
-                )}
               </div>
               {vendor.country && (
                 <div>
@@ -430,17 +424,6 @@ export function TailorProfile({ vendorId, onBack }: TailorProfileProps) {
                   value={editFormData.pincode}
                   onChange={(e) => setEditFormData({ ...editFormData, pincode: e.target.value.replace(/\D/g, '') })}
                   placeholder="6 digits"
-                />
-              </div>
-
-              {/* Region */}
-              <div className="space-y-2">
-                <Label htmlFor="editRegion">Region</Label>
-                <Input
-                  id="editRegion"
-                  value={editFormData.region}
-                  onChange={(e) => setEditFormData({ ...editFormData, region: e.target.value })}
-                  placeholder="Enter region"
                 />
               </div>
 

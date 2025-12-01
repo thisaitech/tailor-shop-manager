@@ -158,6 +158,29 @@ export function ServiceOrderForm({
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const availableMeasurementCategories = useMemo<MeasurementCategoryKey[]>(() => {
+    if (orderCategory === 'male') return ['shirt', 'pant', 'coat'];
+    if (orderCategory === 'female') return ['blouse', 'chuditharTop', 'coat'];
+    if (orderCategory === 'kids') return ['shirt', 'pant', 'coat', 'blouse', 'chuditharTop'];
+    return ['shirt', 'pant', 'coat', 'blouse', 'chuditharTop'];
+  }, [orderCategory]);
+
+  useEffect(() => {
+    // Keep selected measurement categories aligned with available ones
+    setSelectedMeasurementCategories((prev) => {
+      const filtered = prev.filter((c) => availableMeasurementCategories.includes(c));
+      if (filtered.length === 0 && availableMeasurementCategories.length > 0) {
+        return [availableMeasurementCategories[0]];
+      }
+      return filtered;
+    });
+
+    setActiveDressType((prev) => {
+      if (prev && availableMeasurementCategories.includes(prev)) return prev;
+      return availableMeasurementCategories[0] || null;
+    });
+  }, [availableMeasurementCategories]);
+
   // Load design categories, recent customers, and next service order ID on mount
   useEffect(() => {
     const loadData = async () => {
@@ -272,20 +295,6 @@ export function ServiceOrderForm({
     }
     return `${value}"`;
   };
-
-  // Check if a measurement category has data
-  const hasMeasurementData = (category: MeasurementCategoryKey): boolean => {
-    const data = measurements[category];
-    if (!data) return false;
-    return Object.values(data).some((v) => v !== undefined && v !== null);
-  };
-
-  // Get available measurement categories from customer
-  const availableMeasurementCategories = useMemo(() => {
-    return (Object.keys(MEASUREMENT_CATEGORIES) as MeasurementCategoryKey[]).filter(
-      (cat) => hasMeasurementData(cat)
-    );
-  }, [measurements]);
 
   useEffect(() => {
     if (order) {
@@ -1136,28 +1145,23 @@ export function ServiceOrderForm({
 
                 {/* Category Icons Row */}
                 <div className="flex items-center gap-3 overflow-x-auto pb-2">
-                  {([
-                    { key: 'shirt', label: 'Shirt', icon: TShirt },
-                    { key: 'pant', label: 'Pant', icon: Pants },
-                    { key: 'coat', label: 'Coat', icon: Hoodie },
-                    { key: 'blouse', label: 'Blouse', icon: TShirt },
-                    { key: 'chuditharTop', label: 'Chudihar', icon: Dress },
-                  ] as const).map((category) => {
-                    const isActive = activeDressType === category.key;
-                    const categoryData = measurements[category.key] as Record<string, unknown> | undefined;
+                  {availableMeasurementCategories.map((key) => {
+                    const config = MEASUREMENT_CATEGORIES[key];
+                    const isActive = activeDressType === key;
+                    const categoryData = measurements[key] as Record<string, unknown> | undefined;
                     const filledFieldsCount = categoryData
                       ? Object.values(categoryData).filter((v) => v !== undefined && v !== null && v !== 0).length
                       : 0;
-                    const Icon = category.icon;
+                    const Icon = config.icon;
 
                     return (
                       <button
-                        key={category.key}
+                        key={key}
                         type="button"
                         onClick={() => {
-                          setActiveDressType(category.key);
-                          if (!selectedMeasurementCategories.includes(category.key)) {
-                            setSelectedMeasurementCategories([...selectedMeasurementCategories, category.key]);
+                          setActiveDressType(key);
+                          if (!selectedMeasurementCategories.includes(key)) {
+                            setSelectedMeasurementCategories([...selectedMeasurementCategories, key]);
                           }
                         }}
                         className={`relative flex flex-col items-center gap-1 min-w-[60px] p-3 rounded-xl transition-all ${
@@ -1172,7 +1176,7 @@ export function ServiceOrderForm({
                           </span>
                         )}
                         <Icon size={24} weight={isActive ? 'fill' : 'regular'} />
-                        <span className="text-[10px] font-medium">{category.label}</span>
+                        <span className="text-[10px] font-medium">{config.label}</span>
                       </button>
                     );
                   })}
