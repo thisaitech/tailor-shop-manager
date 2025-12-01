@@ -22,6 +22,7 @@ import { RejectedOrdersList } from '@/components/RejectedOrdersList';
 import { StitchedOrdersList } from '@/components/StitchedOrdersList';
 import { ActiveOrdersList } from '@/components/ActiveOrdersList';
 import { ReadyToDeliverList } from '@/components/ReadyToDeliverList';
+import { ReceivedNoteList } from '@/components/ReceivedNoteList';
 import { DeliveredOrdersList } from '@/components/DeliveredOrdersList';
 import { ReassignedOrdersList } from '@/components/ReassignedOrdersList';
 import { OverDueOrdersList } from '@/components/OverDueOrdersList';
@@ -41,9 +42,9 @@ import {
 import {
   addServiceOrder,
   getServiceOrdersByCompany,
+  assignOrder,
 } from '@/lib/firestore/serviceOrderService';
 import {
-  addOrderAllotment,
   getOrderAllotmentsByCompany,
 } from '@/lib/firestore/orderAllotmentService';
 import {
@@ -406,29 +407,43 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
 
   const handleAddOrderAllotment = async (allotmentData: Omit<OrderAllotment, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      console.log('[OwnerDashboard] Adding order allotment to Firestore orderAllotment collection');
+      console.log('[OwnerDashboard] Assigning order using new unified flow');
       console.log('[OwnerDashboard] Order allotment data:', allotmentData);
-      console.log('[OwnerDashboard] Company ID:', companyId);
-      console.log('[OwnerDashboard] Admin ID:', adminId);
 
-      // Add companyId and adminId to allotment data
-      const allotmentWithCompany = {
-        ...allotmentData,
-        companyId,
+      // Determine assignment type (vendor or employee)
+      const assignmentType = allotmentData.stitchingAllotment === 'vendor' ? 'vendor' : 'employee';
+      
+      // Get assignee name
+      let assigneeName = '';
+      if (assignmentType === 'employee') {
+        const emp = employees?.find(e => e.id === allotmentData.assignedTo);
+        assigneeName = emp?.name || '';
+      } else {
+        const vendor = vendors?.find(v => v.id === allotmentData.assignedTo);
+        assigneeName = vendor?.tailorName || '';
+      }
+
+      // Call the new unified assignOrder function
+      // This updates the ServiceOrder in newOrders collection with assignment details
+      await assignOrder(
+        allotmentData.serviceOrderNo,  // orderId
+        assignmentType,
+        allotmentData.assignedTo,
+        assigneeName,
         adminId,
-      };
-
-      const newAllotment = await addOrderAllotment(allotmentWithCompany, companyId, adminId);
-      setOrderAllotments([...(orderAllotments || []), newAllotment]);
+        'Admin',  // assignedByName
+        allotmentData.materialCost,
+        allotmentData.jobWorkCost
+      );
 
       // Reload service orders to reflect status change
       const ordersData = await getServiceOrdersByCompany(companyId);
       setServiceOrders(ordersData);
 
-      toast.success('Order allotted successfully');
+      toast.success(`Order assigned to ${assigneeName}. Status: Awaiting acceptance`);
     } catch (error) {
-      console.error('[OwnerDashboard] Error adding order allotment:', error);
-      toast.error('Failed to allot order');
+      console.error('[OwnerDashboard] Error assigning order:', error);
+      toast.error('Failed to assign order');
     }
   };
 
@@ -515,8 +530,14 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
             />
           ) : orderFilter === 'jobworkCompleted' ? (
             <JobworkCompletedOrdersList
-              orders={orderAllotments || []}
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
+              onDataRefresh={async () => {
+                // Reload service orders to reflect status change
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+              }}
             />
           ) : orderFilter === 'open' ? (
             <ActiveOrdersList
@@ -530,10 +551,11 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
               }}
             />
           ) : orderFilter === 'awaiting' ? (
-            <StitchedOrdersList
-              orders={orderAllotments || []}
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
-              onReassign={handleReassignOrder}
+              filterType="awaiting"
             />
           ) : orderFilter === 'inProgress' ? (
             <ActiveOrdersList
@@ -553,13 +575,24 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick }: Ow
               serviceOrders={serviceOrders || []}
               orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
+              onOrderDelivered={async () => {
+                // Reload service orders and allotments to reflect status change
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+                const allotmentsData = await getOrderAllotmentsByCompany(companyId);
+                setOrderAllotments(allotmentsData);
+              }}
             />
           ) : orderFilter === 'receivedNote' ? (
-            <ActiveOrdersList
+            <ReceivedNoteList
               serviceOrders={serviceOrders || []}
               orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
-              filterType="receivedNote"
+              onDataRefresh={async () => {
+                // Reload service orders to reflect status change
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+              }}
             />
           ) : orderFilter === 'delivered' ? (
             <DeliveredOrdersList

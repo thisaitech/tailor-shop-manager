@@ -3,19 +3,34 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Truck, ArrowLeft, Package, MagnifyingGlass, Funnel, DotsThree, Eye, Spinner } from '@phosphor-icons/react';
+import { Truck, ArrowLeft, Package, MagnifyingGlass, Funnel, DotsThree, Eye, Spinner, CheckCircle } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { OrderAllotment } from '@/lib/types';
+import { ServiceOrder, OrderAllotment } from '@/lib/types';
+import { recordGoodsReceipt } from '@/lib/firestore/serviceOrderService';
 import { toast } from 'sonner';
-import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useAuth } from '@/hooks/use-auth';
 
 // Lazy load the dialog
 const ServiceOrderDetailsDialog = lazy(() =>
@@ -23,24 +38,32 @@ const ServiceOrderDetailsDialog = lazy(() =>
 );
 
 type DateFilter = 'all' | 'exact' | 'range';
+type ShipmentType = 'direct' | 'courier';
 const ITEMS_PER_PAGE = 6;
 
 interface JobworkCompletedOrdersListProps {
-  orders: OrderAllotment[];
+  serviceOrders: ServiceOrder[];
+  orderAllotments?: OrderAllotment[]; // Keep for backward compatibility
   onBack: () => void;
+  onDataRefresh?: () => void;
 }
 
-export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedOrdersListProps) {
-  const [receivingGoods, setReceivingGoods] = useState<string | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<OrderAllotment | null>(null);
+export function JobworkCompletedOrdersList({ serviceOrders, orderAllotments, onBack, onDataRefresh }: JobworkCompletedOrdersListProps) {
+  const { user } = useAuth();
+  const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
-  // Filter jobwork completed orders: vendor orders with status='stitched' (goods not yet received)
-  const jobworkCompletedOrders = orders.filter(o =>
-    o.stitchingAllotment === 'vendor' &&
-    o.status === 'stitched' &&
-    !o.reassigned
-  );
+  // Goods Receipt Dialog state
+  const [showGoodsReceiptDialog, setShowGoodsReceiptDialog] = useState(false);
+  const [goodsReceiptOrder, setGoodsReceiptOrder] = useState<ServiceOrder | null>(null);
+  const [shipmentType, setShipmentType] = useState<ShipmentType>('direct');
+  const [consignmentNo, setConsignmentNo] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Filter jobwork completed orders using new unified status: orderStatus === 'job-completed'
+  // These are vendor orders where work is complete but goods not yet received at shop
+  const jobworkCompletedOrders = serviceOrders.filter(o => o.orderStatus === 'job-completed');
 
   // Search, filter, and pagination states
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,21 +93,20 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
   const filteredOrders = jobworkCompletedOrders.filter((order) => {
     const matchesSearch =
       (order.jobWorkNo?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (order.stitchedId?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      order.serviceOrderNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.assignedName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (order.jobWorkTailorName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (order.dressItemName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (order.assignedToName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (order.orderCategory?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
 
     const dateRange = getDateRange(dateFilter);
-    const matchesDate = !dateRange || (order.stitchedDate && isWithinInterval(new Date(order.stitchedDate), dateRange));
+    const orderDate = order.completedDate || order.serviceOrderDate;
+    const matchesDate = !dateRange || (orderDate && isWithinInterval(new Date(orderDate), dateRange));
 
     return matchesSearch && matchesDate;
   });
 
-  // Sort by stitched date (newest first)
-  const sortedOrders = filteredOrders.sort((a, b) => (b.stitchedDate || 0) - (a.stitchedDate || 0));
+  // Sort by job completed date (newest first)
+  const sortedOrders = filteredOrders.sort((a, b) => (b.completedDate || b.serviceOrderDate || 0) - (a.completedDate || a.serviceOrderDate || 0));
 
   // Pagination logic
   const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
@@ -108,31 +130,67 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
 
   const hasActiveFilters = searchTerm || dateFilter !== 'all';
 
-  const handleGoodsReceipt = async (order: OrderAllotment) => {
-    try {
-      setReceivingGoods(order.id);
-
-      // Update order allotment: set status to 'delivered' (goods received at shop)
-      await updateDoc(doc(db, 'orderAllotment', order.id), {
-        status: 'delivered',
-        deliveredDate: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      console.log(`[JobworkCompletedOrdersList] Goods received for order ${order.id}. Status updated to delivered.`);
-
-      toast.success('Goods received successfully!');
-    } catch (error) {
-      console.error('Error receiving goods:', error);
-      toast.error('Failed to mark goods as received');
-    } finally {
-      setReceivingGoods(null);
-    }
-  };
-
-  const handleViewDetails = (order: OrderAllotment) => {
+  const handleViewDetails = (order: ServiceOrder) => {
     setSelectedOrder(order);
     setShowDetailsDialog(true);
+  };
+
+  // Open Goods Receipt Dialog
+  const openGoodsReceiptDialog = (order: ServiceOrder) => {
+    setGoodsReceiptOrder(order);
+    setShipmentType('direct');
+    setConsignmentNo('');
+    setShowGoodsReceiptDialog(true);
+  };
+
+  // Close Goods Receipt Dialog
+  const closeGoodsReceiptDialog = () => {
+    setShowGoodsReceiptDialog(false);
+    setGoodsReceiptOrder(null);
+    setShipmentType('direct');
+    setConsignmentNo('');
+  };
+
+  // Generate GRN number
+  const generateGRNNumber = () => {
+    const timestamp = Date.now();
+    return `GRN${timestamp.toString().slice(-8)}`;
+  };
+
+  // Handle Goods Receipt submission
+  const handleGoodsReceiptSubmit = async () => {
+    if (!goodsReceiptOrder || !user) {
+      toast.error('Missing order or user information');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // Generate GRN number
+      const grnNo = generateGRNNumber();
+
+      // Record goods receipt - moves order from 'job-completed' to 'received-note'
+      await recordGoodsReceipt(
+        goodsReceiptOrder.id,
+        grnNo,
+        user.id || 'ADMIN',
+        user.name || 'Admin'
+      );
+
+      toast.success(`Goods Receipt ${grnNo} recorded successfully! Order moved to Received Note.`);
+      closeGoodsReceiptDialog();
+
+      // Refresh data
+      if (onDataRefresh) {
+        onDataRefresh();
+      }
+    } catch (error) {
+      console.error('Error recording goods receipt:', error);
+      toast.error('Failed to record goods receipt');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Pagination component
@@ -332,7 +390,7 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
             {paginatedOrders.map((order, index) => (
               <div
                 key={order.id}
-                className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
+                className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
                 style={{
                   background: 'linear-gradient(135deg, #ffffff 0%, #fffbf5 100%)',
                   borderColor: '#f97316',
@@ -340,90 +398,99 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
                 }}
                 onClick={() => handleViewDetails(order)}
               >
-                {/* Left side: Avatar/Icon */}
-                <div className="flex-shrink-0 flex items-center">
-                  <div
-                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                    style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+                {/* Top Row: Icon, Details, Menu */}
+                <div className="flex flex-row gap-4">
+                  {/* Left side: Avatar/Icon */}
+                  <div className="flex-shrink-0 flex items-center">
+                    <div
+                      className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                      style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
+                    >
+                      <Truck size={24} weight="bold" />
+                    </div>
+                  </div>
+
+                  {/* Middle: Order details */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">
+                        {order.customerName}
+                      </p>
+                    </div>
+                    <p className="text-[10px] sm:text-xs font-bold text-orange-600 mb-1">
+                      {order.jobWorkNo || order.id}
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
+                      <span className="font-medium capitalize">{order.orderCategory}</span>
+                      <span>•</span>
+                      <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-orange-100 text-orange-700 border-orange-200">
+                        Job Completed
+                      </Badge>
+                    </div>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">
+                      By: {order.assignedToName}
+                    </p>
+                  </div>
+
+                  {/* Right side: Dropdown Menu */}
+                  <div className="flex-shrink-0 flex items-start">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                          <DotsThree size={20} weight="bold" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openGoodsReceiptDialog(order);
+                          }}
+                          className="font-medium"
+                        >
+                          <Package size={18} className="mr-2" weight="bold" />
+                          Goods Receipt
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(order);
+                          }}
+                          className="font-medium"
+                        >
+                          <Eye size={18} className="mr-2" weight="bold" />
+                          View Details
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+                
+                {/* Action Buttons Row - Always visible below the card content */}
+                <div className="flex gap-2 mt-3 pt-3 border-t border-orange-200">
+                  <Button
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openGoodsReceiptDialog(order);
+                    }}
+                    disabled={processingOrderId === order.id}
+                    className="flex-1 text-xs h-8 bg-green-500 hover:bg-green-600 text-white"
                   >
-                    <Truck size={24} weight="bold" />
-                  </div>
-                </div>
-
-                {/* Middle: Order details */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">
-                      {order.customerName}
-                    </p>
-                  </div>
-                  <p className="text-[10px] sm:text-xs font-bold text-orange-600 mb-1">
-                    {order.stitchedId || order.jobWorkNo || order.id.slice(0, 12)}
-                  </p>
-                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
-                    <span className="font-medium">{order.serviceOrderNo}</span>
-                    <span>•</span>
-                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-orange-100 text-orange-700 border-orange-200">
-                      Pending Receipt
-                    </Badge>
-                  </div>
-                  {order.dressItemName && (
-                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1 truncate">
-                      Item: {order.dressItemName}
-                    </p>
-                  )}
-                  <p className="text-[9px] sm:text-[10px] text-gray-500">
-                    By: {order.jobWorkTailorName || order.assignedName}
-                    {order.stitchedDate && typeof order.stitchedDate === 'number' && ` • ${format(new Date(order.stitchedDate), 'dd MMM yyyy')}`}
-                  </p>
-                </div>
-
-                {/* Right side: Actions */}
-                <div className="flex-shrink-0 flex flex-col items-end justify-between gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
-                        <DotsThree size={20} weight="bold" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleGoodsReceipt(order);
-                        }}
-                        disabled={receivingGoods === order.id}
-                        className="font-medium"
-                      >
-                        <Package size={18} className="mr-2" weight="bold" />
-                        {receivingGoods === order.id ? 'Processing...' : 'Goods Receipt'}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewDetails(order);
-                        }}
-                        className="font-medium"
-                      >
-                        <Eye size={18} className="mr-2" weight="bold" />
-                        View Details
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  {/* Goods Receipt button */}
+                    <Package size={16} className="mr-1" />
+                    Goods Receipt
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleGoodsReceipt(order);
+                      handleViewDetails(order);
                     }}
-                    disabled={receivingGoods === order.id}
-                    className="text-[10px] sm:text-xs h-7 px-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
+                    className="flex-1 text-xs h-8 border-orange-300 text-orange-600 hover:bg-orange-50"
                   >
-                    <Package size={14} className="mr-1" />
-                    {receivingGoods === order.id ? 'Processing...' : 'Goods Receipt'}
+                    <Eye size={16} className="mr-1" />
+                    View Details
                   </Button>
                 </div>
               </div>
@@ -443,22 +510,7 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
           </div>
         }>
           <ServiceOrderDetailsDialog
-            serviceOrder={{
-              id: selectedOrder.serviceOrderNo,
-              serviceOrderDate: selectedOrder.createdAt,
-              customerId: selectedOrder.customerId,
-              customerName: selectedOrder.customerName,
-              orderCategory: 'male',
-              orderQty: 1,
-              uom: 'Nos',
-              designList: [],
-              stitchingCost: selectedOrder.jobWorkCost || 0,
-              expectedDeliveryDate: selectedOrder.expectedDeliveryDate,
-              orderStatus: selectedOrder.serviceOrderStatus || 'open',
-              createdAt: selectedOrder.createdAt,
-              updatedAt: selectedOrder.updatedAt,
-            }}
-            orderAllotment={selectedOrder}
+            serviceOrder={selectedOrder}
             open={showDetailsDialog}
             onClose={() => {
               setShowDetailsDialog(false);
@@ -467,6 +519,101 @@ export function JobworkCompletedOrdersList({ orders, onBack }: JobworkCompletedO
           />
         </Suspense>
       )}
+
+      {/* Goods Receipt Dialog */}
+      <Dialog open={showGoodsReceiptDialog} onOpenChange={(open) => !open && closeGoodsReceiptDialog()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Goods Receipt</DialogTitle>
+          </DialogHeader>
+          
+          {goodsReceiptOrder && (
+            <div className="space-y-4 py-4">
+              {/* Order Info */}
+              <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
+                <p className="text-sm font-medium text-orange-800">
+                  Order: {goodsReceiptOrder.jobWorkNo || goodsReceiptOrder.id}
+                </p>
+                <p className="text-xs text-orange-600">
+                  Customer: {goodsReceiptOrder.customerName}
+                </p>
+                <p className="text-xs text-orange-600">
+                  Vendor: {goodsReceiptOrder.assignedToName}
+                </p>
+              </div>
+
+              {/* GRN Date - Auto */}
+              <div className="space-y-2">
+                <Label>GRN Date</Label>
+                <Input
+                  value={format(new Date(), 'dd MMM yyyy')}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+
+              {/* Shipment Type */}
+              <div className="space-y-2">
+                <Label htmlFor="shipmentType">Shipment Type *</Label>
+                <Select value={shipmentType} onValueChange={(val) => setShipmentType(val as ShipmentType)}>
+                  <SelectTrigger id="shipmentType">
+                    <SelectValue placeholder="Select shipment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="direct">Direct</SelectItem>
+                    <SelectItem value="courier">Courier</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Consignment No (optional) */}
+              <div className="space-y-2">
+                <Label htmlFor="consignmentNo">Consignment No (Optional)</Label>
+                <Input
+                  id="consignmentNo"
+                  value={consignmentNo}
+                  onChange={(e) => setConsignmentNo(e.target.value.slice(0, 20))}
+                  placeholder="Enter consignment number"
+                  maxLength={20}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {consignmentNo.length}/20 characters
+                </p>
+              </div>
+
+              {/* Info */}
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-xs text-blue-700">
+                  Recording goods receipt will move this order to "Received Note" status.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeGoodsReceiptDialog} disabled={saving}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleGoodsReceiptSubmit} 
+              disabled={saving}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              {saving ? (
+                <>
+                  <Spinner size={16} className="mr-1 animate-spin" />
+                  Recording...
+                </>
+              ) : (
+                <>
+                  <CheckCircle size={16} className="mr-1" weight="bold" />
+                  Record Goods Receipt
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -2,10 +2,12 @@ import { useState, lazy, Suspense } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Package, ArrowLeft, Eye } from '@phosphor-icons/react';
+import { Package, ArrowLeft, Eye, CheckCircle, Spinner } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format } from 'date-fns';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
+import { markOrderDelivered } from '@/lib/firestore/serviceOrderService';
+import { toast } from 'sonner';
 
 // Lazy load the dialog
 const ServiceOrderDetailsDialog = lazy(() =>
@@ -16,56 +18,44 @@ interface ReadyToDeliverListProps {
   serviceOrders: ServiceOrder[];
   orderAllotments: OrderAllotment[];
   onBack: () => void;
+  onOrderDelivered?: () => void; // Callback to refresh data after marking as delivered
 }
 
-export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack }: ReadyToDeliverListProps) {
+export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onOrderDelivered }: ReadyToDeliverListProps) {
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [deliveringOrderId, setDeliveringOrderId] = useState<string | null>(null);
 
-  // Helper function to get display status (matching OrderList and DashboardStats logic)
-  const getDisplayStatus = (serviceOrder: ServiceOrder): string => {
-    // Find matching order allotment (exclude reassigned orders - matching OrderList logic)
-    const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
-
-    // If no allotment exists → Pending
-    if (!allotment) {
-      return 'pending';
-    }
-
-    const allotmentStatus = allotment.status;
-    const serviceOrderStatus = allotment.serviceOrderStatus;
-    const orderTicketStatus = allotment.orderStatus;
-
-    // If final payment is completed → Completed
-    if (serviceOrder.orderStatus === 'delivered') {
-      return 'completed';
-    }
-
-    // Ready to deliver or ready to dispatch → Delivered (Ready to Deliver)
-    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
-      return 'delivered';
-    }
-
-    // In progress (check allotment status and order ticket status only)
-    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress' || serviceOrder.orderStatus === 'job-network') {
-      return 'in-progress';
-    }
-
-    // Allotted but not started → Pending
-    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
-      return 'pending';
-    }
-
-    // Default to pending
-    return 'pending';
-  };
-
-  // Filter ready-to-deliver orders using display status logic
-  const readyOrders = serviceOrders.filter(o => getDisplayStatus(o) === 'delivered');
+  // Filter ready-to-deliver orders using the new status flow:
+  // - 'ready' status: Employee orders that are ready to deliver
+  // Note: 'received-note' status orders are shown in the Received Note page, not here
+  const readyOrders = serviceOrders.filter(o => o.orderStatus === 'ready');
 
   const handleOrderClick = (order: ServiceOrder) => {
     setSelectedOrder(order);
     setShowDetailsDialog(true);
+  };
+
+  // Handle marking order as delivered using the new unified flow
+  const handleMarkDelivered = async (order: ServiceOrder) => {
+    try {
+      setDeliveringOrderId(order.id);
+
+      // Use the new unified markOrderDelivered function
+      await markOrderDelivered(order.id, 'ADMIN', 'Admin');
+
+      toast.success('Order marked as delivered successfully!');
+
+      // Call callback to refresh data
+      if (onOrderDelivered) {
+        onOrderDelivered();
+      }
+    } catch (error) {
+      console.error('Error marking order as delivered:', error);
+      toast.error('Failed to mark order as delivered');
+    } finally {
+      setDeliveringOrderId(null);
+    }
   };
 
   return (
@@ -146,19 +136,43 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack }: R
                       </div>
                     </div>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOrderClick(order);
-                      }}
-                      className="whitespace-nowrap shadow-sm"
-                      style={{ background: '#FAF8FF', color: '#6A64F2', borderColor: '#6A64F2' }}
-                    >
-                      <Eye size={16} className="mr-1" />
-                      View Details
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOrderClick(order);
+                        }}
+                        className="whitespace-nowrap shadow-sm"
+                        style={{ background: '#FAF8FF', color: '#6A64F2', borderColor: '#6A64F2' }}
+                      >
+                        <Eye size={16} className="mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkDelivered(order);
+                        }}
+                        disabled={deliveringOrderId === order.id}
+                        className="whitespace-nowrap shadow-sm"
+                        style={{ background: '#22c55e', color: 'white' }}
+                      >
+                        {deliveringOrderId === order.id ? (
+                          <>
+                            <Spinner size={16} className="mr-1 animate-spin" />
+                            Delivering...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle size={16} className="mr-1" weight="bold" />
+                            Delivered
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}

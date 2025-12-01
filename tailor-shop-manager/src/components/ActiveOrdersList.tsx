@@ -13,7 +13,7 @@ const ServiceOrderDetailsDialog = lazy(() =>
 );
 
 // Filter types for different views
-type FilterType = 'open' | 'inProgress' | 'receivedNote';
+type FilterType = 'open' | 'awaiting' | 'inProgress' | 'receivedNote';
 
 interface ActiveOrdersListProps {
   serviceOrders: ServiceOrder[];
@@ -38,6 +38,15 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
           color: '#9333ea', // purple
           bgColor: '#f3e8ff',
           emptyMessage: 'No open orders',
+        };
+      case 'awaiting':
+        return {
+          title: 'Awaiting Acceptance',
+          subtitle: 'Orders assigned but not yet accepted',
+          icon: UserPlus,
+          color: '#d97706', // amber
+          bgColor: '#fef3c7',
+          emptyMessage: 'No orders awaiting acceptance',
         };
       case 'inProgress':
         return {
@@ -79,24 +88,17 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
         // Open orders - service orders with orderStatus === 'open' (not assigned yet)
         return serviceOrders.filter(o => o.orderStatus === 'open');
 
+      case 'awaiting':
+        // Awaiting acceptance - orders assigned but not yet accepted (status === 'awaiting')
+        return serviceOrders.filter(o => o.orderStatus === 'awaiting');
+
       case 'inProgress':
-        // In-progress orders - find service orders that have an active allotment with status 'in_progress'
-        const inProgressAllotments = orderAllotments.filter(
-          a => a.status === 'in_progress' && !a.reassigned
-        );
-        const inProgressOrderIds = new Set(inProgressAllotments.map(a => a.serviceOrderNo));
-        return serviceOrders.filter(o => inProgressOrderIds.has(o.id));
+        // In-progress orders - using new unified status
+        return serviceOrders.filter(o => o.orderStatus === 'inprogress');
 
       case 'receivedNote':
-        // Received Note - vendor orders with status === 'delivered' but serviceOrderStatus !== 'ready'
-        const receivedNoteAllotments = orderAllotments.filter(
-          a => a.stitchingAllotment === 'vendor' &&
-               a.status === 'delivered' &&
-               a.serviceOrderStatus !== 'ready' &&
-               !a.reassigned
-        );
-        const receivedNoteOrderIds = new Set(receivedNoteAllotments.map(a => a.serviceOrderNo));
-        return serviceOrders.filter(o => receivedNoteOrderIds.has(o.id));
+        // Received Note - vendor orders where goods have been received (status === 'received-note')
+        return serviceOrders.filter(o => o.orderStatus === 'received-note');
 
       default:
         return serviceOrders;

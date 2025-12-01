@@ -31,11 +31,16 @@ import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import {
   DeliveryChallan as DeliveryChallanType,
   ShipmentType,
-  createDeliveryChallan,
+  createDeliveryChallan as createDCRecord,
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
-import { getOrderAllotmentsByCompany, OrderAllotment } from '@/lib/firestore/orderAllotmentService';
+import { ServiceOrder } from '@/lib/types';
+import { 
+  getOrdersWaitingForDC, 
+  createDeliveryChallan as updateOrderWithDC,
+  ServiceOrderWithCompany 
+} from '@/lib/firestore/serviceOrderService';
 
 interface DeliveryChallanProps {
   onBack: () => void;
@@ -44,7 +49,7 @@ interface DeliveryChallanProps {
 export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
   const { user } = useAuth();
   const [challans, setChallans] = useState<DeliveryChallanType[]>([]);
-  const [stitchedOrders, setStitchedOrders] = useState<OrderAllotment[]>([]);
+  const [ordersWaitingForDC, setOrdersWaitingForDC] = useState<ServiceOrderWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
 
@@ -82,16 +87,11 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
         // Load delivery challans
         const dcList = await getDeliveryChallansByCompany(company.id);
         setChallans(dcList);
-        // Load stitched orders for Job Work No dropdown
-        // Include: status='stitched' OR (status='delivered' AND serviceOrderStatus='ready')
-        // Exclude: reassigned orders
-        const allotments = await getOrderAllotmentsByCompany(company.id);
-        const stitched = allotments.filter(o =>
-          o.stitchedId &&
-          !o.reassigned &&
-          (o.status === 'stitched' || (o.status === 'delivered' && o.serviceOrderStatus === 'ready'))
-        );
-        setStitchedOrders(stitched);
+        // Load orders waiting for DC (vendor orders with status='waitingForDC')
+        // These are orders that vendors have accepted but don't have a DC yet
+        const waitingOrders = await getOrdersWaitingForDC(company.id);
+        setOrdersWaitingForDC(waitingOrders);
+        console.log(`[DeliveryChallan] Found ${waitingOrders.length} orders waiting for DC`);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -158,7 +158,7 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
 
   const handleSave = async () => {
     if (!jobWorkNo) {
-      toast.error('Please select a Stitched Order ID');
+      toast.error('Please select an Order');
       return;
     }
 
@@ -174,12 +174,18 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
 
     setSaving(true);
     try {
-      const selectedOrder = stitchedOrders.find(o => o.stitchedId === jobWorkNo);
+      const selectedOrder = ordersWaitingForDC.find(o => o.id === jobWorkNo);
+      
+      if (!selectedOrder) {
+        toast.error('Selected order not found');
+        return;
+      }
 
-      const newDC = await createDeliveryChallan(
+      // Create DC record in deliveryChallan collection
+      const newDC = await createDCRecord(
         {
-          jobWorkNo: jobWorkNo, // This is now the stitched order ID
-          jobWorkTailorName: selectedOrder?.assignedName,
+          jobWorkNo: selectedOrder.jobWorkNo || selectedOrder.id, // Use job work no or order ID
+          jobWorkTailorName: selectedOrder.assignedToName,
           shipmentType: shipmentType as ShipmentType,
           consignmentNo: consignmentNo.trim(),
         },
@@ -187,9 +193,19 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
         user.id
       );
 
+      // Update the service order: move from 'waitingForDC' to 'inprogress'
+      await updateOrderWithDC(
+        selectedOrder.id,
+        newDC.dcNo,
+        user.id,
+        user.name || 'Admin'
+      );
+
       setChallans(prev => [newDC, ...prev]);
+      // Remove the order from waiting list since DC is now created
+      setOrdersWaitingForDC(prev => prev.filter(o => o.id !== jobWorkNo));
       setShowDialog(false);
-      toast.success(`Delivery Challan ${newDC.dcNo} created successfully`);
+      toast.success(`Delivery Challan ${newDC.dcNo} created successfully. Order moved to In Progress.`);
     } catch (error) {
       console.error('Error creating delivery challan:', error);
       toast.error('Failed to create delivery challan');
@@ -474,27 +490,30 @@ export function DeliveryChallan({ onBack }: DeliveryChallanProps) {
               />
             </div>
 
-            {/* Stitched Order ID */}
+            {/* Order ID (Vendor orders waiting for DC) */}
             <div className="space-y-2">
-              <Label htmlFor="jobWorkNo">Stitched Order ID *</Label>
+              <Label htmlFor="jobWorkNo">Order ID *</Label>
               <Select value={jobWorkNo} onValueChange={setJobWorkNo}>
                 <SelectTrigger id="jobWorkNo">
-                  <SelectValue placeholder="Select Stitched Order ID" />
+                  <SelectValue placeholder="Select Order" />
                 </SelectTrigger>
                 <SelectContent>
-                  {stitchedOrders.length === 0 ? (
+                  {ordersWaitingForDC.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      No stitched orders available
+                      No orders waiting for DC
                     </div>
                   ) : (
-                    stitchedOrders.map(order => (
-                      <SelectItem key={order.id} value={order.stitchedId!}>
-                        {order.stitchedId} - {order.customerName} ({order.assignedName})
+                    ordersWaitingForDC.map(order => (
+                      <SelectItem key={order.id} value={order.id}>
+                        {order.jobWorkNo || order.id} - {order.customerName} ({order.assignedToName})
                       </SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Only vendor orders that have been accepted will appear here
+              </p>
             </div>
 
             {/* Shipment Type */}

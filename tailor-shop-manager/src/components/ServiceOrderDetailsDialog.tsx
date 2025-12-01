@@ -11,14 +11,17 @@ import { Package, User, Calendar, Ruler, UserCircle, ClockCounterClockwise, Arro
 import { format, isValid, parseISO } from 'date-fns';
 import { ServiceOrder, OrderAllotment, DressItem } from '@/lib/types';
 
-// Helper function to safely format dates
-const safeFormatDate = (dateValue: string | Date | undefined | null, formatStr: string): string => {
-  if (!dateValue) return '-';
+// Helper function to safely format dates (accepts string, Date, number timestamp, or null/undefined)
+const safeFormatDate = (dateValue: string | Date | number | undefined | null, formatStr: string): string => {
+  if (dateValue === undefined || dateValue === null) return '-';
   
   try {
     let date: Date;
     if (dateValue instanceof Date) {
       date = dateValue;
+    } else if (typeof dateValue === 'number') {
+      // Handle timestamp (number)
+      date = new Date(dateValue);
     } else if (typeof dateValue === 'string') {
       // Try parsing as ISO string first, then as regular Date
       date = parseISO(dateValue);
@@ -60,10 +63,10 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
     // Build line items from dress items or use total
     const items: ProformaInvoiceItem[] = serviceOrder.dressItems && serviceOrder.dressItems.length > 0
       ? serviceOrder.dressItems.map((item: DressItem) => ({
-          name: item.name || item.dressName || 'Stitching',
-          quantity: item.qty || item.quantity || 1,
-          rate: item.rate || item.stitchingCost || 0,
-          amount: item.amount || (item.qty || item.quantity || 1) * (item.rate || item.stitchingCost || 0),
+          name: item.dressName || item.dressType || 'Stitching',
+          quantity: item.quantity || 1,
+          rate: item.stitchingCost || 0,
+          amount: (item.quantity || 1) * (item.stitchingCost || 0),
         }))
       : [{
           name: 'Tailoring Service',
@@ -433,22 +436,22 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-muted-foreground">Item:</span>{' '}
-                        <span className="font-medium text-gray-900">{item.name}</span>
+                        <span className="font-medium text-gray-900">{item.dressName || item.dressType}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Quantity:</span>{' '}
-                        <span className="font-medium text-gray-900">{item.qty}</span>
+                        <span className="font-medium text-gray-900">{item.quantity}</span>
                       </div>
-                      {item.rate && (
+                      {item.stitchingCost !== undefined && (
                         <div>
                           <span className="text-muted-foreground">Rate:</span>{' '}
-                          <span className="font-medium text-gray-900">₹{item.rate}</span>
+                          <span className="font-medium text-gray-900">₹{item.stitchingCost}</span>
                         </div>
                       )}
-                      {item.amount && (
+                      {item.quantity && item.stitchingCost !== undefined && (
                         <div>
                           <span className="text-muted-foreground">Amount:</span>{' '}
-                          <span className="font-medium text-gray-900">₹{item.amount}</span>
+                          <span className="font-medium text-gray-900">₹{item.quantity * item.stitchingCost}</span>
                         </div>
                       )}
                     </div>
@@ -460,17 +463,57 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
 
           {/* Measurements */}
           {serviceOrder.measurements && Object.keys(serviceOrder.measurements).length > 0 && (
-            <div className="p-4 rounded-xl bg-purple-50/70">
-              <h3 className="text-lg font-semibold mb-3 text-purple-700">Measurements</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {Object.entries(serviceOrder.measurements).map(([key, value]) => (
-                  value && (
-                    <div key={key} className="bg-white rounded-lg p-2.5">
-                      <span className="text-xs text-gray-500 capitalize block">{key}</span>
-                      <span className="font-semibold text-gray-900">{String(value)}</span>
+            <div
+              className="p-4 rounded-xl border-2"
+              style={{
+                background: '#FAF8FF',
+                borderColor: '#6A64F2',
+                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
+              }}
+            >
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#6A64F2' }}>
+                <Ruler size={20} weight="duotone" />
+                Measurements
+              </h3>
+              <div className="space-y-4">
+                {Object.entries(serviceOrder.measurements).map(([category, categoryMeasurements]) => {
+                  // Check if categoryMeasurements is an object with properties
+                  if (categoryMeasurements && typeof categoryMeasurements === 'object') {
+                    const measurementEntries = Object.entries(categoryMeasurements as Record<string, number | string>);
+                    if (measurementEntries.length === 0) return null;
+                    
+                    return (
+                      <div key={category}>
+                        <h4 className="text-sm font-semibold text-gray-700 capitalize mb-2 border-b pb-1" style={{ borderColor: 'rgba(106, 100, 242, 0.3)' }}>
+                          {category}
+                        </h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {measurementEntries.map(([measureName, measureValue]) => (
+                            measureValue !== undefined && measureValue !== null && measureValue !== '' && (
+                              <div
+                                key={measureName}
+                                className="p-2 rounded-lg"
+                                style={{ background: '#EADDFD' }}
+                              >
+                                <span className="text-xs text-gray-500 capitalize block">{measureName.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                <span className="font-semibold text-gray-900">
+                                  {typeof measureValue === 'number' ? `${measureValue}"` : measureValue}
+                                </span>
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  // If it's a simple value (not nested object)
+                  return categoryMeasurements && (
+                    <div key={category} className="p-2 rounded-lg" style={{ background: '#EADDFD' }}>
+                      <span className="text-xs text-gray-500 capitalize block">{category}</span>
+                      <span className="font-semibold text-gray-900">{String(categoryMeasurements)}</span>
                     </div>
-                  )
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

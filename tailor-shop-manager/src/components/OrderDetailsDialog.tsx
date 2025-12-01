@@ -208,10 +208,43 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
                 <Separator />
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Measurements</h3>
-                  <div className="bg-muted p-4 rounded-lg">
-                    <pre className="text-sm overflow-auto">
-                      {JSON.stringify(serviceOrder.measurements, null, 2)}
-                    </pre>
+                  <div className="space-y-4">
+                    {Object.entries(serviceOrder.measurements).map(([category, categoryMeasurements]) => {
+                      // Check if categoryMeasurements is an object with properties
+                      if (categoryMeasurements && typeof categoryMeasurements === 'object') {
+                        const measurementEntries = Object.entries(categoryMeasurements as Record<string, number | string>);
+                        if (measurementEntries.length === 0) return null;
+                        
+                        return (
+                          <div key={category} className="bg-muted p-3 rounded-lg">
+                            <h4 className="text-sm font-semibold text-gray-700 capitalize mb-2 border-b pb-1">
+                              {category}
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {measurementEntries.map(([measureName, measureValue]) => (
+                                measureValue !== undefined && measureValue !== null && measureValue !== '' && (
+                                  <div key={measureName} className="bg-white p-2 rounded">
+                                    <span className="text-xs text-gray-500 capitalize block">
+                                      {measureName.replace(/([A-Z])/g, ' $1').trim()}
+                                    </span>
+                                    <span className="font-semibold text-gray-900">
+                                      {typeof measureValue === 'number' ? `${measureValue}"` : measureValue}
+                                    </span>
+                                  </div>
+                                )
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      // If it's a simple value (not nested object)
+                      return categoryMeasurements && (
+                        <div key={category} className="bg-muted p-2 rounded">
+                          <span className="text-xs text-gray-500 capitalize block">{category}</span>
+                          <span className="font-semibold text-gray-900">{String(categoryMeasurements)}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </>

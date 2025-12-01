@@ -41,6 +41,11 @@ import {
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { 
+  recordGoodsReceipt as updateOrderWithGoodsReceipt,
+  getOrdersPendingGoodsReceipt,
+  ServiceOrderWithCompany,
+} from '@/lib/firestore/serviceOrderService';
 
 interface GoodsReceiptProps {
   onBack: () => void;
@@ -51,6 +56,7 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
   const [receipts, setReceipts] = useState<GoodsReceiptType[]>([]);
   const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallan[]>([]);
   const [availableDCs, setAvailableDCs] = useState<DeliveryChallan[]>([]);
+  const [ordersPendingReceipt, setOrdersPendingReceipt] = useState<ServiceOrderWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
 
@@ -60,7 +66,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
   const [dcNo, setDcNo] = useState('');
   const [shipmentType, setShipmentType] = useState<ShipmentType | ''>('');
   const [consignmentNo, setConsignmentNo] = useState('');
-  const [status, setStatus] = useState<GoodsReceiptStatus | ''>('');
 
   // Search, Filter, Pagination state
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,6 +101,10 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
         const usedDCs = await getUsedDCNumbers(company.id);
         const available = dcList.filter(dc => !usedDCs.includes(dc.dcNo));
         setAvailableDCs(available);
+        // Load orders pending goods receipt (status = job-completed)
+        const pendingOrders = await getOrdersPendingGoodsReceipt(company.id);
+        setOrdersPendingReceipt(pendingOrders);
+        console.log(`[GoodsReceipt] Found ${pendingOrders.length} orders pending goods receipt`);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -109,7 +118,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
     setDcNo('');
     setShipmentType('');
     setConsignmentNo('');
-    setStatus('');
     setShowDialog(true);
   };
 
@@ -171,11 +179,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
       return;
     }
 
-    if (!status) {
-      toast.error('Please select the status');
-      return;
-    }
-
     if (!companyId || !user?.id) {
       toast.error('Company profile not found');
       return;
@@ -188,17 +191,37 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
           dcNo,
           shipmentType: shipmentType as ShipmentType,
           consignmentNo: consignmentNo.trim(),
-          status: status as GoodsReceiptStatus,
+          status: 'ready_to_dispatch' as GoodsReceiptStatus, // Default status - order is ready after goods received
         },
         companyId,
         user.id
       );
 
+      // Find the order associated with this DC and update its status to 'received-note'
+      const selectedDC = availableDCs.find(dc => dc.dcNo === dcNo);
+      if (selectedDC?.jobWorkNo) {
+        // Find the order that has this DC
+        const linkedOrder = ordersPendingReceipt.find(
+          order => order.dcNumber === dcNo || order.jobWorkNo === selectedDC.jobWorkNo
+        );
+        if (linkedOrder) {
+          await updateOrderWithGoodsReceipt(
+            linkedOrder.id,
+            newGRN.grnNo,
+            user.id,
+            user.name || 'Admin'
+          );
+          // Remove from pending list
+          setOrdersPendingReceipt(prev => prev.filter(o => o.id !== linkedOrder.id));
+          console.log(`[GoodsReceipt] Updated order ${linkedOrder.id} status to received-note`);
+        }
+      }
+
       setReceipts(prev => [newGRN, ...prev]);
       // Remove used DC from available list
       setAvailableDCs(prev => prev.filter(dc => dc.dcNo !== dcNo));
       setShowDialog(false);
-      toast.success(`Goods Receipt ${newGRN.grnNo} created successfully`);
+      toast.success(`Goods Receipt ${newGRN.grnNo} created successfully. Order status updated.`);
     } catch (error) {
       console.error('Error creating goods receipt:', error);
       toast.error('Failed to create goods receipt');
@@ -538,20 +561,6 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
               <p className="text-xs text-muted-foreground">
                 {consignmentNo.length}/20 characters
               </p>
-            </div>
-
-            {/* Status */}
-            <div className="space-y-2">
-              <Label htmlFor="status">Status *</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="move_to_stitching">Move to Stitching</SelectItem>
-                  <SelectItem value="ready_to_dispatch">Ready to Dispatch</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>

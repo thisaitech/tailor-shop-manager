@@ -12,7 +12,17 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ServiceOrder, EmbeddedAllotment } from '@/lib/types';
+import { ServiceOrder, EmbeddedAllotment, ServiceOrderStatus, StitchingAllotmentType, OrderHistoryEntry } from '@/lib/types';
+import {
+  createOrderAssignmentNotification,
+  createOrderAcceptedNotification,
+  createOrderRejectedNotification,
+  createOrderCompletedNotification,
+  createOrderReassignedNotification,
+} from '@/lib/firestore/notificationService';
+
+// Order History Collection
+const ORDER_HISTORY_COLLECTION = 'orderHistory';
 
 const SERVICE_ORDERS_COLLECTION = 'newOrder';
 
@@ -383,6 +393,884 @@ export async function deleteEmbeddedAllotment(
     console.log(`Embedded allotment ${allotmentId} deleted from service order ${serviceOrderId}`);
   } catch (error) {
     console.error('Error deleting embedded allotment:', error);
+    throw error;
+  }
+}
+
+// ==========================================
+// ORDER HISTORY FUNCTIONS
+// ==========================================
+
+/**
+ * Add entry to order history
+ */
+export async function addOrderHistory(
+  orderId: string,
+  action: OrderHistoryEntry['action'],
+  performedBy: string,
+  performedByName: string,
+  previousStatus?: ServiceOrderStatus,
+  newStatus?: ServiceOrderStatus,
+  metadata?: Record<string, any>
+): Promise<void> {
+  try {
+    const historyId = `HIST_${orderId}_${Date.now()}`;
+    const historyRef = doc(db, ORDER_HISTORY_COLLECTION, historyId);
+
+    const historyEntry: OrderHistoryEntry = {
+      id: historyId,
+      orderId,
+      timestamp: Date.now(),
+      action,
+      previousStatus,
+      newStatus,
+      performedBy,
+      performedByName,
+      metadata,
+    };
+
+    await setDoc(historyRef, removeUndefined(historyEntry));
+    console.log(`[OrderHistory] Added history entry for order ${orderId}: ${action}`);
+  } catch (error) {
+    console.error('[OrderHistory] Error adding history:', error);
+    // Don't throw - history is not critical
+  }
+}
+
+/**
+ * Get order history for an order
+ */
+export async function getOrderHistoryByOrderId(orderId: string): Promise<OrderHistoryEntry[]> {
+  try {
+    const historyRef = collection(db, ORDER_HISTORY_COLLECTION);
+    const q = query(historyRef, where('orderId', '==', orderId));
+    const snapshot = await getDocs(q);
+
+    const history = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id,
+    })) as OrderHistoryEntry[];
+
+    return history.sort((a, b) => b.timestamp - a.timestamp);
+  } catch (error) {
+    console.error('[OrderHistory] Error fetching history:', error);
+    return [];
+  }
+}
+
+// ==========================================
+// ORDER ASSIGNMENT FUNCTIONS
+// ==========================================
+
+/**
+ * Generate Job Work Number
+ */
+export async function generateJobWorkNo(companyId: string): Promise<string> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    const q = query(ordersRef, where('companyId', '==', companyId));
+    const snapshot = await getDocs(q);
+
+    let maxNum = 0;
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.jobWorkNo) {
+        const match = data.jobWorkNo.match(/^JOB(\d+)$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+
+    return `JOB${(maxNum + 1).toString().padStart(4, '0')}`;
+  } catch (error) {
+    console.error('Error generating job work number:', error);
+    return `JOB${Date.now()}`;
+  }
+}
+
+/**
+ * Assign order to employee or vendor
+ */
+export async function assignOrder(
+  orderId: string,
+  assignmentType: StitchingAllotmentType,
+  assignedTo: string,
+  assignedToName: string,
+  assignedBy: string,
+  assignedByName: string,
+  materialCost?: number,
+  jobWorkCost?: number
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    // Generate job work number for vendors
+    let jobWorkNo: string | undefined;
+    if (assignmentType === 'vendor') {
+      jobWorkNo = await generateJobWorkNo(orderData.companyId);
+    }
+
+    const updateData: Partial<ServiceOrder> = {
+      orderStatus: 'awaiting',
+      assignmentType,
+      assignedTo,
+      assignedToName,
+      assignedDate: now,
+      assignedBy,
+      materialCost,
+      jobWorkCost,
+      jobWorkNo,
+      jobWorkDate: assignmentType === 'vendor' ? now : undefined,
+    };
+
+    await updateDoc(orderRef, {
+      ...removeUndefined(updateData),
+      updatedAt: serverTimestamp(),
+    });
+
+    // Add to history
+    await addOrderHistory(
+      orderId,
+      'assigned',
+      assignedBy,
+      assignedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'awaiting',
+      { assignedTo, assignedToName, assignmentType, jobWorkNo, materialCost, jobWorkCost }
+    );
+
+    // Create notification for the assignee (employee/vendor)
+    try {
+      await createOrderAssignmentNotification(
+        orderId,
+        jobWorkNo || orderId,
+        assignedTo,
+        assignmentType,
+        assignedByName,
+        orderData.companyId
+      );
+    } catch (notifError) {
+      console.error('Error creating assignment notification:', notifError);
+      // Don't throw - notification is not critical
+    }
+
+    console.log(`Order ${orderId} assigned to ${assignedToName} (${assignmentType})`);
+  } catch (error) {
+    console.error('Error assigning order:', error);
+    throw error;
+  }
+}
+
+/**
+ * Accept order (vendor/employee accepts the assignment)
+ * - For VENDORS: moves to 'waitingForDC' (waiting for Delivery Challan)
+ * - For EMPLOYEES: moves directly to 'inprogress'
+ */
+export async function acceptOrder(
+  orderId: string,
+  acceptedBy: string,
+  acceptedByName: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    // For vendors, move to 'waitingForDC' - they need a DC before work can start
+    // For employees, move directly to 'inprogress'
+    const newStatus: ServiceOrderStatus = orderData.assignmentType === 'vendor' ? 'waitingForDC' : 'inprogress';
+
+    await updateDoc(orderRef, {
+      orderStatus: newStatus,
+      acceptedDate: now,
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'accepted',
+      acceptedBy,
+      acceptedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      newStatus,
+      { acceptedDate: now }
+    );
+
+    // Create notification for admin
+    try {
+      if (orderData.adminId) {
+        await createOrderAcceptedNotification(
+          orderId,
+          orderData.jobWorkNo || orderId,
+          orderData.adminId,
+          acceptedByName,
+          orderData.companyId
+        );
+      }
+    } catch (notifError) {
+      console.error('Error creating acceptance notification:', notifError);
+    }
+
+    console.log(`Order ${orderId} accepted by ${acceptedByName}, status: ${newStatus}`);
+  } catch (error) {
+    console.error('Error accepting order:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reject order
+ */
+export async function rejectOrder(
+  orderId: string,
+  rejectedBy: string,
+  rejectedByName: string,
+  reason: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    await updateDoc(orderRef, {
+      orderStatus: 'rejected',
+      rejectedDate: now,
+      rejectionReason: reason,
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'rejected',
+      rejectedBy,
+      rejectedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'rejected',
+      { rejectionReason: reason }
+    );
+
+    // Create notification for admin
+    try {
+      if (orderData.adminId) {
+        await createOrderRejectedNotification(
+          orderId,
+          orderData.jobWorkNo || orderId,
+          orderData.adminId,
+          rejectedByName,
+          reason,
+          orderData.companyId
+        );
+      }
+    } catch (notifError) {
+      console.error('Error creating rejection notification:', notifError);
+    }
+
+    console.log(`Order ${orderId} rejected by ${rejectedByName}: ${reason}`);
+  } catch (error) {
+    console.error('Error rejecting order:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create Delivery Challan (for vendor orders)
+ * This moves the order from 'waitingForDC' to 'inprogress'
+ */
+export async function createDeliveryChallan(
+  orderId: string,
+  dcNumber: string,
+  createdBy: string,
+  createdByName: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    // When DC is created, move order to 'inprogress'
+    await updateDoc(orderRef, {
+      orderStatus: 'inprogress',
+      dcNumber,
+      dcDate: now,
+      dcApproved: true, // DC creation means it's approved
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'dc_created',
+      createdBy,
+      createdByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'inprogress',
+      { dcNumber, dcDate: now }
+    );
+
+    console.log(`DC ${dcNumber} created for order ${orderId}, moved to inprogress`);
+  } catch (error) {
+    console.error('Error creating DC:', error);
+    throw error;
+  }
+}
+
+/**
+ * Approve Delivery Challan (moves order to inprogress for vendors)
+ */
+export async function approveDeliveryChallan(
+  orderId: string,
+  approvedBy: string,
+  approvedByName: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+
+    await updateDoc(orderRef, {
+      orderStatus: 'inprogress',
+      dcApproved: true,
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'dc_approved',
+      approvedBy,
+      approvedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'inprogress',
+      { dcNumber: orderData.dcNumber }
+    );
+
+    console.log(`DC approved for order ${orderId}, moved to inprogress`);
+  } catch (error) {
+    console.error('Error approving DC:', error);
+    throw error;
+  }
+}
+
+/**
+ * Mark order as ready (for employees - ready to deliver)
+ */
+export async function markOrderReady(
+  orderId: string,
+  completedBy: string,
+  completedByName: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    await updateDoc(orderRef, {
+      orderStatus: 'ready',
+      completedDate: now,
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'status_changed',
+      completedBy,
+      completedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'ready',
+      { completedDate: now }
+    );
+
+    console.log(`Order ${orderId} marked as ready`);
+  } catch (error) {
+    console.error('Error marking order ready:', error);
+    throw error;
+  }
+}
+
+/**
+ * Mark job as completed (for vendors - job-completed status)
+ */
+export async function markJobCompleted(
+  orderId: string,
+  completedBy: string,
+  completedByName: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    await updateDoc(orderRef, {
+      orderStatus: 'job-completed',
+      completedDate: now,
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'status_changed',
+      completedBy,
+      completedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'job-completed',
+      { completedDate: now }
+    );
+
+    // Create notification for admin
+    try {
+      if (orderData.adminId) {
+        await createOrderCompletedNotification(
+          orderId,
+          orderData.jobWorkNo || orderId,
+          orderData.adminId,
+          completedByName,
+          orderData.companyId
+        );
+      }
+    } catch (notifError) {
+      console.error('Error creating completion notification:', notifError);
+    }
+
+    console.log(`Order ${orderId} marked as job-completed`);
+  } catch (error) {
+    console.error('Error marking job completed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Record goods receipt (for vendor orders - moves to received-note)
+ */
+export async function recordGoodsReceipt(
+  orderId: string,
+  goodsReceiptNo: string,
+  receivedBy: string,
+  receivedByName: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    await updateDoc(orderRef, {
+      orderStatus: 'received-note',
+      goodsReceiptNo,
+      goodsReceivedDate: now,
+      updatedAt: serverTimestamp(),
+    });
+
+    await addOrderHistory(
+      orderId,
+      'goods_received',
+      receivedBy,
+      receivedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'received-note',
+      { goodsReceiptNo, goodsReceivedDate: now }
+    );
+
+    console.log(`Goods receipt ${goodsReceiptNo} recorded for order ${orderId}`);
+  } catch (error) {
+    console.error('Error recording goods receipt:', error);
+    throw error;
+  }
+}
+
+/**
+ * Mark order as delivered
+ */
+export async function markOrderDelivered(
+  orderId: string,
+  deliveredBy: string,
+  deliveredByName: string,
+  paymentStatus?: 'pending' | 'partial' | 'completed'
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    const updateData: any = {
+      orderStatus: 'delivered',
+      deliveredDate: now,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (paymentStatus) {
+      updateData.paymentStatus = paymentStatus;
+    }
+
+    await updateDoc(orderRef, updateData);
+
+    await addOrderHistory(
+      orderId,
+      'delivered',
+      deliveredBy,
+      deliveredByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'delivered',
+      { deliveredDate: now, paymentStatus }
+    );
+
+    console.log(`Order ${orderId} marked as delivered`);
+  } catch (error) {
+    console.error('Error marking order delivered:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reassign order to a different employee/vendor
+ */
+export async function reassignOrder(
+  orderId: string,
+  newAssignmentType: StitchingAllotmentType,
+  newAssignedTo: string,
+  newAssignedToName: string,
+  reassignedBy: string,
+  reassignedByName: string,
+  materialCost?: number,
+  jobWorkCost?: number
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+
+    const orderData = orderDoc.data();
+    const now = Date.now();
+
+    // Generate new job work number if reassigning to vendor
+    let jobWorkNo = orderData.jobWorkNo;
+    if (newAssignmentType === 'vendor' && !jobWorkNo) {
+      jobWorkNo = await generateJobWorkNo(orderData.companyId);
+    }
+
+    const updateData: any = {
+      orderStatus: 'awaiting',
+      assignmentType: newAssignmentType,
+      previousAssignedTo: orderData.assignedTo,
+      previousAssignedToName: orderData.assignedToName,
+      assignedTo: newAssignedTo,
+      assignedToName: newAssignedToName,
+      assignedDate: now,
+      assignedBy: reassignedBy,
+      isReassigned: true,
+      reassignedDate: now,
+      // Clear rejection fields
+      rejectedDate: null,
+      rejectionReason: null,
+      // Update costs if provided
+      ...(materialCost !== undefined && { materialCost }),
+      ...(jobWorkCost !== undefined && { jobWorkCost }),
+      ...(jobWorkNo && { jobWorkNo }),
+      updatedAt: serverTimestamp(),
+    };
+
+    await updateDoc(orderRef, removeUndefined(updateData));
+
+    await addOrderHistory(
+      orderId,
+      'reassigned',
+      reassignedBy,
+      reassignedByName,
+      orderData.orderStatus as ServiceOrderStatus,
+      'awaiting',
+      {
+        previousAssignedTo: orderData.assignedTo,
+        previousAssignedToName: orderData.assignedToName,
+        newAssignedTo,
+        newAssignedToName,
+        newAssignmentType,
+      }
+    );
+
+    // Create notification for the new assignee
+    try {
+      await createOrderReassignedNotification(
+        orderId,
+        orderData.jobWorkNo || orderId,
+        newAssignedTo,
+        newAssignmentType,
+        reassignedByName,
+        orderData.companyId
+      );
+    } catch (notifError) {
+      console.error('Error creating reassignment notification:', notifError);
+    }
+
+    console.log(`Order ${orderId} reassigned to ${newAssignedToName}`);
+  } catch (error) {
+    console.error('Error reassigning order:', error);
+    throw error;
+  }
+}
+
+// ==========================================
+// ORDER QUERY FUNCTIONS
+// ==========================================
+
+/**
+ * Get orders assigned to a specific vendor
+ */
+export async function getOrdersByVendor(vendorId: string): Promise<ServiceOrderWithCompany[]> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    // Query by assignedTo only to avoid composite index requirement
+    const q = query(
+      ordersRef,
+      where('assignedTo', '==', vendorId)
+    );
+    const snapshot = await getDocs(q);
+
+    // Filter in memory for vendor assignment type
+    const orders = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          createdAt: convertTimestamp(data.createdAt),
+          updatedAt: convertTimestamp(data.updatedAt),
+          serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+          expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+        } as ServiceOrderWithCompany;
+      })
+      .filter(order => order.assignmentType === 'vendor');
+
+    console.log(`[getOrdersByVendor] Found ${orders.length} orders for vendor ${vendorId}`);
+    return orders;
+  } catch (error) {
+    console.error('Error fetching vendor orders:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get orders assigned to a specific employee
+ */
+export async function getOrdersByEmployee(employeeId: string): Promise<ServiceOrderWithCompany[]> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    // Query by assignedTo only to avoid composite index requirement
+    const q = query(
+      ordersRef,
+      where('assignedTo', '==', employeeId)
+    );
+    const snapshot = await getDocs(q);
+
+    // Filter in memory for employee assignment type
+    const orders = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          createdAt: convertTimestamp(data.createdAt),
+          updatedAt: convertTimestamp(data.updatedAt),
+          serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+          expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+        } as ServiceOrderWithCompany;
+      })
+      .filter(order => order.assignmentType === 'employee');
+
+    console.log(`[getOrdersByEmployee] Found ${orders.length} orders for employee ${employeeId}`);
+    return orders;
+  } catch (error) {
+    console.error('Error fetching employee orders:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get orders by status
+ */
+export async function getOrdersByStatus(
+  companyId: string,
+  status: ServiceOrderStatus
+): Promise<ServiceOrderWithCompany[]> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    const q = query(
+      ordersRef,
+      where('companyId', '==', companyId),
+      where('orderStatus', '==', status)
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+        serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+        expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+      } as ServiceOrderWithCompany;
+    });
+  } catch (error) {
+    console.error(`Error fetching orders with status ${status}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get vendor orders waiting for DC (waitingForDC status)
+ * These orders should appear in the DC "Stitched Order ID" dropdown
+ */
+export async function getOrdersWaitingForDC(companyId: string): Promise<ServiceOrderWithCompany[]> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    const q = query(
+      ordersRef,
+      where('companyId', '==', companyId),
+      where('assignmentType', '==', 'vendor'),
+      where('orderStatus', '==', 'waitingForDC')
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+        serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+        expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+      } as ServiceOrderWithCompany;
+    });
+  } catch (error) {
+    console.error('Error fetching orders waiting for DC:', error);
+    throw error;
+  }
+}
+
+/**
+ * @deprecated Use getOrdersWaitingForDC instead
+ * Get vendor orders pending DC approval (awaiting status with assignmentType = vendor)
+ */
+export async function getVendorOrdersPendingDC(companyId: string): Promise<ServiceOrderWithCompany[]> {
+  return getOrdersWaitingForDC(companyId);
+}
+
+/**
+ * Get job-completed orders pending goods receipt
+ */
+export async function getOrdersPendingGoodsReceipt(companyId: string): Promise<ServiceOrderWithCompany[]> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    const q = query(
+      ordersRef,
+      where('companyId', '==', companyId),
+      where('assignmentType', '==', 'vendor'),
+      where('orderStatus', '==', 'job-completed')
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+        serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+        expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+      } as ServiceOrderWithCompany;
+    });
+  } catch (error) {
+    console.error('Error fetching orders pending goods receipt:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get rejected orders
+ */
+export async function getRejectedOrders(companyId: string): Promise<ServiceOrderWithCompany[]> {
+  try {
+    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+    const q = query(
+      ordersRef,
+      where('companyId', '==', companyId),
+      where('orderStatus', '==', 'rejected'),
+      where('isReassigned', '!=', true)
+    );
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+        serviceOrderDate: convertTimestamp(data.serviceOrderDate),
+        expectedDeliveryDate: convertTimestamp(data.expectedDeliveryDate),
+      } as ServiceOrderWithCompany;
+    });
+  } catch (error) {
+    console.error('Error fetching rejected orders:', error);
     throw error;
   }
 }

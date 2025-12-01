@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
@@ -5,8 +6,10 @@ import { AdminMenu } from '@/components/AdminMenu';
 import { EmployeeMenu } from '@/components/EmployeeMenu';
 import { VendorMenu } from '@/components/VendorMenu';
 import { Button } from '@/components/ui/button';
-import { Scissors, SignOut } from '@phosphor-icons/react';
+import { Scissors, SignOut, Bell } from '@phosphor-icons/react';
 import { toast } from 'sonner';
+import { subscribeToNotifications } from '@/lib/firestore/notificationService';
+import { Notification } from '@/lib/types';
 
 interface HeaderProps {
   onDashboardClick?: () => void;
@@ -20,11 +23,65 @@ interface HeaderProps {
   onGoodsReceiptClick?: () => void;
   onEmployeeProfileClick?: () => void;
   onVendorProfileClick?: () => void;
+  onNotificationsClick?: () => void;
 }
 
-export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick }: HeaderProps) {
+export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick }: HeaderProps) {
   const { user, employee, vendor, logout } = useAuth();
   const { t } = useLanguage();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Get current user ID based on user type
+  const getCurrentUserId = (): string | null => {
+    if (user?.role === 'owner') return user.id;
+    if (employee) return employee.id;
+    if (vendor) return vendor.id;
+    return null;
+  };
+
+  const userId = getCurrentUserId();
+  const prevNotificationsRef = useRef<Notification[]>([]);
+  const isFirstLoadRef = useRef(true);
+
+  // Subscribe to notifications for real-time updates and toast notifications
+  useEffect(() => {
+    if (!userId) return;
+
+    const unsubscribe = subscribeToNotifications(userId, (notifications) => {
+      // Calculate unread count
+      const newUnreadCount = notifications.filter(n => !n.isRead).length;
+      setUnreadCount(newUnreadCount);
+
+      // Check for new notifications (not on first load)
+      if (!isFirstLoadRef.current && notifications.length > 0) {
+        const prevIds = new Set(prevNotificationsRef.current.map(n => n.id));
+        const newNotifications = notifications.filter(n => !prevIds.has(n.id) && !n.isRead);
+        
+        // Show toast for each new notification
+        newNotifications.forEach((notification) => {
+          toast.info(notification.title, {
+            description: notification.message,
+            duration: 5000,
+            action: {
+              label: 'View',
+              onClick: () => {
+                if (onNotificationsClick) onNotificationsClick();
+              },
+            },
+          });
+        });
+      }
+
+      // Update refs
+      prevNotificationsRef.current = notifications;
+      isFirstLoadRef.current = false;
+    });
+
+    return () => {
+      unsubscribe();
+      isFirstLoadRef.current = true;
+    };
+  }, [userId, onNotificationsClick]);
 
   const handleLogout = () => {
     logout();
@@ -51,6 +108,22 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Notification Bell */}
+            {onNotificationsClick && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onNotificationsClick}
+                className="relative hover:bg-white/20 text-white"
+              >
+                <Bell size={22} weight={unreadCount > 0 ? 'fill' : 'regular'} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            )}
             <LanguageSwitcher />
             {user?.role === 'owner' && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
               <AdminMenu

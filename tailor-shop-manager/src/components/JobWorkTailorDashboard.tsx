@@ -25,38 +25,41 @@ import {
   Check,
   X,
   Spinner,
+  HourglassMedium,
 } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { OrderAllotment } from '@/lib/types';
+import { ServiceOrder, ServiceOrderStatus } from '@/lib/types';
 import {
-  getOrderAllotmentsByVendor,
-  updateVendorOrderStatus,
-} from '@/lib/firestore/orderAllotmentService';
-import { getCustomerById } from '@/lib/firestore/customerService';
+  getOrdersByVendor,
+  acceptOrder,
+  rejectOrder,
+  markJobCompleted,
+  ServiceOrderWithCompany,
+} from '@/lib/firestore/serviceOrderService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { sendOrderRejectionEmail } from '@/lib/emailService';
 import { format } from 'date-fns';
 import { JobWorkFilteredOrders } from './JobWorkFilteredOrders';
 import { JobWorkOrderDetailsDialog } from './JobWorkOrderDetailsDialog';
 
-interface OrderWithCustomer extends OrderAllotment {
-  customerName?: string;
-}
+// Vendor order statuses in the new flow:
+// awaiting → waitingForDC → inprogress → job-completed → received-note → delivered
+// rejected can happen from awaiting
 
-type DashboardView = 'dashboard' | 'assigned' | 'in_progress' | 'stitched' | 'rejected' | 'all';
+type DashboardView = 'dashboard' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'job_completed' | 'rejected' | 'all';
 
 const ITEMS_PER_PAGE = 6;
 
 export function JobWorkTailorDashboard() {
   const { vendor } = useAuth();
-  const [orders, setOrders] = useState<OrderWithCustomer[]>([]);
+  const [orders, setOrders] = useState<ServiceOrderWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
   const [selectedOrderNo, setSelectedOrderNo] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [acceptingOrder, setAcceptingOrder] = useState<string | null>(null);
   const [rejectingOrder, setRejectingOrder] = useState<string | null>(null);
-  const [markingStitched, setMarkingStitched] = useState<string | null>(null);
+  const [markingCompleted, setMarkingCompleted] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -64,10 +67,10 @@ export function JobWorkTailorDashboard() {
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     type: StatusChangeType;
-    order: OrderWithCustomer | null;
+    order: ServiceOrderWithCompany | null;
   }>({ open: false, type: 'accept', order: null });
 
-  const openConfirmDialog = (type: StatusChangeType, order: OrderWithCustomer) => {
+  const openConfirmDialog = (type: StatusChangeType, order: ServiceOrderWithCompany) => {
     setConfirmDialog({ open: true, type, order });
   };
 
@@ -86,22 +89,18 @@ export function JobWorkTailorDashboard() {
         await handleReject(confirmDialog.order.id);
         break;
       case 'stitched':
-        await handleMarkAsStitched(confirmDialog.order.id);
+        await handleMarkAsCompleted(confirmDialog.order.id);
         break;
     }
     closeConfirmDialog();
   };
 
-  // Summary counts
-  const assignedOrders = orders.filter(o =>
-    o.status !== 'rejected' &&
-    o.status !== 'stitched' &&
-    o.status !== 'delivered' &&
-    (o.status === 'allotted' || o.orderStatus === 'open')
-  ).length;
-  const inProgressOrders = orders.filter(o => (o.status === 'in_progress' || o.orderStatus === 'in-progress')).length;
-  const stitchedOrders = orders.filter(o => o.status === 'stitched').length;
-  const rejectedOrders = orders.filter(o => o.status === 'rejected').length;
+  // Summary counts based on new status flow
+  const awaitingOrders = orders.filter(o => o.orderStatus === 'awaiting').length;
+  const waitingForDCOrders = orders.filter(o => o.orderStatus === 'waitingForDC').length;
+  const inProgressOrders = orders.filter(o => o.orderStatus === 'inprogress').length;
+  const jobCompletedOrders = orders.filter(o => o.orderStatus === 'job-completed').length;
+  const rejectedOrders = orders.filter(o => o.orderStatus === 'rejected').length;
   const totalOrders = orders.length;
 
   useEffect(() => {
@@ -113,27 +112,10 @@ export function JobWorkTailorDashboard() {
 
     try {
       setLoading(true);
-      const allotments = await getOrderAllotmentsByVendor(vendor.tailorCode);
-
-      // Fetch customer names
-      const ordersWithCustomers = await Promise.all(
-        allotments.map(async (order) => {
-          try {
-            const customer = await getCustomerById(order.customerId);
-            return {
-              ...order,
-              customerName: customer?.name || 'Unknown',
-            };
-          } catch {
-            return {
-              ...order,
-              customerName: 'Unknown',
-            };
-          }
-        })
-      );
-
-      setOrders(ordersWithCustomers);
+      // Fetch orders from newOrders collection where assignedTo = vendor.tailorCode
+      const vendorOrders = await getOrdersByVendor(vendor.tailorCode);
+      console.log(`[JobWorkTailorDashboard] Loaded ${vendorOrders.length} orders for vendor ${vendor.tailorCode}`);
+      setOrders(vendorOrders);
     } catch (error) {
       console.error('Error loading orders:', error);
       toast.error('Failed to load orders');
@@ -142,14 +124,20 @@ export function JobWorkTailorDashboard() {
     }
   };
 
+  // Handle accept order - moves from 'awaiting' to 'waitingForDC'
   const handleAccept = async (orderId: string) => {
+    if (!vendor) return;
+    
     try {
       setAcceptingOrder(orderId);
-      await updateVendorOrderStatus(orderId, 'in_progress');
+      await acceptOrder(orderId, vendor.tailorCode, vendor.tailorName);
+      
+      // Update local state
       setOrders(orders.map(o =>
-        o.id === orderId ? { ...o, status: 'in_progress' } : o
+        o.id === orderId ? { ...o, orderStatus: 'waitingForDC' } : o
       ));
-      toast.success('Order accepted! Status updated to In Progress');
+      
+      toast.success('Order accepted! Waiting for Delivery Challan from Admin.');
     } catch (error) {
       console.error('Error accepting order:', error);
       toast.error('Failed to accept order');
@@ -158,14 +146,19 @@ export function JobWorkTailorDashboard() {
     }
   };
 
+  // Handle reject order
   const handleReject = async (orderId: string) => {
+    if (!vendor) return;
+    
     try {
       setRejectingOrder(orderId);
-      await updateVendorOrderStatus(orderId, 'rejected');
       const rejectedOrder = orders.find(o => o.id === orderId);
-
+      
+      await rejectOrder(orderId, vendor.tailorCode, vendor.tailorName, 'Rejected by vendor');
+      
+      // Update local state
       setOrders(orders.map(o =>
-        o.id === orderId ? { ...o, status: 'rejected' } : o
+        o.id === orderId ? { ...o, orderStatus: 'rejected' } : o
       ));
 
       toast.success('Order rejected. Admin has been notified.');
@@ -179,12 +172,12 @@ export function JobWorkTailorDashboard() {
             await sendOrderRejectionEmail({
               to: companyProfile.email,
               adminName: 'Admin',
-              orderNumber: rejectedOrder.orderNumber,
-              jobWorkNo: rejectedOrder.jobWorkNo,
+              orderNumber: rejectedOrder.id,
+              jobWorkNo: rejectedOrder.jobWorkNo || rejectedOrder.id,
               vendorName: vendor.tailorName,
               vendorPhone: vendor.contactNumber,
               customerName: rejectedOrder.customerName || 'Unknown',
-              dressType: rejectedOrder.dressType,
+              dressType: rejectedOrder.orderCategory,
               rejectionDate: format(Date.now(), 'dd MMM yyyy, hh:mm a'),
               companyName: companyProfile?.companyName,
             });
@@ -201,28 +194,30 @@ export function JobWorkTailorDashboard() {
     }
   };
 
-  const handleMarkAsStitched = async (orderId: string) => {
+  // Handle mark as job completed - moves from 'inprogress' to 'job-completed'
+  const handleMarkAsCompleted = async (orderId: string) => {
+    if (!vendor) return;
+    
     try {
-      setMarkingStitched(orderId);
-      await updateVendorOrderStatus(orderId, 'stitched');
+      setMarkingCompleted(orderId);
+      await markJobCompleted(orderId, vendor.tailorCode, vendor.tailorName);
+      
+      // Update local state
       setOrders(orders.map(o =>
-        o.id === orderId ? { ...o, status: 'stitched' } : o
+        o.id === orderId ? { ...o, orderStatus: 'job-completed' } : o
       ));
-      toast.success('Order marked as stitched!');
+      
+      toast.success('Job completed! Waiting for Admin to receive goods.');
     } catch (error) {
-      console.error('Error marking as stitched:', error);
-      toast.error('Failed to mark as stitched');
+      console.error('Error marking as completed:', error);
+      toast.error('Failed to mark as completed');
     } finally {
-      setMarkingStitched(null);
+      setMarkingCompleted(null);
     }
   };
 
-  const handleOrderRowClick = (order: OrderWithCustomer) => {
-    if (!order.serviceOrderNo) {
-      toast.error('Service Order Number not found');
-      return;
-    }
-    setSelectedOrderNo(order.serviceOrderNo);
+  const handleOrderRowClick = (order: ServiceOrderWithCompany) => {
+    setSelectedOrderNo(order.id);
     setShowOrderDetails(true);
   };
 
@@ -237,46 +232,44 @@ export function JobWorkTailorDashboard() {
 
   const getViewTitle = () => {
     switch (currentView) {
-      case 'assigned': return 'Assigned Orders';
-      case 'in_progress': return 'In Progress Orders';
-      case 'stitched': return 'Stitched Orders';
+      case 'awaiting': return 'Awaiting Acceptance';
+      case 'waitingForDC': return 'Waiting for DC';
+      case 'inprogress': return 'In Progress Orders';
+      case 'job_completed': return 'Job Completed';
       case 'rejected': return 'Rejected Orders';
       case 'all': return 'All Orders';
       default: return 'Job Work Dashboard';
     }
   };
 
-  const getFilteredOrders = (): OrderWithCustomer[] => {
+  const getFilteredOrders = (): ServiceOrderWithCompany[] => {
     let filtered = orders;
 
     switch (currentView) {
-      case 'assigned':
-        filtered = orders.filter(o =>
-          o.status !== 'rejected' &&
-          o.status !== 'stitched' &&
-          o.status !== 'delivered' &&
-          (o.status === 'allotted' || o.orderStatus === 'open')
-        );
+      case 'awaiting':
+        filtered = orders.filter(o => o.orderStatus === 'awaiting');
         break;
-      case 'in_progress':
-        filtered = orders.filter(o => (o.status === 'in_progress' || o.orderStatus === 'in-progress'));
+      case 'waitingForDC':
+        filtered = orders.filter(o => o.orderStatus === 'waitingForDC');
         break;
-      case 'stitched':
-        filtered = orders.filter(o => o.status === 'stitched');
+      case 'inprogress':
+        filtered = orders.filter(o => o.orderStatus === 'inprogress');
+        break;
+      case 'job_completed':
+        filtered = orders.filter(o => o.orderStatus === 'job-completed');
         break;
       case 'rejected':
-        filtered = orders.filter(o => o.status === 'rejected');
+        filtered = orders.filter(o => o.orderStatus === 'rejected');
         break;
       case 'all':
         filtered = orders;
         break;
       case 'dashboard':
-        // Recent orders (allotted and in_progress only)
+        // Recent orders - show awaiting, waitingForDC, and in_progress
         filtered = orders.filter(o =>
-          o.status !== 'rejected' &&
-          o.status !== 'stitched' &&
-          o.status !== 'delivered' &&
-          (o.status === 'allotted' || o.status === 'in_progress' || o.orderStatus === 'open' || o.orderStatus === 'in-progress')
+          o.orderStatus === 'awaiting' ||
+          o.orderStatus === 'waitingForDC' ||
+          o.orderStatus === 'inprogress'
         );
         break;
     }
@@ -286,33 +279,39 @@ export function JobWorkTailorDashboard() {
       filtered = filtered.filter((order) =>
         order.jobWorkNo?.toLowerCase().includes(search.toLowerCase()) ||
         order.customerName?.toLowerCase().includes(search.toLowerCase()) ||
-        order.serviceOrderNo?.toLowerCase().includes(search.toLowerCase()) ||
-        order.dressType?.toLowerCase().includes(search.toLowerCase())
+        order.id?.toLowerCase().includes(search.toLowerCase()) ||
+        order.orderCategory?.toLowerCase().includes(search.toLowerCase())
       );
     }
 
     // Sort by date (newest first)
     return filtered.sort((a, b) => {
-      const aDate = a.assignedDate || a.jobWorkDate || a.createdAt;
-      const bDate = b.assignedDate || b.jobWorkDate || b.createdAt;
+      const aDate = a.assignedDate || a.serviceOrderDate || a.createdAt;
+      const bDate = b.assignedDate || b.serviceOrderDate || b.createdAt;
       return bDate - aDate;
     });
   };
 
-  const getStatusBadge = (order: OrderWithCustomer) => {
-    const currentStatus = order.status || (order.orderStatus === 'open' ? 'allotted' : order.orderStatus === 'in-progress' ? 'in_progress' : 'unknown');
+  const getStatusBadge = (order: ServiceOrderWithCompany) => {
+    const status = order.orderStatus;
 
-    switch (currentStatus) {
-      case 'allotted':
-        return <Badge className="text-[10px] bg-blue-500 text-white">Assigned</Badge>;
-      case 'in_progress':
+    switch (status) {
+      case 'awaiting':
+        return <Badge className="text-[10px] bg-blue-500 text-white">Awaiting</Badge>;
+      case 'waitingForDC':
+        return <Badge className="text-[10px] bg-yellow-500 text-white">Waiting DC</Badge>;
+      case 'inprogress':
         return <Badge className="text-[10px] bg-orange-500 text-white">In Progress</Badge>;
-      case 'stitched':
-        return <Badge className="text-[10px] bg-green-500 text-white">Stitched</Badge>;
+      case 'job-completed':
+        return <Badge className="text-[10px] bg-green-500 text-white">Completed</Badge>;
+      case 'received-note':
+        return <Badge className="text-[10px] bg-teal-500 text-white">Received</Badge>;
       case 'rejected':
         return <Badge className="text-[10px] bg-red-500 text-white">Rejected</Badge>;
+      case 'delivered':
+        return <Badge className="text-[10px] bg-gray-500 text-white">Delivered</Badge>;
       default:
-        return <Badge className="text-[10px] bg-gray-500 text-white">{currentStatus}</Badge>;
+        return <Badge className="text-[10px] bg-gray-500 text-white">{status}</Badge>;
     }
   };
 
@@ -330,13 +329,22 @@ export function JobWorkTailorDashboard() {
 
   const dashStats = [
     {
-      label: 'Assigned Orders',
-      value: assignedOrders,
+      label: 'Awaiting',
+      value: awaitingOrders,
       icon: Package,
       gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
       bgGradient: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%)',
       borderColor: 'rgba(59, 130, 246, 0.5)',
-      view: 'assigned' as DashboardView,
+      view: 'awaiting' as DashboardView,
+    },
+    {
+      label: 'Waiting DC',
+      value: waitingForDCOrders,
+      icon: HourglassMedium,
+      gradient: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)',
+      bgGradient: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 50%, #fef08a 100%)',
+      borderColor: 'rgba(234, 179, 8, 0.5)',
+      view: 'waitingForDC' as DashboardView,
     },
     {
       label: 'In Progress',
@@ -345,16 +353,16 @@ export function JobWorkTailorDashboard() {
       gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
       bgGradient: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)',
       borderColor: 'rgba(249, 115, 22, 0.5)',
-      view: 'in_progress' as DashboardView,
+      view: 'inprogress' as DashboardView,
     },
     {
-      label: 'Stitched',
-      value: stitchedOrders,
+      label: 'Completed',
+      value: jobCompletedOrders,
       icon: CheckCircle,
       gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
       bgGradient: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%)',
       borderColor: 'rgba(34, 197, 94, 0.5)',
-      view: 'stitched' as DashboardView,
+      view: 'job_completed' as DashboardView,
     },
     {
       label: 'Rejected',
@@ -366,7 +374,7 @@ export function JobWorkTailorDashboard() {
       view: 'rejected' as DashboardView,
     },
     {
-      label: 'Total Orders',
+      label: 'Total',
       value: totalOrders,
       icon: ListChecks,
       gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)',
@@ -502,8 +510,8 @@ export function JobWorkTailorDashboard() {
               {/* Order Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {paginatedOrders.map((order, index) => {
-                  const currentStatus = order.status || (order.orderStatus === 'open' ? 'allotted' : order.orderStatus === 'in-progress' ? 'in_progress' : 'unknown');
-                  const displayDate = order.assignedDate || order.jobWorkDate || order.createdAt;
+                  const status = order.orderStatus;
+                  const displayDate = order.assignedDate || order.serviceOrderDate || order.createdAt;
 
                   return (
                     <div
@@ -537,9 +545,9 @@ export function JobWorkTailorDashboard() {
                           {order.jobWorkNo || order.id}
                         </p>
                         <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
-                          {order.dressType && (
+                          {order.orderCategory && (
                             <>
-                              <span className="font-medium">{order.dressType}</span>
+                              <span className="font-medium capitalize">{order.orderCategory}</span>
                               <span>•</span>
                             </>
                           )}
@@ -567,9 +575,10 @@ export function JobWorkTailorDashboard() {
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {/* Action buttons */}
+                        {/* Action buttons based on status */}
                         <div className="flex flex-col gap-1.5">
-                          {currentStatus === 'allotted' && (
+                          {/* Awaiting status - Show Accept/Reject buttons */}
+                          {status === 'awaiting' && (
                             <>
                               <Button
                                 variant="outline"
@@ -599,7 +608,14 @@ export function JobWorkTailorDashboard() {
                               </Button>
                             </>
                           )}
-                          {currentStatus === 'in_progress' && (
+                          
+                          {/* Waiting for DC status - Show info badge */}
+                          {status === 'waitingForDC' && (
+                            <Badge className="text-[10px] bg-yellow-500 text-white">Waiting DC</Badge>
+                          )}
+                          
+                          {/* In Progress status - Show Mark Completed button */}
+                          {status === 'inprogress' && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -607,18 +623,32 @@ export function JobWorkTailorDashboard() {
                                 e.stopPropagation();
                                 openConfirmDialog('stitched', order);
                               }}
-                              disabled={markingStitched === order.id}
+                              disabled={markingCompleted === order.id}
                               className="text-[10px] sm:text-xs h-7 px-2 bg-green-50 hover:bg-green-100 text-green-700 border-green-300"
                             >
                               <CheckCircle size={14} className="mr-1" weight="duotone" />
-                              {markingStitched === order.id ? '...' : 'Stitched'}
+                              {markingCompleted === order.id ? '...' : 'Complete'}
                             </Button>
                           )}
-                          {currentStatus === 'stitched' && (
+                          
+                          {/* Job Completed status - Show badge */}
+                          {status === 'job-completed' && (
                             <Badge className="text-[10px] bg-green-500 text-white">Completed</Badge>
                           )}
-                          {currentStatus === 'rejected' && (
+                          
+                          {/* Received Note status - Show badge */}
+                          {status === 'received-note' && (
+                            <Badge className="text-[10px] bg-teal-500 text-white">Received</Badge>
+                          )}
+                          
+                          {/* Rejected status - Show badge */}
+                          {status === 'rejected' && (
                             <Badge className="text-[10px] bg-red-500 text-white">Rejected</Badge>
+                          )}
+                          
+                          {/* Delivered status - Show badge */}
+                          {status === 'delivered' && (
+                            <Badge className="text-[10px] bg-gray-500 text-white">Delivered</Badge>
                           )}
                         </div>
                       </div>
@@ -676,13 +706,13 @@ export function JobWorkTailorDashboard() {
           onConfirm={handleConfirmAction}
           type={confirmDialog.type}
           orderInfo={{
-            orderNo: confirmDialog.order?.jobWorkNo || confirmDialog.order?.serviceOrderNo,
+            orderNo: confirmDialog.order?.jobWorkNo || confirmDialog.order?.id,
             customerName: confirmDialog.order?.customerName,
           }}
           isLoading={
             acceptingOrder === confirmDialog.order?.id ||
             rejectingOrder === confirmDialog.order?.id ||
-            markingStitched === confirmDialog.order?.id
+            markingCompleted === confirmDialog.order?.id
           }
         />
     </main>

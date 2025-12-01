@@ -22,46 +22,8 @@ export function DeliveredOrdersList({ serviceOrders, orderAllotments, onBack }: 
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
 
-  // Helper function to get display status (matching OrderList and DashboardStats logic)
-  const getDisplayStatus = (serviceOrder: ServiceOrder): string => {
-    // Find matching order allotment (exclude reassigned orders - matching OrderList logic)
-    const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
-
-    // If no allotment exists → Pending
-    if (!allotment) {
-      return 'pending';
-    }
-
-    const allotmentStatus = allotment.status;
-    const serviceOrderStatus = allotment.serviceOrderStatus;
-    const orderTicketStatus = allotment.orderStatus;
-
-    // If final payment is completed → Completed
-    if (serviceOrder.orderStatus === 'delivered') {
-      return 'completed';
-    }
-
-    // Ready to deliver or ready to dispatch → Delivered (Ready to Deliver)
-    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
-      return 'delivered';
-    }
-
-    // In progress (check allotment status and order ticket status only)
-    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress' || serviceOrder.orderStatus === 'job-network') {
-      return 'in-progress';
-    }
-
-    // Allotted but not started → Pending
-    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
-      return 'pending';
-    }
-
-    // Default to pending
-    return 'pending';
-  };
-
-  // Filter delivered orders (completed with final payment)
-  const deliveredOrders = serviceOrders.filter(o => getDisplayStatus(o) === 'completed');
+  // Filter delivered orders using new unified status: orderStatus === 'delivered'
+  const deliveredOrders = serviceOrders.filter(o => o.orderStatus === 'delivered');
 
   const handleOrderClick = (order: ServiceOrder) => {
     setSelectedOrder(order);

@@ -20,12 +20,13 @@ import { DesignManagement } from '@/components/DesignManagement';
 import { DeliveryChallan } from '@/components/DeliveryChallan';
 import { GoodsReceipt } from '@/components/GoodsReceipt';
 import { Payment } from '@/components/Payment';
+import { NotificationsPage } from '@/components/NotificationsPage';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoader } from '@/components/Loader';
 
-type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt';
-type EmployeeView = 'dashboard' | 'profile';
-type VendorView = 'dashboard' | 'profile';
+type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
+type EmployeeView = 'dashboard' | 'profile' | 'notifications';
+type VendorView = 'dashboard' | 'profile' | 'notifications';
 
 function AppContent() {
   const { user, employee, vendor, isAuthenticated, isLoading } = useAuth();
@@ -107,6 +108,27 @@ function AppContent() {
     setVendorView('dashboard');
   };
 
+  // Notification handlers for all user types
+  const handleNotificationsClick = () => {
+    if (user?.role === 'owner') {
+      setAdminView('notifications');
+    } else if (employee) {
+      setEmployeeView('notifications');
+    } else if (vendor) {
+      setVendorView('notifications');
+    }
+  };
+
+  const handleNotificationsBack = () => {
+    if (user?.role === 'owner') {
+      setAdminView('dashboard');
+    } else if (employee) {
+      setEmployeeView('dashboard');
+    } else if (vendor) {
+      setVendorView('dashboard');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <Header
@@ -121,6 +143,7 @@ function AppContent() {
         onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
         onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
         onVendorProfileClick={vendor ? handleVendorProfileClick : undefined}
+        onNotificationsClick={handleNotificationsClick}
       />
       {user?.role === 'owner' && adminView === 'dashboard' && <OwnerDashboard key={dashboardKey} initialTab={dashboardTab} />}
       {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
@@ -136,13 +159,18 @@ function AppContent() {
       {user?.role === 'owner' && adminView === 'goods-receipt' && (
         <GoodsReceipt onBack={handleBackToDashboard} />
       )}
+      {user?.role === 'owner' && adminView === 'notifications' && (
+        <NotificationsPage onBack={handleNotificationsBack} />
+      )}
       {user?.role === 'tailor' && <TailorDashboard />}
       {user?.role === 'customer' && <CustomerDashboard />}
       {employee && employeeView === 'dashboard' && employee.role === 'tailor' && <TailorDashboardFirestore />}
       {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <EmployeeDashboard />}
       {employee && employeeView === 'profile' && <EmployeeProfile onBack={handleEmployeeBackToDashboard} />}
+      {employee && employeeView === 'notifications' && <NotificationsPage onBack={handleNotificationsBack} />}
       {vendor && vendorView === 'dashboard' && <JobWorkTailorDashboard />}
       {vendor && vendorView === 'profile' && <TailorProfile vendorId={vendor.tailorCode} onBack={handleVendorBackToDashboard} />}
+      {vendor && vendorView === 'notifications' && <NotificationsPage onBack={handleNotificationsBack} />}
       <InstallPrompt />
     </div>
   );

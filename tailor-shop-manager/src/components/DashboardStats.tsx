@@ -12,15 +12,16 @@ import {
 } from '@phosphor-icons/react';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
-// Filter types for the dashboard
+// Filter types for the dashboard - Now based on unified ServiceOrder.orderStatus
 export type DashboardFilter =
   | 'all'
   | 'open'           // 1. Open Orders - not assigned
   | 'awaiting'       // 2. Awaiting Acceptance - assigned but not accepted
+  | 'waitingForDC'   // 2.5 Waiting for DC (vendor only) - accepted but no DC yet
   | 'inProgress'     // 3. In-Progress - accepted and working
   | 'rejected'       // 4. Rejected Orders
-  | 'ready'          // 5. Ready to Delivery (Employee only)
-  | 'jobworkCompleted' // 6. Jobwork Completed (Vendor only)
+  | 'ready'          // 5. Ready to Delivery (Employee workflow)
+  | 'jobworkCompleted' // 6. Jobwork Completed (Vendor workflow)
   | 'receivedNote'   // 7. Received Note / Goods Receipt
   | 'delivered'      // 8. Delivered Orders
   | 'overdue';       // 9. Overdue Orders
@@ -34,74 +35,41 @@ interface DashboardStatsProps {
 
 export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: DashboardStatsProps) {
 
-  // Get set of service order IDs that have active (non-reassigned) allotments
-  const ordersWithAllotments = new Set(
-    (orderAllotments || [])
-      .filter(a => !a.reassigned)
-      .map(a => a.serviceOrderNo)
-  );
+  // NEW UNIFIED STATUS FLOW - All status tracking from ServiceOrder.orderStatus directly
+  // Status flow: open → awaiting → waitingForDC (vendor) → inprogress → ready/job-completed → received-note → delivered
 
-  // 1. OPEN ORDERS - Order created but NOT assigned to any Employee or Vendor
-  // ServiceOrders with orderStatus === 'open' AND no active allotment
-  const openOrders = (serviceOrders || []).filter((o) =>
-    o.orderStatus === 'open' && !ordersWithAllotments.has(o.id)
-  ).length;
+  // 1. OPEN ORDERS - Order created but NOT assigned
+  const openOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'open').length;
 
-  // 2. AWAITING ACCEPTANCE - Order assigned but employee/vendor hasn't accepted yet
-  // OrderAllotments with status === 'allotted' (waiting for acceptance)
-  const awaitingAcceptance = (orderAllotments || []).filter((o) =>
-    o.status === 'allotted' && !o.reassigned
-  ).length;
+  // 2. AWAITING ACCEPTANCE - Order assigned but not accepted yet
+  const awaitingAcceptance = (serviceOrders || []).filter((o) => o.orderStatus === 'awaiting').length;
 
-  // 3. IN-PROGRESS ORDERS - Order accepted and work is currently being done
-  // OrderAllotments with status === 'in_progress'
-  const inProgressOrders = (orderAllotments || []).filter((o) =>
-    o.status === 'in_progress' && !o.reassigned
-  ).length;
+  // 2.5 WAITING FOR DC - Vendor accepted but waiting for Delivery Challan
+  const waitingForDC = (serviceOrders || []).filter((o) => o.orderStatus === 'waitingForDC').length;
 
-  // 4. REJECTED ORDERS - Order rejected by Employee or Vendor (needs reassignment)
-  const rejectedOrders = (orderAllotments || []).filter((o) =>
-    o.status === 'rejected' && !o.reassigned
-  ).length;
+  // 3. IN-PROGRESS ORDERS - Work is currently being done
+  const inProgressOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'inprogress').length;
 
-  // 5. READY TO DELIVERY (Employee workflow) - Stitching completed by Employee
-  // Employee orders that are stitched/delivered and marked ready
-  const readyToDelivery = (serviceOrders || []).filter((o) => {
-    if (o.orderStatus !== 'ready') return false;
-    const hasPendingVendorWork = (orderAllotments || []).some(a => 
-      a.serviceOrderNo === o.id && 
-      a.stitchingAllotment === 'vendor' && 
-      a.status === 'stitched'
-    );
-    return !hasPendingVendorWork;
-  }).length;
+  // 4. REJECTED ORDERS - Order rejected by Employee or Vendor
+  const rejectedOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'rejected').length;
 
-  // 6. JOBWORK COMPLETED ORDERS (Vendor workflow) - Stitching completed by Vendor
-  // Vendor orders with status === 'stitched' (goods not yet received at shop)
-  const jobworkCompleted = (orderAllotments || []).filter((o) =>
-    o.stitchingAllotment === 'vendor' &&
-    o.status === 'stitched' &&
-    !o.reassigned
-  ).length;
+  // 5. READY TO DELIVERY - Employee workflow completed (ready status)
+  const readyToDelivery = (serviceOrders || []).filter((o) => o.orderStatus === 'ready').length;
 
-  // 7. RECEIVED NOTE (Goods Receipt) - Vendor order received at shop
-  // Vendor orders with status === 'delivered' but service order not yet 'ready'
-  const receivedNote = (orderAllotments || []).filter((o) =>
-    o.stitchingAllotment === 'vendor' &&
-    o.status === 'delivered' &&
-    o.serviceOrderStatus !== 'ready' &&
-    !o.reassigned
-  ).length;
+  // 6. JOBWORK COMPLETED - Vendor workflow, work completed but goods not received yet
+  const jobworkCompleted = (serviceOrders || []).filter((o) => o.orderStatus === 'job-completed').length;
+
+  // 7. RECEIVED NOTE (Goods Receipt) - Vendor order goods received at shop
+  const receivedNote = (serviceOrders || []).filter((o) => o.orderStatus === 'received-note').length;
 
   // 8. DELIVERED ORDERS - Order completed and handed over to customer
   const deliveredOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'delivered').length;
 
   // 9. OVERDUE ORDERS - Past due date but not delivered
-  // Only count orders that are still "open" (not yet assigned) and overdue
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const overdueOrders = (serviceOrders || []).filter((o) => {
-    if (o.orderStatus === 'delivered' || o.orderStatus === 'ready') return false;
+    if (o.orderStatus === 'delivered' || o.orderStatus === 'ready' || o.orderStatus === 'received-note') return false;
     if (!o.expectedDeliveryDate) return false;
     const deliveryDate = new Date(o.expectedDeliveryDate);
     deliveryDate.setHours(0, 0, 0, 0);
