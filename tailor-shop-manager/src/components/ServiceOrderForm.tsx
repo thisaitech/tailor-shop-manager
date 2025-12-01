@@ -542,8 +542,8 @@ export function ServiceOrderForm({
     if (!createdOrderData) return null;
 
     const customer = customers.find((c) => c.id === createdOrderData.customerId);
-    const paymentMode = modeOfPayment === 'cash' ? 'Cash' : modeOfPayment === 'qrpay' ? 'QR Pay' : 'Nil';
-    const effectiveAdvance = modeOfPayment === 'nil' ? 0 : advanceAmount;
+    const paymentMode = modeOfPayment === 'qrpay' ? 'QR Pay' : 'Cash';
+    const effectiveAdvance = advanceAmount;
     const balanceDue = createdOrderData.stitchingCost - effectiveAdvance;
 
     // Build line items
@@ -1005,7 +1005,7 @@ export function ServiceOrderForm({
 
             {/* Order Category - Simple Buttons */}
             <div className="space-y-3">
-              <Label className="text-sm font-medium">Select Category *</Label>
+              <Label className="text-sm font-medium">Order Category *</Label>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { value: 'male', label: 'Men', icon: UserCircle },
@@ -1074,6 +1074,7 @@ export function ServiceOrderForm({
                     onChange={(e) =>
                       setStitchingCost(parseFloat(e.target.value) || 0)
                     }
+                    onWheel={(e) => e.currentTarget.blur()}
                     onFocus={(e) => e.target.select()}
                     placeholder="0.00"
                     className="h-12 text-base bg-background"
@@ -1375,7 +1376,7 @@ export function ServiceOrderForm({
                 >
                   <div className="flex flex-col items-center gap-2">
                     <ImageIcon size={24} weight="bold" />
-                    <span className="text-sm font-semibold">Upload Designs</span>
+                    <span className="text-sm font-semibold">Upload Sample Cloth Image</span>
                     <span className="text-xs text-muted-foreground">Camera or Gallery</span>
                   </div>
                 </Button>
@@ -1490,7 +1491,6 @@ export function ServiceOrderForm({
                   {[
                     { value: 'cash', label: 'Cash' },
                     { value: 'qrpay', label: 'QR Pay' },
-                    { value: 'nil', label: 'Nil' },
                   ].map((option) => {
                     const isActive = modeOfPayment === option.value;
                     return (
@@ -1529,11 +1529,7 @@ export function ServiceOrderForm({
                   onFocus={(e) => e.target.select()}
                   placeholder="0.00"
                   className="h-12 text-base bg-background"
-                  disabled={modeOfPayment === 'nil'}
                 />
-                {modeOfPayment === 'nil' && (
-                  <p className="text-xs text-muted-foreground">No advance payment selected</p>
-                )}
               </div>
 
               {/* Payment Summary */}
@@ -1546,13 +1542,13 @@ export function ServiceOrderForm({
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Advance Paid</span>
-                    <span className="text-base font-semibold text-primary">- ₹{(modeOfPayment === 'nil' ? 0 : advanceAmount).toFixed(2)}</span>
+                    <span className="text-base font-semibold text-primary">- ₹{advanceAmount.toFixed(2)}</span>
                   </div>
                   <div className="border-t pt-3">
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-bold">Balance Due</span>
                       <span className="text-xl font-bold text-primary">
-                        ₹{(createdOrderData.stitchingCost - (modeOfPayment === 'nil' ? 0 : advanceAmount)).toFixed(2)}
+                        ₹{(createdOrderData.stitchingCost - advanceAmount).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -1692,11 +1688,11 @@ export function ServiceOrderForm({
       </DialogContent>
     </Dialog>
 
-    {/* Upload Designs Modal - Instagram Style */}
+    {/* Upload Sample Cloth Image Modal */}
     <Dialog open={showUploadModal} onOpenChange={handleCloseUploadModal}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Upload Designs</DialogTitle>
+          <DialogTitle>Upload Sample Cloth Image</DialogTitle>
           <DialogDescription>
             Capture a photo with your camera or select from your gallery
           </DialogDescription>

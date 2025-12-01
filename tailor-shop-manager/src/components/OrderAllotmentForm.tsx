@@ -373,7 +373,7 @@ export function OrderAllotmentForm({
             <Label className="text-sm font-medium">Job Work Date</Label>
             <Input
               type="text"
-              value={format(new Date(), 'MMM dd, yyyy')}
+              value={format(new Date(), 'dd/MM/yyyy')}
               disabled
               className="h-11 bg-muted"
             />
