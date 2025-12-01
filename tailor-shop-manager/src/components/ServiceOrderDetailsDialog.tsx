@@ -8,8 +8,37 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Package, User, Calendar, Ruler, UserCircle, ClockCounterClockwise, ArrowRight, FilePdf, Printer } from '@phosphor-icons/react';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
 import { ServiceOrder, OrderAllotment, DressItem } from '@/lib/types';
+
+// Helper function to safely format dates
+const safeFormatDate = (dateValue: string | Date | undefined | null, formatStr: string): string => {
+  if (!dateValue) return '-';
+  
+  try {
+    let date: Date;
+    if (dateValue instanceof Date) {
+      date = dateValue;
+    } else if (typeof dateValue === 'string') {
+      // Try parsing as ISO string first, then as regular Date
+      date = parseISO(dateValue);
+      if (!isValid(date)) {
+        date = new Date(dateValue);
+      }
+    } else {
+      return '-';
+    }
+    
+    if (!isValid(date)) {
+      return '-';
+    }
+    
+    return format(date, formatStr);
+  } catch (error) {
+    console.error('Error formatting date:', dateValue, error);
+    return '-';
+  }
+};
 import {
   ProformaInvoiceData,
   ProformaInvoiceItem,
@@ -198,13 +227,13 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
               <div>
                 <p className="text-sm text-muted-foreground">Order Date</p>
                 <p className="font-medium text-gray-900">
-                  {format(new Date(serviceOrder.serviceOrderDate), 'dd MMM yyyy')}
+                  {safeFormatDate(serviceOrder.serviceOrderDate, 'dd MMM yyyy')}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Expected Delivery</p>
                 <p className="font-medium text-gray-900">
-                  {format(new Date(serviceOrder.expectedDeliveryDate), 'dd MMM yyyy')}
+                  {safeFormatDate(serviceOrder.expectedDeliveryDate, 'dd MMM yyyy')}
                 </p>
               </div>
             </div>
@@ -272,7 +301,7 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                   <div>
                     <p className="text-sm text-muted-foreground">Assigned Date</p>
                     <p className="font-medium text-gray-900">
-                      {format(new Date(orderAllotment.assignedDate), 'dd MMM yyyy, hh:mm a')}
+                      {safeFormatDate(orderAllotment.assignedDate, 'dd MMM yyyy, hh:mm a')}
                     </p>
                   </div>
                 )}
@@ -280,7 +309,7 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                   <div>
                     <p className="text-sm text-muted-foreground">Stitched Date</p>
                     <p className="font-medium text-gray-900">
-                      {format(new Date(orderAllotment.stitchedDate), 'dd MMM yyyy, hh:mm a')}
+                      {safeFormatDate(orderAllotment.stitchedDate, 'dd MMM yyyy, hh:mm a')}
                     </p>
                   </div>
                 )}
@@ -288,7 +317,7 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                   <div>
                     <p className="text-sm text-muted-foreground">Delivered Date</p>
                     <p className="font-medium text-gray-900">
-                      {format(new Date(orderAllotment.deliveredDate), 'dd MMM yyyy, hh:mm a')}
+                      {safeFormatDate(orderAllotment.deliveredDate, 'dd MMM yyyy, hh:mm a')}
                     </p>
                   </div>
                 )}
@@ -324,7 +353,7 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-gray-900">{getHistoryActionLabel(entry.action)}</span>
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(entry.timestamp), 'dd MMM yyyy, hh:mm a')}
+                          {safeFormatDate(entry.timestamp, 'dd MMM yyyy, hh:mm a')}
                         </span>
                       </div>
                       {entry.action === 'status_changed' && entry.previousStatus && entry.newStatus && (

@@ -14,6 +14,7 @@ import { CompanyProfileFirestore as CompanyProfile } from '@/components/CompanyP
 import { EmployeeManagementFirestore as EmployeeManagement } from '@/components/EmployeeManagementFirestore';
 import { VendorManagementFirestore as VendorManagement } from '@/components/VendorManagementFirestore';
 import { EmployeeProfile } from '@/components/EmployeeProfile';
+import { EmployeeDashboard } from '@/components/EmployeeDashboard';
 import { TailorProfile } from '@/components/TailorProfile';
 import { DesignManagement } from '@/components/DesignManagement';
 import { DeliveryChallan } from '@/components/DeliveryChallan';
@@ -88,16 +89,18 @@ function AppContent() {
     setAdminView('dashboard');
   };
 
+
+
+  const handleVendorProfileClick = () => {
+    setVendorView('profile');
+  };
+
   const handleEmployeeProfileClick = () => {
     setEmployeeView('profile');
   };
 
   const handleEmployeeBackToDashboard = () => {
     setEmployeeView('dashboard');
-  };
-
-  const handleVendorProfileClick = () => {
-    setVendorView('profile');
   };
 
   const handleVendorBackToDashboard = () => {
@@ -136,7 +139,7 @@ function AppContent() {
       {user?.role === 'tailor' && <TailorDashboard />}
       {user?.role === 'customer' && <CustomerDashboard />}
       {employee && employeeView === 'dashboard' && employee.role === 'tailor' && <TailorDashboardFirestore />}
-      {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <OwnerDashboard />}
+      {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <EmployeeDashboard />}
       {employee && employeeView === 'profile' && <EmployeeProfile onBack={handleEmployeeBackToDashboard} />}
       {vendor && vendorView === 'dashboard' && <JobWorkTailorDashboard />}
       {vendor && vendorView === 'profile' && <TailorProfile vendorId={vendor.tailorCode} onBack={handleVendorBackToDashboard} />}

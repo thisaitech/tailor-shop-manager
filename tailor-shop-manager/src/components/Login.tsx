@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Scissors, Info, UserPlus, Eye, EyeSlash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { DebugPanel } from './DebugPanel';
+// DebugPanel removed for production
 import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { VendorChangePasswordDialog } from './VendorChangePasswordDialog';
 import { decryptPassword } from '@/lib/firestore/vendorService';
@@ -168,6 +168,7 @@ export function Login() {
       id: customerId,
       name: customerForm.name,
       phone: customerForm.phone,
+      email: '', // Optional email field
       place: customerForm.place,
       gender: customerForm.gender,
       measurements: {},
@@ -461,8 +462,12 @@ export function Login() {
         return null;
       })()}
 
-      {/* Debug Panel - Remove before production */}
-      <DebugPanel />
+      {/* Debug Panel removed for production - can be re-enabled in development if needed */}
+      {process.env.NODE_ENV === 'development' && false && (
+        <div>
+          {/* <DebugPanel /> */}
+        </div>
+      )}
     </>
   );
 }

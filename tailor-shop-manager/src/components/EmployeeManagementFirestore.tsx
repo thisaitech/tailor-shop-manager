@@ -135,8 +135,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     role: 'staff' as EmployeeRole,
     designation: '',
     joiningDate: Date.now(),
-    accessPermissions: [] as string[],
-    accessPermissionEnabled: true,
     isActive: true,
   });
 
@@ -246,8 +244,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         role: employee.role,
         designation: employee.designation || '',
         joiningDate: employee.joiningDate,
-        accessPermissions: employee.accessPermissions,
-        accessPermissionEnabled: employee.accessPermissionEnabled,
         isActive: employee.isActive,
       });
     } else {
@@ -268,8 +264,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         role: 'staff',
         designation: '',
         joiningDate: Date.now(),
-        accessPermissions: [],
-        accessPermissionEnabled: true,
         isActive: true,
       });
     }
@@ -685,6 +679,17 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      {/* Header with Back Button */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9">
+          <ArrowLeft size={20} />
+        </Button>
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold">Employee Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">{employees.length} employees</p>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2 sm:gap-3">
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <div className="relative flex-1">

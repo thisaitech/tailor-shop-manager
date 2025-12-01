@@ -66,7 +66,15 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
 
   // 5. READY TO DELIVERY (Employee workflow) - Stitching completed by Employee
   // Employee orders that are stitched/delivered and marked ready
-  const readyToDelivery = (serviceOrders || []).filter((o) => o.orderStatus === 'ready').length;
+  const readyToDelivery = (serviceOrders || []).filter((o) => {
+    if (o.orderStatus !== 'ready') return false;
+    const hasPendingVendorWork = (orderAllotments || []).some(a => 
+      a.serviceOrderNo === o.id && 
+      a.stitchingAllotment === 'vendor' && 
+      a.status === 'stitched'
+    );
+    return !hasPendingVendorWork;
+  }).length;
 
   // 6. JOBWORK COMPLETED ORDERS (Vendor workflow) - Stitching completed by Vendor
   // Vendor orders with status === 'stitched' (goods not yet received at shop)

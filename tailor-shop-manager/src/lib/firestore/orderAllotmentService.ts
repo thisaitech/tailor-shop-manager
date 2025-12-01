@@ -719,6 +719,38 @@ export async function getOrderAllotmentsByTailor(employeeId: string): Promise<Or
 }
 
 /**
+ * Get order allotments by employee ID
+ * Queries for allotments where stitchingAllotment is 'employee' and assignedTo matches employeeId
+ */
+export async function getOrderAllotmentsByEmployee(employeeId: string): Promise<OrderAllotment[]> {
+  try {
+    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
+    const q = query(
+      allotmentsRef,
+      where('stitchingAllotment', '==', 'employee'),
+      where('assignedTo', '==', employeeId)
+    );
+    const snapshot = await getDocs(q);
+
+    const allotments: OrderAllotment[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt,
+        assignedDate: data.assignedDate instanceof Timestamp ? data.assignedDate.toMillis() : data.assignedDate || data.jobWorkDate,
+      } as OrderAllotment;
+    });
+
+    console.log(`[orderAllotmentService] Found ${allotments.length} allotments for employee ${employeeId}`);
+    return allotments;
+  } catch (error) {
+    console.error('[orderAllotmentService] Error getting allotments by employee:', error);
+    throw error;
+  }
+}
+
+/**
  * Get order allotments by vendor/job work tailor ID
  * Queries for allotments where stitchingAllotment is 'vendor' and assignedTo matches vendorId
  */
