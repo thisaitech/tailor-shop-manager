@@ -1,0 +1,1 @@
+[System.IO.File]::ReadAllLines('src\components\JobWorkTailorDashboard.tsx')[0..150]
