@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { Spinner, CheckCircle, PlayCircle } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
+import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
 
 interface JobWorkOrderDetailsDialogProps {
   serviceOrderNo: string;
@@ -33,6 +34,32 @@ export function JobWorkOrderDetailsDialog({
   const [allotment, setAllotment] = useState<OrderAllotment | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: StatusChangeType;
+  }>({ open: false, type: 'accept' });
+
+  const openConfirmDialog = (type: StatusChangeType) => {
+    setConfirmDialog({ open: true, type });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({ open: false, type: 'accept' });
+  };
+
+  const handleConfirmAction = async () => {
+    switch (confirmDialog.type) {
+      case 'accept':
+        await handleAccept();
+        break;
+      case 'stitched':
+        await handleMarkStitched();
+        break;
+    }
+    closeConfirmDialog();
+  };
 
   useEffect(() => {
     if (open && serviceOrderNo) {
@@ -123,7 +150,9 @@ export function JobWorkOrderDetailsDialog({
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Order Category</p>
-                  <p className="font-medium capitalize">{order.orderCategory}</p>
+                  <p className="font-medium">
+                    {order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -284,7 +313,7 @@ export function JobWorkOrderDetailsDialog({
           <DialogFooter className="border-t pt-4">
             {allotment.status === 'allotted' && (
               <Button
-                onClick={handleAccept}
+                onClick={() => openConfirmDialog('accept')}
                 disabled={updating}
                 className="bg-orange-600 hover:bg-orange-700"
               >
@@ -294,7 +323,7 @@ export function JobWorkOrderDetailsDialog({
             )}
             {allotment.status === 'in_progress' && (
               <Button
-                onClick={handleMarkStitched}
+                onClick={() => openConfirmDialog('stitched')}
                 disabled={updating}
                 className="bg-green-600 hover:bg-green-700"
               >
@@ -309,6 +338,19 @@ export function JobWorkOrderDetailsDialog({
             )}
           </DialogFooter>
         )}
+
+        {/* Status Change Confirmation Dialog */}
+        <StatusChangeConfirmDialog
+          open={confirmDialog.open}
+          onOpenChange={(open) => !open && closeConfirmDialog()}
+          onConfirm={handleConfirmAction}
+          type={confirmDialog.type}
+          orderInfo={{
+            orderNo: serviceOrderNo,
+            customerName: order?.customerName,
+          }}
+          isLoading={updating}
+        />
       </DialogContent>
     </Dialog>
   );

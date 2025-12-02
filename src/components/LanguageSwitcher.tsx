@@ -11,6 +11,7 @@ export function LanguageSwitcher() {
       size="sm"
       onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
       className="gap-2 font-semibold touch-manipulation"
+      style={{ backgroundColor: 'white' }}
     >
       <Translate size={18} weight="bold" />
       <span className="hidden sm:inline">{lang === 'en' ? 'தமிழ்' : 'English'}</span>

@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { useStorage } from './use-storage';
 import { User, UserRole, Vendor } from '@/lib/types';
 import { verifyEmployeeCredentials } from '@/lib/firestore/employeeService';
@@ -10,6 +10,7 @@ interface AuthContextType {
   employee: EmployeeWithCompany | null;
   vendor: Vendor | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }>;
   logout: () => void;
   updatePassword: (newPassword: string) => Promise<void>;
@@ -18,6 +19,8 @@ interface AuthContextType {
   getAllUsers: () => User[];
   updateUser: (userId: string, updatedData: Partial<User>) => void;
   deleteUser: (userId: string) => void;
+  setEmployeeAfterPasswordChange: (employee: EmployeeWithCompany) => void;
+  setVendorAfterPasswordChange: (vendor: Vendor) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +30,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useStorage<User | null>('current_user', null);
   const [currentEmployee, setCurrentEmployee] = useStorage<EmployeeWithCompany | null>('current_employee', null);
   const [currentVendor, setCurrentVendor] = useStorage<Vendor | null>('current_vendor', null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Simulate initial loading state for app initialization
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000); // Show loader for 1 second on app load
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Sync users from localStorage on mount and when storage changes
+  // This fixes the synchronization issue between SeedData and AuthProvider
+  useEffect(() => {
+    const syncUsersFromStorage = () => {
+      try {
+        const storedUsers = localStorage.getItem('auth_users');
+        if (storedUsers) {
+          const parsedUsers = JSON.parse(storedUsers);
+          if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+            // Only update if localStorage has users and current state doesn't
+            if ((users || []).length === 0 || parsedUsers.length > (users || []).length) {
+              console.log('[Auth] Syncing users from localStorage:', parsedUsers.length, 'users');
+              setUsers(parsedUsers);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Auth] Error syncing users from localStorage:', e);
+      }
+    };
+
+    // Initial sync after a short delay to ensure SeedData has run
+    const initialSyncTimer = setTimeout(syncUsersFromStorage, 500);
+
+    // Listen for storage changes (from other tabs or components)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'auth_users') {
+        syncUsersFromStorage();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      clearTimeout(initialSyncTimer);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
@@ -90,8 +140,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // If not an employee, check localStorage users (owner, tailor, customer)
-    console.log('Total users in storage:', (users || []).length);
-    console.log('All users:', (users || []).map(u => ({
+    // IMPORTANT: Read directly from localStorage to ensure we have the latest data
+    // This fixes the state synchronization issue between SeedData and AuthProvider
+    let currentUsers = users || [];
+    try {
+      const storedUsers = localStorage.getItem('auth_users');
+      if (storedUsers) {
+        const parsedUsers = JSON.parse(storedUsers);
+        if (Array.isArray(parsedUsers)) {
+          currentUsers = parsedUsers;
+          // Sync the state if localStorage has more users
+          if (parsedUsers.length > (users || []).length) {
+            setUsers(parsedUsers);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Auth] Error reading users from localStorage:', e);
+    }
+
+    console.log('Total users in storage:', currentUsers.length);
+    console.log('All users:', currentUsers.map(u => ({
       id: u.id,
       username: u.username,
       password: u.password,
@@ -99,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: u.name
     })));
 
-    const user = (users || []).find(u => {
+    const user = currentUsers.find(u => {
       console.log(`Checking user ${u.username}: username match=${u.username === username}, password match=${u.password === password}`);
       return u.username === username && u.password === password;
     });
@@ -176,10 +245,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[AuthContext] Users after delete:', updatedUsers);
   };
 
+  const setEmployeeAfterPasswordChange = (employee: EmployeeWithCompany) => {
+    console.log('[AuthContext] Setting employee after password change:', employee);
+    setCurrentEmployee(employee);
+    setCurrentUser(null);
+    setCurrentVendor(null);
+  };
+
+  const setVendorAfterPasswordChange = (vendor: Vendor) => {
+    console.log('[AuthContext] Setting vendor after password change:', vendor);
+    setCurrentVendor(vendor);
+    setCurrentUser(null);
+    setCurrentEmployee(null);
+  };
+
   const isAuthenticated = (currentUser !== null && currentUser !== undefined) || (currentEmployee !== null && currentEmployee !== undefined) || (currentVendor !== null && currentVendor !== undefined);
 
   return (
-    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser }}>
+    <AuthContext.Provider value={{ user: currentUser ?? null, employee: currentEmployee ?? null, vendor: currentVendor ?? null, isAuthenticated, isLoading, login, logout, updatePassword, addUser, resetUsers, getAllUsers, updateUser, deleteUser, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange }}>
       {children}
     </AuthContext.Provider>
   );
@@ -188,7 +271,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    // During hot reload, context might be temporarily undefined
+    // Return a safe default state instead of throwing
+    console.warn('[useAuth] Context undefined - returning default state (likely hot reload)');
+    return {
+      user: null,
+      employee: null,
+      vendor: null,
+      isAuthenticated: false,
+      isLoading: true,
+      login: async () => ({ success: false, message: 'Auth not ready' }),
+      logout: () => {},
+      updatePassword: async () => {},
+      addUser: () => {},
+      resetUsers: () => {},
+      getAllUsers: () => [],
+      updateUser: () => {},
+      deleteUser: () => {},
+      setEmployeeAfterPasswordChange: () => {},
+      setVendorAfterPasswordChange: () => {},
+    } as AuthContextType;
   }
   return context;
 }

@@ -12,6 +12,10 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@capacitor/android": "^7.4.4",
+        "@capacitor/camera": "^7.0.2",
+        "@capacitor/local-notifications": "^7.0.3",
+        "@capacitor/push-notifications": "^7.0.3",
         "@emailjs/browser": "^4.4.1",
         "@github/spark": "^0.39.0",
         "@heroicons/react": "^2.2.0",
@@ -80,6 +84,8 @@
         "zod": "^3.25.76"
     },
     "devDependencies": {
+        "@capacitor/cli": "^7.4.4",
+        "@capacitor/core": "^7.4.4",
         "@eslint/js": "^9.21.0",
         "@tailwindcss/postcss": "^4.1.8",
         "@types/react": "^19.0.10",

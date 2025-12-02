@@ -11,18 +11,42 @@ import {
   generateEmployeePassword,
   EmployeeWithCompany,
   findEmployeeByContactNumber,
-  findEmployeeByWhatsAppNumber,
+  findEmployeeByEmail,
 } from '@/lib/firestore/employeeService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Eye, EyeSlash, Key, Copy, Spinner } from '@phosphor-icons/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ArrowLeft, Plus, PencilSimple, Trash, CheckSquare, Key, Copy, MagnifyingGlass, Funnel, DotsThree, Phone, WhatsappLogo, UserCircle, User, MapPin, Check, Spinner } from '@phosphor-icons/react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { EmptyState } from './EmptyState';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { sendWhatsAppMessage } from '@/lib/utils';
+
+type DateFilter = 'all' | 'exact' | 'range';
+const ITEMS_PER_PAGE = 6;
 
 // State to Cities/Districts mapping
 const STATE_CITIES: Record<string, string[]> = {
@@ -65,6 +89,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 interface EmployeeManagementFirestoreProps {
   onBack: () => void;
@@ -83,7 +109,18 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateEmployee, setDuplicateEmployee] = useState<EmployeeWithCompany | null>(null);
   const [phoneError, setPhoneError] = useState('');
-  const [whatsappError, setWhatsappError] = useState('');
+  const [deleteEmployeeId, setDeleteEmployeeId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('basic');
+
+  // Search, filter, and pagination states
+  const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [exactDate, setExactDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [formData, setFormData] = useState({
     name: '',
     aliasName: '',
@@ -94,16 +131,12 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     whatsappNumber: '',
     address1: '',
     address2: '',
-    city: '',
+    city: DEFAULT_CITY,
     pincode: '',
-    region: 'none',
-    state: '',
-    country: 'India',
-    role: 'staff' as EmployeeRole,
+    state: DEFAULT_STATE,
+    role: 'tailor' as EmployeeRole,
     designation: '',
     joiningDate: Date.now(),
-    accessPermissions: [] as string[],
-    accessPermissionEnabled: true,
     isActive: true,
   });
 
@@ -136,6 +169,64 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     loadData();
   }, [user?.id]);
 
+  // Date filter logic
+  const getDateRange = (filter: DateFilter): { start: Date; end: Date } | null => {
+    switch (filter) {
+      case 'exact':
+        if (!exactDate) return null;
+        const exact = new Date(exactDate);
+        return { start: startOfDay(exact), end: endOfDay(exact) };
+      case 'range':
+        if (!startDate || !endDate) return null;
+        return { start: startOfDay(new Date(startDate)), end: endOfDay(new Date(endDate)) };
+      default:
+        return null;
+    }
+  };
+
+  const filteredEmployees = (employees || []).filter((e) => {
+    const matchesSearch =
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.contactNumber.includes(search) ||
+      (e.email && e.email.toLowerCase().includes(search.toLowerCase())) ||
+      e.role.toLowerCase().includes(search.toLowerCase());
+
+    const dateRange = getDateRange(dateFilter);
+    const matchesDate = !dateRange || (e.createdAt && isWithinInterval(new Date(e.createdAt), dateRange));
+
+    return matchesSearch && matchesDate;
+  });
+
+  // Sort employees by creation date (newest first)
+  const sortedEmployees = filteredEmployees.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  // Pagination logic
+  const totalPages = Math.ceil(sortedEmployees.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedEmployees = sortedEmployees.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const showPagination = sortedEmployees.length > ITEMS_PER_PAGE;
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (filter: DateFilter) => {
+    setDateFilter(filter);
+    setCurrentPage(1);
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const dateFilterOptions: { value: DateFilter; label: string }[] = [
+    { value: 'all', label: 'All Employees' },
+    { value: 'exact', label: 'Exact Date' },
+    { value: 'range', label: 'Date Range' },
+  ];
+
   const handleOpenDialog = (employee?: EmployeeWithCompany) => {
     if (employee) {
       setEditingEmployee(employee);
@@ -149,16 +240,12 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         whatsappNumber: employee.whatsappNumber || '',
         address1: employee.address1 || '',
         address2: employee.address2 || '',
-        city: employee.city || '',
+        city: employee.city || (employee.state === DEFAULT_STATE ? DEFAULT_CITY : ''),
         pincode: employee.pincode || '',
-        region: employee.region || '',
-        state: employee.state || '',
-        country: employee.country || 'India',
+        state: employee.state || DEFAULT_STATE,
         role: employee.role,
         designation: employee.designation || '',
         joiningDate: employee.joiningDate,
-        accessPermissions: employee.accessPermissions,
-        accessPermissionEnabled: employee.accessPermissionEnabled,
         isActive: employee.isActive,
       });
     } else {
@@ -173,19 +260,17 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         whatsappNumber: '',
         address1: '',
         address2: '',
-        city: '',
+        city: DEFAULT_CITY,
         pincode: '',
-        region: 'none',
-        state: '',
-        country: 'India',
-        role: 'staff',
+        state: DEFAULT_STATE,
+        role: 'tailor',
         designation: '',
         joiningDate: Date.now(),
-        accessPermissions: [],
-        accessPermissionEnabled: true,
         isActive: true,
       });
     }
+    setActiveTab('basic');
+    setPhoneError('');
     setShowDialog(true);
   };
 
@@ -207,7 +292,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
     // Reset errors
     setPhoneError('');
-    setWhatsappError('');
 
     // Validation
     if (!formData.name) {
@@ -232,13 +316,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
-    // Validate whatsapp number (exactly 10 digits if provided)
-    if (formData.whatsappNumber && !/^\d{10}$/.test(formData.whatsappNumber)) {
-      setWhatsappError('Enter correct number');
-      toast.error('WhatsApp Number: Enter correct number');
-      return;
-    }
-
     // Validate pincode (6 digits)
     if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
       toast.error('Pincode must be exactly 6 digits');
@@ -256,7 +333,55 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       return;
     }
 
+    // Address validation - mandatory fields
+    if (!formData.address1 || !formData.address1.trim()) {
+      toast.error('Address (Shop No / Flat No) is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.address2 || !formData.address2.trim()) {
+      toast.error('Street / Area / Landmark is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.state) {
+      toast.error('State is required');
+      setActiveTab('address');
+      return;
+    }
+
+    if (!formData.city) {
+      toast.error('City is required');
+      setActiveTab('address');
+      return;
+    }
+
     try {
+      // Check for duplicate contact number
+      const existingByContact = await findEmployeeByContactNumber(
+        formData.contactNumber,
+        user.id,
+        editingEmployee?.id
+      );
+      if (existingByContact) {
+        setPhoneError('This number already exists');
+        toast.error(`Contact number already exists for: ${existingByContact.name}`);
+        return;
+      }
+
+      // Check for duplicate email
+      const existingByEmail = await findEmployeeByEmail(
+        formData.email!,
+        user.id,
+        editingEmployee?.id
+      );
+      if (existingByEmail) {
+        toast.error(`Email address already exists for: ${existingByEmail.name}`);
+        return;
+      }
+
       if (editingEmployee) {
         // Update existing employee
         await updateEmployee(editingEmployee.id, formData);
@@ -270,26 +395,6 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         toast.success('Employee updated successfully!');
         handleCloseDialog();
       } else {
-        // Check for duplicate contact number
-        const existingEmployee = await findEmployeeByContactNumber(formData.contactNumber, user.id);
-
-        if (existingEmployee) {
-          setPhoneError('This number already exists');
-          toast.error('Phone Number: This number already exists');
-          return;
-        }
-
-        // Check for duplicate WhatsApp number (if provided)
-        if (formData.whatsappNumber) {
-          const existingWhatsAppEmployee = await findEmployeeByWhatsAppNumber(formData.whatsappNumber, user.id);
-
-          if (existingWhatsAppEmployee) {
-            setWhatsappError('This number already exists');
-            toast.error('WhatsApp Number: This number already exists');
-            return;
-          }
-        }
-
         // Add new employee
         const newEmployee = await addEmployee(user.id, companyId, user.id, formData as any, companyName);
         setEmployees([...employees, newEmployee]);
@@ -306,9 +411,10 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         }
         handleCloseDialog();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving employee:', error);
-      toast.error('Failed to save employee. Please try again.');
+      const errorMessage = error?.message || 'Unknown error occurred';
+      toast.error(`Failed to save employee: ${errorMessage}`);
     }
   };
 
@@ -355,15 +461,19 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     }
   };
 
-  const handleDelete = async (employeeId: string) => {
-    if (!window.confirm('Are you sure you want to delete this employee?')) {
-      return;
-    }
+  const handleDeleteClick = (employeeId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteEmployeeId(employeeId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteEmployeeId) return;
 
     try {
-      await deleteEmployee(employeeId);
-      setEmployees(employees.filter(emp => emp.id !== employeeId));
+      await deleteEmployee(deleteEmployeeId);
+      setEmployees(employees.filter(emp => emp.id !== deleteEmployeeId));
       toast.success('Employee deleted successfully!');
+      setDeleteEmployeeId(null);
     } catch (error) {
       console.error('Error deleting employee:', error);
       toast.error('Failed to delete employee');
@@ -408,6 +518,156 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
     toast.success('Password copied to clipboard!');
   };
 
+  // Filter buttons component
+  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
+    <div className="space-y-3">
+      {/* Filter Type Selection */}
+      <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
+        {dateFilterOptions.map((option) => (
+          <Button
+            key={option.value}
+            variant={dateFilter === option.value ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              handleFilterChange(option.value);
+              if (inModal && option.value === 'all') setShowFilterModal(false);
+            }}
+            className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Exact Date Picker */}
+      {dateFilter === 'exact' && (
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-foreground">Select Date</label>
+          <Input
+            type="date"
+            value={exactDate}
+            onChange={(e) => setExactDate(e.target.value)}
+            className={`h-10 text-sm ${inModal ? 'w-full' : ''}`}
+            placeholder="Select date"
+          />
+          {exactDate && (
+            <p className="text-xs text-muted-foreground">
+              Showing {filteredEmployees.length} employee(s) on {format(new Date(exactDate), 'MMM dd, yyyy')}
+            </p>
+          )}
+
+          {inModal && exactDate && (
+            <Button
+              onClick={() => setShowFilterModal(false)}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Apply Filter
+            </Button>
+          )}
+
+          {inModal && exactDate && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExactDate('');
+                handleFilterChange('all');
+              }}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Reset Filter
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Date Range Picker */}
+      {dateFilter === 'range' && (
+        <div className="space-y-3">
+          <label className="text-xs font-medium text-foreground">Date Range Filter</label>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground font-medium">From Date</label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-10 text-sm w-full"
+              placeholder="Select start date"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground font-medium">To Date</label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate}
+              className="h-10 text-sm w-full"
+              placeholder="Select end date"
+            />
+          </div>
+
+          {startDate && endDate && (
+            <p className="text-xs text-muted-foreground">
+              Showing {filteredEmployees.length} employee(s) from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
+            </p>
+          )}
+
+          {inModal && startDate && endDate && (
+            <Button
+              onClick={() => setShowFilterModal(false)}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Apply Filter
+            </Button>
+          )}
+
+          {inModal && (startDate || endDate) && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                handleFilterChange('all');
+              }}
+              className="w-full h-10 font-semibold text-sm"
+            >
+              Reset Filter
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // Pagination component
+  const Pagination = () => (
+    <div className="flex items-center justify-center gap-2 pt-3">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+        disabled={currentPage === 1}
+        className="h-8 px-3 text-xs font-semibold"
+      >
+        Previous
+      </Button>
+      <span className="text-xs text-muted-foreground font-medium">
+        Page {currentPage} of {totalPages}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+        disabled={currentPage === totalPages}
+        className="h-8 px-3 text-xs font-semibold"
+      >
+        Next
+      </Button>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
@@ -420,404 +680,569 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl">
-      <div className="mb-6 flex items-center justify-between">
-        <Button variant="ghost" onClick={onBack} className="gap-2">
+    <div className="space-y-3 sm:space-y-4">
+      {/* Header with Back Button */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack} className="h-9 w-9">
           <ArrowLeft size={20} />
-          Back
         </Button>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus size={20} />
-          Add Employee
-        </Button>
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold">Employee Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">{employees.length} employees</p>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Employee List</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {employees.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No employees added yet.</p>
-              <p className="text-sm mt-2">Click "Add Employee" to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {employees.map(employee => (
-                <Card key={employee.id} className={!employee.isActive ? 'opacity-60' : ''}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-lg">{employee.name}</h3>
-                          {!employee.isActive && (
-                            <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Employee ID:</span> {employee.id}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Company ID:</span> {employee.companyId}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Role:</span>{' '}
-                            {employee.role.charAt(0).toUpperCase() + employee.role.slice(1)}
-                          </div>
-                          {employee.designation && (
-                            <div>
-                              <span className="text-muted-foreground">Designation:</span> {employee.designation}
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-muted-foreground">Contact:</span> {employee.contactNumber}
-                          </div>
-                          {employee.email && (
-                            <div>
-                              <span className="text-muted-foreground">Email:</span> {employee.email}
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-muted-foreground">Joined:</span>{' '}
-                            {format(employee.joiningDate, 'dd MMM yyyy')}
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Password:</span>{' '}
-                            <code className="bg-gray-100 px-2 py-1 rounded text-xs">{employee.password}</code>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 ml-4 flex-wrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleResetPassword(employee.id)}
-                          title="Reset Password"
-                        >
-                          <Key size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleStatus(employee)}
-                          title={employee.isActive ? 'Deactivate' : 'Activate'}
-                        >
-                          <CheckSquare size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenDialog(employee)}
-                        >
-                          <PencilSimple size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(employee.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash size={16} />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-2 sm:gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="relative flex-1">
+            <MagnifyingGlass
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={20}
+            />
+            <Input
+              placeholder="Search employees by name, phone, email or role..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 h-10 touch-manipulation"
+            />
+          </div>
+          <Button onClick={() => handleOpenDialog()} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
+            <Plus size={18} className="mr-1.5" weight="bold" />
+            Add Employee
+          </Button>
+        </div>
+
+        {/* Mobile: Filter button that opens modal */}
+        <div className="sm:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilterModal(true)}
+            className="text-xs font-semibold touch-manipulation h-8 px-3 w-full justify-between"
+          >
+            <span className="flex items-center gap-1.5">
+              <Funnel size={14} weight="bold" />
+              Filter: {dateFilterOptions.find(o => o.value === dateFilter)?.label}
+            </span>
+            <Badge variant="secondary" className="text-[10px]">{filteredEmployees.length}</Badge>
+          </Button>
+        </div>
+
+        {/* Desktop: Inline filter buttons */}
+        <div className="hidden sm:block">
+          <FilterButtons />
+        </div>
+      </div>
+
+      {filteredEmployees.length === 0 ? (
+        <EmptyState
+          icon={UserCircle}
+          title={search ? 'No employees found' : 'No employees added yet'}
+          description={search ? 'Try adjusting your search terms' : 'Get started by adding your first employee'}
+          actionLabel={!search ? 'Add Employee' : undefined}
+          onAction={!search ? () => handleOpenDialog() : undefined}
+        />
+      ) : (
+        <div
+          className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+          style={{
+            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.5)'
+          }}
+        >
+          <h3 className="text-base font-semibold text-gray-800">
+            {search ? `Search Results (${sortedEmployees.length})` : `Employees (${sortedEmployees.length})`}
+          </h3>
+          {/* Rectangle cards: 1 col mobile, 2 cols tablet, 3 cols desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {paginatedEmployees.map((employee, index) => (
+              <div
+                key={employee.id}
+                className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1} ${!employee.isActive ? 'opacity-60' : ''}`}
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                  borderColor: '#6A64F2',
+                  boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
+                }}
+                onClick={() => handleOpenDialog(employee)}
+              >
+                {/* Left side: Avatar/Icon */}
+                <div className="flex-shrink-0 flex items-center">
+                  <div
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+                  >
+                    {getInitials(employee.name)}
+                  </div>
+                </div>
+
+                {/* Middle: Employee details */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">{employee.name}</p>
+                    {!employee.isActive && (
+                      <Badge variant="outline" className="text-[8px] px-1.5 py-0.5 font-semibold bg-red-100 text-red-700 border-red-200">
+                        INACTIVE
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[10px] sm:text-xs font-bold text-purple-700 mb-1">{employee.employeeCode || employee.id}</p>
+                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-600 flex-wrap">
+                    <span className="font-bold text-purple-700">{employee.contactNumber}</span>
+                    <span>•</span>
+                    <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold bg-purple-100 text-purple-700 border-purple-200 capitalize">
+                      {employee.role}
+                    </Badge>
+                  </div>
+                  {employee.joiningDate && (
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 mt-1">
+                      Joined: {format(new Date(employee.joiningDate), 'MMM dd, yyyy')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Right side: Actions */}
+                <div className="flex-shrink-0 flex flex-col items-end justify-between">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
+                        <DotsThree size={20} weight="bold" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleOpenDialog(employee); }} className="font-medium">
+                        <PencilSimple size={18} className="mr-2" weight="bold" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleResetPassword(employee.id); }} className="font-medium">
+                        <Key size={18} className="mr-2" weight="bold" />
+                        Reset Password
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleToggleStatus(employee); }} className="font-medium">
+                        <CheckSquare size={18} className="mr-2" weight="bold" />
+                        {employee.isActive ? 'Deactivate' : 'Activate'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => handleDeleteClick(employee.id, e)}
+                        className="text-destructive focus:text-destructive font-medium"
+                      >
+                        <Trash size={18} className="mr-2" weight="bold" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={`tel:${employee.contactNumber}`}
+                      className="text-primary hover:text-primary/80 transition-colors p-1.5 touch-manipulation rounded-full hover:bg-purple-100"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Call"
+                    >
+                      <Phone size={16} weight="fill" />
+                    </a>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendWhatsAppMessage(employee.whatsappNumber || employee.contactNumber, `Hello ${employee.name},`);
+                      }}
+                      className="text-green-600 hover:text-green-700 transition-colors p-1.5 touch-manipulation rounded-full hover:bg-green-100"
+                      title="WhatsApp"
+                    >
+                      <WhatsappLogo size={16} weight="fill" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {showPagination && <Pagination />}
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteEmployeeId !== null} onOpenChange={() => setDeleteEmployeeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this employee? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mobile Filter Modal */}
+      <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Filter by Date</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <FilterButtons inModal />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Employee Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
-            <DialogDescription>
-              {editingEmployee
-                ? 'Update employee information and permissions'
-                : 'Enter employee details and assign permissions (Password will be auto-generated)'}
-            </DialogDescription>
+        <DialogContent
+          className="max-w-[95vw] sm:max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <DialogTitle className="flex items-center gap-3 text-white">
+              <span>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</span>
+              {editingEmployee && (
+                <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
+                  {editingEmployee.employeeCode || editingEmployee.id}
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Employee Name */}
-              <div className="space-y-2">
-                <Label htmlFor="empName">Employee Name *</Label>
-                <Input
-                  id="empName"
-                  maxLength={40}
-                  value={formData.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  placeholder="Enter employee name"
-                />
-              </div>
-
-              {/* Alias Name */}
-              <div className="space-y-2">
-                <Label htmlFor="empAliasName">Alias Name</Label>
-                <Input
-                  id="empAliasName"
-                  maxLength={40}
-                  value={formData.aliasName}
-                  onChange={(e) => handleChange('aliasName', e.target.value)}
-                  placeholder="Enter alias name"
-                />
-              </div>
-
-              {/* Gender */}
-              <div className="space-y-2">
-                <Label htmlFor="empGender">Gender *</Label>
-                <Select
-                  value={formData.gender || undefined}
-                  onValueChange={(value: EmployeeGender) => handleChange('gender', value)}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+            <div className="px-4 pt-3 pb-2 border-b bg-muted/30 flex-shrink-0">
+              <TabsList className="grid grid-cols-2 w-full h-11 p-1 bg-muted rounded-lg">
+                <TabsTrigger
+                  value="basic"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <SelectTrigger id="empGender">
-                    <SelectValue placeholder="Gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Contact Number */}
-              <div className="space-y-2">
-                <Label htmlFor="empContact">Contact Number (Login ID) *</Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
-                    +91
-                  </div>
-                  <Input
-                    id="empContact"
-                    maxLength={10}
-                    value={formData.contactNumber}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      handleChange('contactNumber', value);
-                      if (phoneError) setPhoneError('');
-                    }}
-                    placeholder="Enter a Number"
-                    className={`pl-12 ${phoneError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                  />
-                </div>
-                {phoneError && (
-                  <p className="text-xs text-red-500 font-medium">{phoneError}</p>
-                )}
-                {formData.contactNumber && !phoneError && formData.contactNumber.length === 10 && (
-                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
-                )}
-              </div>
-
-              {/* WhatsApp Number */}
-              <div className="space-y-2">
-                <Label htmlFor="empWhatsapp">WhatsApp Number</Label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground pointer-events-none">
-                    +91
-                  </div>
-                  <Input
-                    id="empWhatsapp"
-                    maxLength={10}
-                    value={formData.whatsappNumber}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      handleChange('whatsappNumber', value);
-                      if (whatsappError) setWhatsappError('');
-                    }}
-                    placeholder="Enter a Number"
-                    className={`pl-12 ${whatsappError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                  />
-                </div>
-                {whatsappError && (
-                  <p className="text-xs text-red-500 font-medium">{whatsappError}</p>
-                )}
-                {formData.whatsappNumber && !whatsappError && formData.whatsappNumber.length === 10 && (
-                  <p className="text-xs text-green-600 font-medium">✓ Valid number</p>
-                )}
-              </div>
-
-              {/* Email */}
-              <div className="space-y-2">
-                <Label htmlFor="empEmail">Email *</Label>
-                <Input
-                  id="empEmail"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  placeholder="employee@example.com"
-                  required
-                />
-              </div>
-
-              {/* Address 1 */}
-              <div className="space-y-2">
-                <Label htmlFor="empAddress1">Address Line 1</Label>
-                <Input
-                  id="empAddress1"
-                  maxLength={40}
-                  value={formData.address1}
-                  onChange={(e) => handleChange('address1', e.target.value)}
-                  placeholder="Enter address"
-                />
-              </div>
-
-              {/* Address 2 */}
-              <div className="space-y-2">
-                <Label htmlFor="empAddress2">Address Line 2</Label>
-                <Input
-                  id="empAddress2"
-                  maxLength={40}
-                  value={formData.address2}
-                  onChange={(e) => handleChange('address2', e.target.value)}
-                  placeholder="Enter address"
-                />
-              </div>
-
-              {/* State */}
-              <div className="space-y-2">
-                <Label htmlFor="empState">State</Label>
-                <Select
-                  value={formData.state}
-                  onValueChange={(value) => {
-                    handleChange('state', value);
-                    handleChange('city', ''); // Clear city when state changes
-                  }}
+                  <User size={20} weight="bold" />
+                  <span>Basic</span>
+                  {formData.name && formData.gender && formData.contactNumber.length === 10 && formData.role && (
+                    <Check size={16} className="text-green-600" weight="bold" />
+                  )}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="address"
+                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <SelectTrigger id="empState">
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDIAN_STATES.map((state) => (
-                      <SelectItem key={state} value={state}>{state}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* City */}
-              <div className="space-y-2">
-                <Label htmlFor="empCity">City</Label>
-                <Select
-                  value={formData.city}
-                  onValueChange={(value) => handleChange('city', value)}
-                  disabled={!formData.state}
-                >
-                  <SelectTrigger id="empCity">
-                    <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(STATE_CITIES[formData.state] || []).map((city) => (
-                      <SelectItem key={city} value={city}>{city}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Pincode */}
-              <div className="space-y-2">
-                <Label htmlFor="empPincode">Pincode</Label>
-                <Input
-                  id="empPincode"
-                  maxLength={6}
-                  value={formData.pincode}
-                  onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
-                  placeholder="6 digits"
-                />
-              </div>
-
-              {/* Region */}
-              <div className="space-y-2">
-                <Label htmlFor="empRegion">Region</Label>
-                <Input
-                  id="empRegion"
-                  value={formData.region}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              {/* Country */}
-              <div className="space-y-2">
-                <Label htmlFor="empCountry">Country</Label>
-                <Input
-                  id="empCountry"
-                  value={formData.country}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              {/* Role */}
-              <div className="space-y-2">
-                <Label htmlFor="empRole">Role *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => handleChange('role', value)}
-                >
-                  <SelectTrigger id="empRole">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="tailor">Tailor</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Designation */}
-              <div className="space-y-2">
-                <Label htmlFor="empDesignation">Designation</Label>
-                <Input
-                  id="empDesignation"
-                  value={formData.designation}
-                  onChange={(e) => handleChange('designation', e.target.value)}
-                  placeholder="Enter designation"
-                />
-              </div>
-
-              {/* Joining Date */}
-              <div className="space-y-2">
-                <Label htmlFor="empJoiningDate">Joining Date *</Label>
-                <Input
-                  id="empJoiningDate"
-                  type="date"
-                  value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
-                  onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
-                />
-              </div>
+                  <MapPin size={20} weight="bold" />
+                  <span>Address</span>
+                  {formData.address1 && formData.address2 && formData.state && formData.city && (
+                    <Check size={16} className="text-green-600" weight="bold" />
+                  )}
+                </TabsTrigger>
+              </TabsList>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={formData.isActive ?? true}
-                onChange={(e) => handleChange('isActive', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300"
-              />
-              <Label htmlFor="isActive" className="cursor-pointer">Active</Label>
-            </div>
-          </div>
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 min-h-0">
+              {/* Basic Details Tab */}
+              <TabsContent value="basic" className="mt-0 space-y-6 h-full">
+                <div className="space-y-6">
+                  {/* Employee Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="empName" className="text-sm font-medium">Employee Name *</Label>
+                    <Input
+                      id="empName"
+                      maxLength={40}
+                      value={formData.name}
+                      onChange={(e) => handleChange('name', e.target.value)}
+                      placeholder="Enter employee name"
+                      className="h-12 text-base"
+                      autoFocus
+                    />
+                  </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
+                  {/* Gender Selection */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Gender *</Label>
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        onClick={() => handleChange('gender', 'male')}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          formData.gender === 'male'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                            : 'border-muted hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/10'
+                        )}
+                      >
+                        {formData.gender === 'male' && (
+                          <Check size={16} weight="bold" className="text-blue-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={formData.gender === 'male' ? 'fill' : 'regular'}
+                          className={formData.gender === 'male' ? 'text-blue-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          formData.gender === 'male' ? 'text-blue-600' : 'text-muted-foreground'
+                        )}>
+                          Male
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleChange('gender', 'female')}
+                        className={cn(
+                          'relative flex-1 flex items-center gap-3 p-4 rounded-xl border-2 transition-all',
+                          formData.gender === 'female'
+                            ? 'border-pink-500 bg-pink-50 dark:bg-pink-950/30'
+                            : 'border-muted hover:border-pink-300 hover:bg-pink-50/50 dark:hover:bg-pink-950/10'
+                        )}
+                      >
+                        {formData.gender === 'female' && (
+                          <Check size={16} weight="bold" className="text-pink-600 absolute top-2 right-2" />
+                        )}
+                        <UserCircle
+                          size={44}
+                          weight={formData.gender === 'female' ? 'fill' : 'regular'}
+                          className={formData.gender === 'female' ? 'text-pink-500' : 'text-muted-foreground'}
+                        />
+                        <span className={cn(
+                          'font-semibold',
+                          formData.gender === 'female' ? 'text-pink-600' : 'text-muted-foreground'
+                        )}>
+                          Female
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Contact Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="empContact" className="text-sm font-medium">Contact Number (Login ID) *</Label>
+                        <div className="relative">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                            +91
+                          </div>
+                          <Input
+                            id="empContact"
+                            maxLength={10}
+                            value={formData.contactNumber}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '');
+                              handleChange('contactNumber', value);
+                              if (phoneError) setPhoneError('');
+                            }}
+                            placeholder="10-digit number"
+                            className={cn('pl-12 h-11 bg-background', phoneError && 'border-red-500')}
+                          />
+                        </div>
+                        {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                        {formData.contactNumber.length === 10 && !phoneError && (
+                          <p className="text-xs text-green-600 mt-1">Valid number</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="empEmail" className="text-sm font-medium">Email *</Label>
+                        <Input
+                          id="empEmail"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => handleChange('email', e.target.value)}
+                          placeholder="employee@example.com"
+                          className="h-11 bg-background"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Work Information */}
+                  <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+                    <h3 className="text-sm font-semibold text-muted-foreground">Work Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Role */}
+                      <div className="space-y-2">
+                        <Label htmlFor="empRole" className="text-sm font-medium">Role *</Label>
+                        <Select
+                          value={formData.role}
+                          onValueChange={(value) => handleChange('role', value)}
+                        >
+                          <SelectTrigger id="empRole" className="h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="accountant">Accountant</SelectItem>
+                            <SelectItem value="staff">Staff</SelectItem>
+                            <SelectItem value="tailor">Tailor</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Joining Date beside Role */}
+                      <div className="space-y-2">
+                      <Label htmlFor="empJoiningDate" className="text-sm font-medium">Joining Date *</Label>
+                      <Input
+                        id="empJoiningDate"
+                        type="date"
+                        value={format(formData.joiningDate || Date.now(), 'yyyy-MM-dd')}
+                        onChange={(e) => handleChange('joiningDate', new Date(e.target.value).getTime())}
+                        className="h-11 w-36"
+                      />
+                    </div>
+
+                      {/* Designation on new row */}
+                      <div className="space-y-2 col-span-1 sm:col-span-3">
+                        <Label htmlFor="empDesignation" className="text-sm font-medium">Designation</Label>
+                        <Input
+                          id="empDesignation"
+                          value={formData.designation}
+                          onChange={(e) => handleChange('designation', e.target.value)}
+                          placeholder="Enter designation"
+                          className="h-11"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Active Status */}
+                    <div className="space-y-2 flex items-end">
+                      <div className="flex items-center gap-3 h-11">
+                        <input
+                          type="checkbox"
+                          id="isActive"
+                          checked={formData.isActive ?? true}
+                          onChange={(e) => handleChange('isActive', e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-300"
+                        />
+                        <Label htmlFor="isActive" className="cursor-pointer font-medium">Active Employee</Label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Address Tab */}
+              <TabsContent value="address" className="mt-0 h-full">
+                <div className="space-y-5">
+                  {/* Shop/Flat Number */}
+                  <div className="space-y-2">
+                    <Label htmlFor="empAddress1" className="text-sm font-medium">
+                      Shop No / Flat No *
+                    </Label>
+                    <Input
+                      id="empAddress1"
+                      maxLength={40}
+                      value={formData.address1}
+                      onChange={(e) => handleChange('address1', e.target.value)}
+                      placeholder="e.g., Shop 12, Flat 4B, Door No. 25"
+                      className="h-11"
+                    />
+                  </div>
+
+                  {/* Street / Area / Landmark + Pincode */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="empAddress2" className="text-sm font-medium">
+                        Street / Area / Landmark *
+                      </Label>
+                      <Input
+                        id="empAddress2"
+                        maxLength={40}
+                        value={formData.address2}
+                        onChange={(e) => handleChange('address2', e.target.value)}
+                        placeholder="e.g., Main Road, Near Bus Stand"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="empPincode" className="text-sm font-medium">Pincode</Label>
+                      <Input
+                        id="empPincode"
+                        maxLength={6}
+                        value={formData.pincode}
+                        onChange={(e) => handleChange('pincode', e.target.value.replace(/\D/g, ''))}
+                        placeholder="e.g., 600001"
+                        className="h-11"
+                      />
+                    </div>
+                  </div>
+
+                  {/* State and City in same row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="empState" className="text-sm font-medium">State *</Label>
+                      <Select
+                        value={formData.state}
+                        onValueChange={(value) => {
+                          handleChange('state', value);
+                          handleChange('city', '');
+                        }}
+                      >
+                        <SelectTrigger id="empState" className="h-11">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INDIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="empCity" className="text-sm font-medium">City *</Label>
+                      <Select
+                        value={formData.city}
+                        onValueChange={(value) => handleChange('city', value)}
+                        disabled={!formData.state}
+                      >
+                        <SelectTrigger id="empCity" className="h-11">
+                          <SelectValue placeholder={formData.state ? "Select city" : "Select state first"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(STATE_CITIES[formData.state] || []).map((city) => (
+                            <SelectItem key={city} value={city}>{city}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+
+          {/* Footer with action buttons */}
+          <div className="flex justify-between items-center gap-3 px-4 sm:px-6 py-4 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" onClick={handleCloseDialog} className="text-white hover:text-white/80 hover:bg-white/10">
               Cancel
             </Button>
-            <Button onClick={handleSave}>
-              {editingEmployee ? 'Update' : 'Add'} Employee
-            </Button>
-          </DialogFooter>
+            <div className="flex items-center gap-2">
+              {activeTab === 'address' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setActiveTab('basic')}
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
+                >
+                  Back
+                </Button>
+              )}
+              {activeTab === 'basic' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setActiveTab('address')}
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
+                >
+                  Next
+                </Button>
+              )}
+              <Button onClick={handleSave} className="min-w-[120px] bg-white text-purple-700 hover:bg-white/90">
+                {editingEmployee ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

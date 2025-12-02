@@ -8,10 +8,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { List, User, Users, SignOut, Storefront, Scissors, CurrencyInr, Truck, Package } from '@phosphor-icons/react';
+import { List, User, Users, UsersThree, SignOut, Storefront, Scissors, CurrencyInr, Truck, Package } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface AdminMenuProps {
+  onDashboardClick?: () => void;
+  onCustomersClick?: () => void;
   onProfileClick: () => void;
   onEmployeeClick: () => void;
   onVendorClick: () => void;
@@ -22,6 +24,8 @@ interface AdminMenuProps {
 }
 
 export function AdminMenu({
+  onDashboardClick,
+  onCustomersClick,
   onProfileClick,
   onEmployeeClick,
   onVendorClick,
@@ -42,12 +46,24 @@ export function AdminMenu({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="gap-2" style={{ backgroundColor: 'white' }}>
           <List size={20} weight="bold" />
           <span className="hidden sm:inline">Menu</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-48 bg-purple-50 border border-purple-200 shadow-lg">
+        {onDashboardClick && (
+          <DropdownMenuItem onClick={() => { onDashboardClick(); setOpen(false); }} className="cursor-pointer">
+            <Package size={18} className="mr-2" />
+            Dashboard
+          </DropdownMenuItem>
+        )}
+        {onCustomersClick && (
+          <DropdownMenuItem onClick={() => { onCustomersClick(); setOpen(false); }} className="cursor-pointer">
+            <UsersThree size={18} className="mr-2" />
+            Customers
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => { onProfileClick(); setOpen(false); }} className="cursor-pointer">
           <User size={18} className="mr-2" />
           Profile

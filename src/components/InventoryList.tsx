@@ -67,83 +67,94 @@ export function InventoryList({ items, onAddItem, onStockUpdate }: InventoryList
       </div>
 
       {filteredItems.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Package size={64} className="text-muted-foreground mb-4" weight="duotone" />
-            <p className="text-base font-medium text-muted-foreground mb-2">{t('noItems')}</p>
-            <InventoryForm onAddItem={onAddItem} />
-          </CardContent>
-        </Card>
+        <div
+          className="rounded-xl border shadow-md p-8 flex flex-col items-center justify-center"
+          style={{
+            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.5)'
+          }}
+        >
+          <Package size={64} className="text-purple-400 mb-4" weight="duotone" />
+          <p className="text-base font-medium text-gray-600 mb-2">{t('noItems')}</p>
+          <InventoryForm onAddItem={onAddItem} />
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredItems.map((item) => {
             const status = getStockStatus(item);
             const isLowStock = item.quantity <= item.minQuantity;
-            
+
             return (
-              <Card key={item.id} className={isLowStock && item.quantity > 0 ? 'border-amber-500/50' : ''}>
-                <CardHeader className="pb-3">
+              <div
+                key={item.id}
+                className={`rounded-xl border shadow-md transition-all hover:shadow-lg ${isLowStock && item.quantity > 0 ? 'border-amber-400' : ''}`}
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                  borderColor: isLowStock && item.quantity > 0 ? undefined : 'rgba(167, 139, 250, 0.3)'
+                }}
+              >
+                <div className="p-4 pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-2">
                         <span className="truncate">{item.name}</span>
                         {isLowStock && item.quantity > 0 && (
                           <WarningCircle className="text-amber-500 flex-shrink-0 size-4 sm:size-5" weight="fill" />
                         )}
-                      </CardTitle>
+                      </h3>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge variant="secondary" className="text-[10px] sm:text-xs">{t(item.category)}</Badge>
+                        <Badge variant="secondary" className="text-[10px] sm:text-xs bg-purple-100 text-purple-700">{t(item.category)}</Badge>
                         <Badge variant={status.variant} className="text-[10px] sm:text-xs">{status.label}</Badge>
                       </div>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
+                </div>
+                <div className="px-4 pb-4 space-y-3">
                   <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
                     <div className="min-w-0">
-                      <p className="text-muted-foreground line-clamp-1">{t('quantity')}</p>
-                      <p className="font-semibold line-clamp-1">{item.quantity} {t(item.unit)}</p>
+                      <p className="text-gray-500 line-clamp-1">{t('quantity')}</p>
+                      <p className="font-semibold text-gray-900 line-clamp-1">{item.quantity} {t(item.unit)}</p>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-muted-foreground line-clamp-1">{t('minQuantity')}</p>
-                      <p className="font-semibold line-clamp-1">{item.minQuantity} {t(item.unit)}</p>
+                      <p className="text-gray-500 line-clamp-1">{t('minQuantity')}</p>
+                      <p className="font-semibold text-gray-900 line-clamp-1">{item.minQuantity} {t(item.unit)}</p>
                     </div>
                     {item.price && item.price > 0 && (
                       <>
                         <div className="min-w-0">
-                          <p className="text-muted-foreground line-clamp-1">{t('price')}</p>
-                          <p className="font-semibold">₹{item.price}</p>
+                          <p className="text-gray-500 line-clamp-1">{t('price')}</p>
+                          <p className="font-semibold text-purple-700">₹{item.price}</p>
                         </div>
                         <div className="min-w-0">
-                          <p className="text-muted-foreground line-clamp-1">{t('totalValue')}</p>
-                          <p className="font-semibold">₹{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</p>
+                          <p className="text-gray-500 line-clamp-1">{t('totalValue')}</p>
+                          <p className="font-semibold text-purple-700">₹{((item.price || 0) * (item.quantity || 0)).toFixed(2)}</p>
                         </div>
                       </>
                     )}
                     {item.color && (
                       <div className="min-w-0">
-                        <p className="text-muted-foreground line-clamp-1">{t('color')}</p>
-                        <p className="font-semibold truncate">{item.color}</p>
+                        <p className="text-gray-500 line-clamp-1">{t('color')}</p>
+                        <p className="font-semibold text-gray-900 truncate">{item.color}</p>
                       </div>
                     )}
                     {item.supplier && (
                       <div className="min-w-0">
-                        <p className="text-muted-foreground line-clamp-1">{t('supplier')}</p>
-                        <p className="font-semibold truncate">{item.supplier}</p>
+                        <p className="text-gray-500 line-clamp-1">{t('supplier')}</p>
+                        <p className="font-semibold text-gray-900 truncate">{item.supplier}</p>
                       </div>
                     )}
                     {item.lastRestocked && (
                       <div className="col-span-2 min-w-0">
-                        <p className="text-muted-foreground line-clamp-1">{t('lastRestocked')}</p>
-                        <p className="font-semibold">{format(item.lastRestocked, 'PPP')}</p>
+                        <p className="text-gray-500 line-clamp-1">{t('lastRestocked')}</p>
+                        <p className="font-semibold text-gray-900">{format(item.lastRestocked, 'PPP')}</p>
                       </div>
                     )}
                   </div>
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end pt-2 border-t border-purple-100">
                     <StockUpdateDialog item={item} onStockUpdate={onStockUpdate} />
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>

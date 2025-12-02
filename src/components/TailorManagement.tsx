@@ -358,39 +358,51 @@ export function TailorManagement() {
 
       <div className="grid gap-4">
         {(tailors || []).length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <UserCircle size={64} className="text-muted-foreground mb-4" />
-              <p className="text-lg font-medium">No tailors yet</p>
-              <p className="text-sm text-muted-foreground">Add your first tailor to get started</p>
-            </CardContent>
-          </Card>
+          <div
+            className="rounded-xl border shadow-md p-8 flex flex-col items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)'
+            }}
+          >
+            <UserCircle size={64} className="text-purple-400 mb-4" />
+            <p className="text-lg font-medium text-gray-900">No tailors yet</p>
+            <p className="text-sm text-gray-500">Add your first tailor to get started</p>
+          </div>
         ) : (
           (tailors || []).map((tailor) => (
-            <Card key={tailor.id}>
-              <CardHeader>
+            <div
+              key={tailor.id}
+              className="rounded-xl border shadow-md transition-all hover:shadow-lg"
+              style={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                borderColor: 'rgba(167, 139, 250, 0.3)'
+              }}
+            >
+              <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      <CardTitle>{tailor.name}</CardTitle>
-                      <Badge variant={tailor.isActive ? 'default' : 'secondary'}>
+                      <h3 className="text-lg font-semibold text-gray-900">{tailor.name}</h3>
+                      <Badge variant={tailor.isActive ? 'default' : 'secondary'} className={tailor.isActive ? 'bg-emerald-600' : ''}>
                         {tailor.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                       {!tailor.hasSetupPassword && (
-                        <Badge variant="outline" className="text-amber-600 border-amber-600">
+                        <Badge variant="outline" className="text-amber-600 border-amber-400 bg-amber-50">
                           Password Not Setup
                         </Badge>
                       )}
                     </div>
-                    <CardDescription className="mt-1">
+                    <p className="text-sm text-gray-500 mt-1">
                       {tailor.phone}
-                    </CardDescription>
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => handleSendAppLink(tailor.phone, tailor.name)}
+                      className="border-purple-200 hover:bg-purple-50"
                     >
                       <WhatsappLogo size={20} weight="fill" className="text-green-600" />
                     </Button>
@@ -398,20 +410,22 @@ export function TailorManagement() {
                       variant="outline"
                       size="icon"
                       onClick={() => handleEdit(tailor)}
+                      className="border-purple-200 hover:bg-purple-50"
                     >
-                      <PencilSimple size={20} />
+                      <PencilSimple size={20} className="text-purple-700" />
                     </Button>
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => handleDelete(tailor.id)}
+                      className="border-purple-200 hover:bg-red-50"
                     >
                       <Trash size={20} className="text-destructive" />
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <div className="px-4 sm:px-6 pb-4 sm:pb-6">
                 <div className="space-y-3">
                   {/* Specialization */}
                   <div className="flex items-center gap-2">
@@ -501,12 +515,12 @@ export function TailorManagement() {
                     })()}
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
+                <div className="mt-4 pt-4 border-t border-purple-100 flex items-center justify-between">
+                  <div className="text-sm text-gray-500">
                     Created: {new Date(tailor.createdAt).toLocaleDateString()}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Label htmlFor={`toggle-${tailor.id}`} className="text-sm">
+                    <Label htmlFor={`toggle-${tailor.id}`} className="text-sm text-gray-700">
                       {tailor.isActive ? 'Deactivate' : 'Activate'}
                     </Label>
                     <Switch
@@ -516,8 +530,8 @@ export function TailorManagement() {
                     />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))
         )}
       </div>

@@ -20,8 +20,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Customer, Gender, Measurements } from '@/lib/types';
 import { toast } from 'sonner';
-import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle } from '@phosphor-icons/react';
-import { generateCustomerId } from '@/lib/firestore/customerService';
+import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle, ArrowLeft } from '@phosphor-icons/react';
+import { generateCustomerId, findCustomerByPhone, findCustomerByEmail } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -68,6 +68,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 // Measurement field definitions
 const MEASUREMENT_FIELDS = {
@@ -154,8 +156,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   // Address details
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
-  const [state, setState] = useState('');
-  const [place, setPlace] = useState('');
+  const [state, setState] = useState(DEFAULT_STATE);
+  const [place, setPlace] = useState(DEFAULT_CITY);
   const [pincode, setPincode] = useState('');
 
   // Measurements
@@ -217,6 +219,29 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     }
   };
 
+  // Check if email exists
+  const checkEmailExists = async (emailToCheck: string, currentCustomerId?: string): Promise<{ exists: boolean; customerName?: string }> => {
+    try {
+      const customersRef = collection(db, 'newcustomers');
+      const q = query(customersRef, where('email', '==', emailToCheck));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        return { exists: false };
+      }
+      if (currentCustomerId) {
+        const otherCustomer = snapshot.docs.find(doc => doc.id !== currentCustomerId);
+        if (otherCustomer) {
+          return { exists: true, customerName: otherCustomer.data().name };
+        }
+        return { exists: false };
+      }
+      return { exists: true, customerName: snapshot.docs[0].data().name };
+    } catch (error) {
+      console.error('[CustomerForm] Error checking email:', error);
+      return { exists: false };
+    }
+  };
+
   // Load customer data when editing
   useEffect(() => {
     if (customer) {
@@ -226,8 +251,9 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       setGender(customer.gender);
       setAddress1(customer.address1 || '');
       setAddress2(customer.address2 || '');
-      setState(customer.state || '');
-      setPlace(customer.place);
+      const resolvedState = customer.state || DEFAULT_STATE;
+      setState(resolvedState);
+      setPlace(customer.place || (resolvedState === DEFAULT_STATE ? DEFAULT_CITY : ''));
       setPincode(customer.pincode || '');
       setMeasurements(customer.measurements || {});
       setPhoneError('');
@@ -245,8 +271,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     setPhoneError('');
     setAddress1('');
     setAddress2('');
-    setState('');
-    setPlace('');
+    setState(DEFAULT_STATE);
+    setPlace(DEFAULT_CITY);
     setPincode('');
     setMeasurements({});
     setActiveCategory('shirt');
@@ -292,6 +318,16 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       toast.error('This phone number is already registered');
       setActiveTab('basic');
       return;
+    }
+
+    // Check email uniqueness (only if email is provided)
+    if (email.trim()) {
+      const emailCheck = await checkEmailExists(email.trim(), customer?.id);
+      if (emailCheck.exists) {
+        toast.error(`Email already exists for customer: ${emailCheck.customerName || 'Unknown'}`);
+        setActiveTab('basic');
+        return;
+      }
     }
 
     // Validate pincode if provided
@@ -357,14 +393,24 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+        className="max-w-2xl h-[100vh] sm:h-[95vh] flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg"
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <DialogTitle className="flex items-center gap-3">
-            <span>{customer ? t('editCustomer') : t('createCustomer')}</span>
-            <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-1 rounded">
+        <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+          <DialogTitle className="flex items-center justify-between text-white text-base w-full">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Back/Close Button */}
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
+              >
+                <ArrowLeft size={18} weight="bold" />
+              </button>
+              <span className="truncate">{customer ? t('editCustomer') : t('createCustomer')}</span>
+            </div>
+            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded flex-shrink-0 ml-2">
               {customer?.id || nextCustomerId || 'Loading...'}
             </span>
           </DialogTitle>
@@ -372,40 +418,40 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-            <div className="px-4 pt-3 pb-2 border-b bg-muted/30 flex-shrink-0">
-              <TabsList className="grid grid-cols-3 w-full h-11 p-1 bg-muted rounded-lg">
+            <div className="px-3 py-2 border-b bg-muted/30 flex-shrink-0">
+              <TabsList className="grid grid-cols-3 w-full h-9 p-0.5 bg-muted rounded-lg">
                 <TabsTrigger
                   value="basic"
-                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <User size={20} weight="bold" />
+                  <User size={16} weight="bold" />
                   <span>Basic</span>
-                  {isBasicComplete && <Check size={16} className="text-green-600" weight="bold" />}
+                  {isBasicComplete && <Check size={14} className="text-green-600" weight="bold" />}
                 </TabsTrigger>
                 <TabsTrigger
                   value="measurements"
-                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <Ruler size={20} weight="bold" />
+                  <Ruler size={16} weight="bold" />
                   <span>Measure</span>
                   {hasMeasurements && (
-                    <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-bold min-w-[18px]">
+                    <span className="text-[9px] bg-primary text-primary-foreground px-1 py-0.5 rounded-full font-bold min-w-[16px]">
                       {getTotalMeasurements()}
                     </span>
                   )}
                 </TabsTrigger>
                 <TabsTrigger
                   value="address"
-                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <MapPin size={20} weight="bold" />
+                  <MapPin size={16} weight="bold" />
                   <span>Address</span>
-                  {hasAddress && <Check size={16} className="text-green-600" weight="bold" />}
+                  {hasAddress && <Check size={14} className="text-green-600" weight="bold" />}
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[400px]">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 min-h-0">
               {/* Basic Details Tab */}
               <TabsContent value="basic" className="mt-0 space-y-6 h-full">
                 <div className="space-y-6">
@@ -624,8 +670,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
                   {/* Measurement summary */}
                   {getTotalMeasurements() > 0 && (
-                    <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-xl border border-green-200 dark:border-green-800">
-                      <p className="text-xs font-semibold text-green-800 dark:text-green-200 mb-3">
+                    <div className="p-4 rounded-xl border" style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)', borderColor: 'rgba(167, 139, 250, 0.4)' }}>
+                      <p className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-3">
                         Measurements Added ({getTotalMeasurements()} total)
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -635,7 +681,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                           return (
                             <span
                               key={category}
-                              className="px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg text-xs font-semibold"
+                              className="px-3 py-1.5 bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-semibold"
                             >
                               {MEASUREMENT_FIELDS[category].label}: {count}
                             </span>
@@ -665,19 +711,32 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                     />
                   </div>
 
-                  {/* Street / Area / Landmark */}
-                  <div className="space-y-2">
-                    <Label htmlFor="address2" className="text-sm font-medium">
-                      Street / Area / Landmark
-                    </Label>
-                    <Input
-                      id="address2"
-                      value={address2}
-                      onChange={(e) => setAddress2(e.target.value)}
-                      maxLength={40}
-                      placeholder="e.g., Main Road, Near Bus Stand"
-                      className="h-11"
-                    />
+                  {/* Street / Area / Landmark + Pincode */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="address2" className="text-sm font-medium">
+                        Street / Area / Landmark
+                      </Label>
+                      <Input
+                        id="address2"
+                        value={address2}
+                        onChange={(e) => setAddress2(e.target.value)}
+                        maxLength={40}
+                        placeholder="e.g., Main Road, Near Bus Stand"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pincode" className="text-sm font-medium">Pincode</Label>
+                      <Input
+                        id="pincode"
+                        value={pincode}
+                        onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+                        maxLength={6}
+                        placeholder="e.g., 600001"
+                        className="h-11"
+                      />
+                    </div>
                   </div>
 
                   {/* State and City in same row */}
@@ -714,18 +773,6 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                     </div>
                   </div>
 
-                  {/* Pincode */}
-                  <div className="space-y-2 max-w-[200px]">
-                    <Label htmlFor="pincode" className="text-sm font-medium">Pincode</Label>
-                    <Input
-                      id="pincode"
-                      value={pincode}
-                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                      maxLength={6}
-                      placeholder="e.g., 600001"
-                      className="h-11"
-                    />
-                  </div>
                 </div>
 
               </TabsContent>
@@ -733,16 +780,18 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
           </Tabs>
 
           {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t bg-muted/30">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-between items-center gap-3 px-4 py-2 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               {t('cancel')}
             </Button>
             <div className="flex items-center gap-2">
               {activeTab !== 'basic' && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setActiveTab(activeTab === 'address' ? 'measurements' : 'basic')}
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Back
                 </Button>
@@ -750,13 +799,15 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               {activeTab !== 'address' && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setActiveTab(activeTab === 'basic' ? 'measurements' : 'address')}
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Next
                 </Button>
               )}
-              <Button type="submit" className="min-w-[120px]">
+              <Button type="submit" size="sm" className="min-w-[100px] bg-white text-purple-700 hover:bg-white/90">
                 {customer ? t('save') : 'Create'}
               </Button>
             </div>

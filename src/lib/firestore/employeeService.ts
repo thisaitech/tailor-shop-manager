@@ -58,11 +58,13 @@ export interface EmployeeWithCompany extends Employee {
  * Check if employee with contact number already exists
  * @param contactNumber - Contact number to check
  * @param companyDocId - Company document ID
+ * @param excludeEmployeeId - Optional employee ID to exclude (for updates)
  * @returns Employee if exists, null otherwise
  */
 export async function findEmployeeByContactNumber(
   contactNumber: string,
-  companyDocId: string
+  companyDocId: string,
+  excludeEmployeeId?: string
 ): Promise<EmployeeWithCompany | null> {
   try {
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
@@ -77,9 +79,53 @@ export async function findEmployeeByContactNumber(
       return null;
     }
 
-    return snapshot.docs[0].data() as EmployeeWithCompany;
+    // If excluding an employee ID, check if the found employee is different
+    const employee = snapshot.docs[0].data() as EmployeeWithCompany;
+    if (excludeEmployeeId && employee.id === excludeEmployeeId) {
+      return null;
+    }
+
+    return employee;
   } catch (error) {
     console.error('Error finding employee by contact number:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if employee with email already exists
+ * @param email - Email to check
+ * @param companyDocId - Company document ID
+ * @param excludeEmployeeId - Optional employee ID to exclude (for updates)
+ * @returns Employee if exists, null otherwise
+ */
+export async function findEmployeeByEmail(
+  email: string,
+  companyDocId: string,
+  excludeEmployeeId?: string
+): Promise<EmployeeWithCompany | null> {
+  try {
+    const employeesRef = collection(db, EMPLOYEES_COLLECTION);
+    const q = query(
+      employeesRef,
+      where('email', '==', email),
+      where('companyDocId', '==', companyDocId)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // If excluding an employee ID, check if the found employee is different
+    const employee = snapshot.docs[0].data() as EmployeeWithCompany;
+    if (excludeEmployeeId && employee.id === excludeEmployeeId) {
+      return null;
+    }
+
+    return employee;
+  } catch (error) {
+    console.error('Error finding employee by email:', error);
     return null;
   }
 }
@@ -139,25 +185,25 @@ export async function addEmployee(
       id: employeeId,
       employeeCode: employeeId,
       name: employeeData.name,
-      aliasName: employeeData.aliasName,
+      aliasName: employeeData.aliasName || '',
       gender: employeeData.gender,
-      profilePicture: employeeData.profilePicture,
+      profilePicture: employeeData.profilePicture || '',
       email: employeeData.email,
       contactNumber: employeeData.contactNumber,
-      whatsappNumber: employeeData.whatsappNumber,
-      address1: employeeData.address1,
-      address2: employeeData.address2,
-      city: employeeData.city,
-      pincode: employeeData.pincode,
-      region: employeeData.region,
-      state: employeeData.state,
-      country: employeeData.country,
+      whatsappNumber: employeeData.whatsappNumber || '',
+      address1: employeeData.address1 || '',
+      address2: employeeData.address2 || '',
+      city: employeeData.city || '',
+      pincode: employeeData.pincode || '',
+      region: employeeData.region || '',
+      state: employeeData.state || '',
+      country: employeeData.country || 'India',
       role: employeeData.role,
-      designation: employeeData.designation,
+      designation: employeeData.designation || '',
       joiningDate: employeeData.joiningDate,
-      accessPermissions: employeeData.accessPermissions,
-      accessPermissionEnabled: employeeData.accessPermissionEnabled,
-      isActive: employeeData.isActive,
+      accessPermissions: employeeData.accessPermissions || [],
+      accessPermissionEnabled: employeeData.accessPermissionEnabled ?? true,
+      isActive: employeeData.isActive ?? true,
       firstLogin: true, // Set to true by default for new employees
       passwordHistory: [], // Initialize empty password history
       companyId,
@@ -195,9 +241,9 @@ export async function addEmployee(
     }
 
     return employee;
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Employee Service] Error adding employee:', error);
-    throw new Error('Failed to add employee. Please try again.');
+    throw new Error(error?.message || 'Failed to add employee. Please try again.');
   }
 }
 

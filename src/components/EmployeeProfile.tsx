@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { UserCircle, Pencil, ArrowLeft } from '@phosphor-icons/react';
+import { Pencil, ArrowLeft, User, Phone, MapPin, Briefcase, Spinner } from '@phosphor-icons/react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { updateEmployee, getEmployee, EmployeeWithCompany } from '@/lib/firestore/employeeService';
 
@@ -97,10 +97,10 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading profile...</p>
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading profile...</p>
         </div>
       </div>
     );
@@ -117,7 +117,7 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
+    <main className="container mx-auto px-4 py-6">
       {onBack && (
         <div className="mb-6">
           <Button variant="outline" size="icon" onClick={onBack}>
@@ -126,159 +126,233 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {employeeData.profilePicture ? (
-                <img
-                  src={employeeData.profilePicture}
-                  alt={employeeData.name}
-                  className="w-16 h-16 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserCircle size={48} className="text-primary" />
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">My Profile</h2>
+        <p className="text-muted-foreground">Welcome, {employeeData.name}</p>
+      </div>
+
+      <Tabs defaultValue="profile" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="address">Address</TabsTrigger>
+        </TabsList>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-4">
+          {/* Personal Information Card */}
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header with icon and edit button */}
+            <div className="flex items-center justify-between p-4 border-b border-purple-200/50">
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-2.5 rounded-xl"
+                  style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+                >
+                  <User size={24} className="text-white" weight="duotone" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">Personal Information</h3>
+                </div>
+              </div>
+              <Button
+                onClick={handleEditProfile}
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+              >
+                <Pencil size={16} />
+                Edit
+              </Button>
+            </div>
+
+            {/* Profile Avatar and Name */}
+            <div className="p-4 border-b border-purple-200/50">
+              <div className="flex items-center gap-4">
+                {employeeData.profilePicture ? (
+                  <img
+                    src={employeeData.profilePicture}
+                    alt={employeeData.name}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md"
+                  />
+                ) : (
+                  <div
+                    className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl border-2 border-white shadow-md"
+                    style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+                  >
+                    {employeeData.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{employeeData.name}</h3>
+                  <p className="text-sm text-gray-600">{employeeData.role ? employeeData.role.charAt(0).toUpperCase() + employeeData.role.slice(1) : 'Employee'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Employee Name</p>
+                <p className="font-semibold text-gray-900">{employeeData.name}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Gender</p>
+                <p className="font-semibold text-gray-900 capitalize">{employeeData.gender || '-'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Employee Code</p>
+                <p className="font-semibold text-purple-600">{employeeData.employeeCode}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Information Card */}
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-purple-200/50">
+              <div
+                className="p-2.5 rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+              >
+                <Phone size={24} className="text-white" weight="duotone" />
+              </div>
+              <h3 className="font-semibold text-gray-900">Contact Information</h3>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              <div>
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Phone</p>
+                <p className="font-semibold text-gray-900">+91 {employeeData.contactNumber}</p>
+              </div>
+              {employeeData.whatsappNumber && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">WhatsApp</p>
+                  <p className="font-semibold text-gray-900">+91 {employeeData.whatsappNumber}</p>
                 </div>
               )}
+              {employeeData.email && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Email</p>
+                  <p className="font-semibold text-gray-900">{employeeData.email}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Work Information Card */}
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-purple-200/50">
+              <div
+                className="p-2.5 rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}
+              >
+                <Briefcase size={24} className="text-white" weight="duotone" />
+              </div>
+              <h3 className="font-semibold text-gray-900">Work Information</h3>
+            </div>
+
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Role</p>
+                  <p className="font-semibold text-gray-900 capitalize">{employeeData.role}</p>
+                </div>
+                {employeeData.designation && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Designation</p>
+                    <p className="font-semibold text-gray-900">{employeeData.designation}</p>
+                  </div>
+                )}
+              </div>
               <div>
-                <CardTitle className="text-2xl">{employeeData.name}</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Employee Code: {employeeData.employeeCode}
+                <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Joining Date</p>
+                <p className="font-semibold text-gray-900">
+                  {new Date(employeeData.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </p>
               </div>
             </div>
-            <Button onClick={handleEditProfile} className="gap-2">
-              <Pencil size={18} />
-              Edit Profile
-            </Button>
           </div>
-        </CardHeader>
+        </TabsContent>
 
-        <CardContent>
-          <div className="space-y-6">
-            {/* Personal Information */}
-            <div>
-              <h3 className="font-semibold text-lg mb-3">Personal Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Employee Name</Label>
-                  <p className="font-medium">{employeeData.name}</p>
-                </div>
-                {employeeData.aliasName && (
-                  <div>
-                    <Label className="text-muted-foreground">Alias Name</Label>
-                    <p className="font-medium">{employeeData.aliasName}</p>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-muted-foreground">Gender</Label>
-                  <p className="font-medium capitalize">{employeeData.gender}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Employee Code</Label>
-                  <p className="font-medium">{employeeData.employeeCode}</p>
-                </div>
+        {/* Address Tab */}
+        <TabsContent value="address" className="space-y-4">
+          <div
+            className="rounded-xl border-2 shadow-md overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 p-4 border-b border-purple-200/50">
+              <div
+                className="p-2.5 rounded-xl"
+                style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' }}
+              >
+                <MapPin size={24} className="text-white" weight="duotone" />
               </div>
+              <h3 className="font-semibold text-gray-900">Address Information</h3>
             </div>
 
-            {/* Contact Information */}
-            <div>
-              <h3 className="font-semibold text-lg mb-3">Contact Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Details Section */}
+            <div className="p-4 bg-white/60 space-y-4">
+              {employeeData.address1 && (
                 <div>
-                  <Label className="text-muted-foreground">Contact Number</Label>
-                  <p className="font-medium">{employeeData.contactNumber}</p>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Address Line 1</p>
+                  <p className="font-semibold text-gray-900">{employeeData.address1}</p>
                 </div>
-                {employeeData.whatsappNumber && (
-                  <div>
-                    <Label className="text-muted-foreground">WhatsApp Number</Label>
-                    <p className="font-medium">{employeeData.whatsappNumber}</p>
-                  </div>
-                )}
-                {employeeData.email && (
-                  <div>
-                    <Label className="text-muted-foreground">Email</Label>
-                    <p className="font-medium">{employeeData.email}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Address Information */}
-            <div>
-              <h3 className="font-semibold text-lg mb-3">Address Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {employeeData.address1 && (
-                  <div>
-                    <Label className="text-muted-foreground">Address Line 1</Label>
-                    <p className="font-medium">{employeeData.address1}</p>
-                  </div>
-                )}
-                {employeeData.address2 && (
-                  <div>
-                    <Label className="text-muted-foreground">Address Line 2</Label>
-                    <p className="font-medium">{employeeData.address2}</p>
-                  </div>
-                )}
+              )}
+              {employeeData.address2 && (
+                <div>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Address Line 2</p>
+                  <p className="font-semibold text-gray-900">{employeeData.address2}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
                 {employeeData.city && (
                   <div>
-                    <Label className="text-muted-foreground">City</Label>
-                    <p className="font-medium">{employeeData.city}</p>
-                  </div>
-                )}
-                {employeeData.pincode && (
-                  <div>
-                    <Label className="text-muted-foreground">Pincode</Label>
-                    <p className="font-medium">{employeeData.pincode}</p>
-                  </div>
-                )}
-                {employeeData.region && (
-                  <div>
-                    <Label className="text-muted-foreground">Region</Label>
-                    <p className="font-medium">{employeeData.region}</p>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">City</p>
+                    <p className="font-semibold text-gray-900">{employeeData.city}</p>
                   </div>
                 )}
                 {employeeData.state && (
                   <div>
-                    <Label className="text-muted-foreground">State</Label>
-                    <p className="font-medium">{employeeData.state}</p>
-                  </div>
-                )}
-                {employeeData.country && (
-                  <div>
-                    <Label className="text-muted-foreground">Country</Label>
-                    <p className="font-medium">{employeeData.country}</p>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">State</p>
+                    <p className="font-semibold text-gray-900">{employeeData.state}</p>
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Work Information */}
-            <div>
-              <h3 className="font-semibold text-lg mb-3">Work Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {employeeData.pincode && (
                 <div>
-                  <Label className="text-muted-foreground">Role</Label>
-                  <p className="font-medium capitalize">{employeeData.role}</p>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">Pincode</p>
+                  <p className="font-semibold text-gray-900">{employeeData.pincode}</p>
                 </div>
-                {employeeData.designation && (
-                  <div>
-                    <Label className="text-muted-foreground">Designation</Label>
-                    <p className="font-medium">{employeeData.designation}</p>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-muted-foreground">Joining Date</Label>
-                  <p className="font-medium">
-                    {new Date(employeeData.joiningDate).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Profile Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -403,6 +477,6 @@ export function EmployeeProfile({ onBack }: EmployeeProfileProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </main>
   );
 }

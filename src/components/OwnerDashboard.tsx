@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
 import { Customer, Order, OrderStatus, Tailor, InventoryItem, InventoryTransaction, ServiceOrder, OrderAllotment, Employee, Vendor, AdvancePayment } from '@/lib/types';
 import { useStorage } from '@/hooks/use-storage';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsListAnimated, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { DashboardStats } from '@/components/DashboardStats';
+import { DashboardStats, DashboardFilter } from '@/components/DashboardStats';
 import { CustomerList } from '@/components/CustomerList';
 import { OrderList } from '@/components/OrderList';
-import { OrderTracking } from '@/components/OrderTracking';
+
+// Lazy load OrderTracking component
+const OrderTracking = lazy(() => import('@/components/OrderTracking').then(m => ({ default: m.OrderTracking })));
 import { InventoryStats } from '@/components/InventoryStats';
 import { InventoryList } from '@/components/InventoryList';
 import { TransactionHistory } from '@/components/TransactionHistory';
@@ -18,7 +20,19 @@ import { CustomerForm } from '@/components/CustomerForm';
 import { OrderAllotmentForm } from '@/components/OrderAllotmentForm';
 import { RejectedOrdersList } from '@/components/RejectedOrdersList';
 import { StitchedOrdersList } from '@/components/StitchedOrdersList';
+import { ActiveOrdersList } from '@/components/ActiveOrdersList';
+import { ReadyToDeliverList } from '@/components/ReadyToDeliverList';
+import { ReceivedNoteList } from '@/components/ReceivedNoteList';
+import { WaitingForDCList } from '@/components/WaitingForDCList';
+import { ReassignedOrdersList } from '@/components/ReassignedOrdersList';
+import { OverDueOrdersList } from '@/components/OverDueOrdersList';
+import { JobworkCompletedOrdersList } from '@/components/JobworkCompletedOrdersList';
+import { CustomerView } from '@/components/CustomerView';
+import { OrderView } from '@/components/OrderView';
+import { EmployeeManagementFirestore } from '@/components/EmployeeManagementFirestore';
+import { VendorManagementFirestore } from '@/components/VendorManagementFirestore';
 import { toast } from 'sonner';
+import { Spinner } from '@phosphor-icons/react';
 import {
   addCustomer,
   getCustomersByCompany,
@@ -28,9 +42,10 @@ import {
 import {
   addServiceOrder,
   getServiceOrdersByCompany,
+  subscribeToServiceOrders,
+  assignOrder,
 } from '@/lib/firestore/serviceOrderService';
 import {
-  addOrderAllotment,
   getOrderAllotmentsByCompany,
 } from '@/lib/firestore/orderAllotmentService';
 import {
@@ -43,8 +58,16 @@ import {
   addAdvancePayment,
 } from '@/lib/firestore/advancePaymentService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { notifyOrderCreated, OrderConfirmationData } from '@/lib/notificationService';
+import { getCustomerById } from '@/lib/firestore/customerService';
 
-export function OwnerDashboard() {
+interface OwnerDashboardProps {
+  initialTab?: string;
+  onEmployeeClick?: () => void;
+  onNavigateToDeliveryChallan?: (orderId?: string) => void; // Navigate to DC page with optional pre-selected order
+}
+
+export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNavigateToDeliveryChallan }: OwnerDashboardProps) {
   const { t } = useLanguage();
   const { user, employee } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -56,22 +79,32 @@ export function OwnerDashboard() {
   const [inventory, setInventory] = useStorage<InventoryItem[]>('inventory', []);
   const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
   const [tailors] = useStorage<Tailor[]>('tailors', []);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [orderFilter, setOrderFilter] = useState<'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched'>('all');
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [orderFilter, setOrderFilter] = useState<DashboardFilter>('all');
   const [showServiceOrderForm, setShowServiceOrderForm] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
+  const [customerFormFromOrder, setCustomerFormFromOrder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [companyId, setCompanyId] = useState<string>('');
   const [newlyCreatedCustomerId, setNewlyCreatedCustomerId] = useState<string | undefined>();
   const [reassignOrder, setReassignOrder] = useState<OrderAllotment | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
+  const [initialServiceOrderId, setInitialServiceOrderId] = useState<string | undefined>(); // For Job Allotment from Open Orders
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';
 
   // Load customers, service orders, employees, vendors, and allotments from Firestore
   useEffect(() => {
+    let unsubscribeOrders: (() => void) | null = null;
+
     const loadData = async () => {
+      const startTime = Date.now();
+      const MIN_LOADING_TIME = 500; // Minimum loading time in ms to show loader
+
       try {
         setLoading(true);
 
@@ -99,10 +132,17 @@ export function OwnerDashboard() {
         setCustomers(customersData);
         console.log('[OwnerDashboard] Loaded customers:', customersData.length);
 
-        // Load service orders from Firestore
-        const ordersData = await getServiceOrdersByCompany(realCompanyId);
-        setServiceOrders(ordersData);
-        console.log('[OwnerDashboard] Loaded service orders:', ordersData.length);
+        // Subscribe to real-time service orders updates
+        unsubscribeOrders = subscribeToServiceOrders(
+          realCompanyId,
+          (ordersData) => {
+            setServiceOrders(ordersData);
+            console.log('[OwnerDashboard] Real-time service orders update:', ordersData.length);
+          },
+          (error) => {
+            console.error('[OwnerDashboard] Service orders subscription error:', error);
+          }
+        );
 
         // Load order allotments from Firestore
         const allotmentsData = await getOrderAllotmentsByCompany(realCompanyId);
@@ -119,6 +159,12 @@ export function OwnerDashboard() {
         setVendors(vendorsData);
         console.log('[OwnerDashboard] Loaded vendors:', vendorsData.length);
 
+        // Ensure minimum loading time for better UX
+        const elapsedTime = Date.now() - startTime;
+        if (elapsedTime < MIN_LOADING_TIME) {
+          await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsedTime));
+        }
+
         setLoading(false);
       } catch (error) {
         console.error('[OwnerDashboard] Error loading data:', error);
@@ -128,7 +174,15 @@ export function OwnerDashboard() {
     };
 
     loadData();
-  }, [companyId, user]);
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (unsubscribeOrders) {
+        console.log('[OwnerDashboard] Unsubscribing from service orders');
+        unsubscribeOrders();
+      }
+    };
+  }, [user]);
 
   const handleAddCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -287,14 +341,10 @@ export function OwnerDashboard() {
     toast.success(`Stock ${type === 'in' ? 'added' : 'removed'} successfully`);
   };
 
-  const handleStatClick = (filter: 'all' | 'active' | 'ready' | 'completed' | 'rejected' | 'stitched') => {
+  const handleStatClick = (filter: DashboardFilter) => {
     setOrderFilter(filter);
-    if (filter === 'rejected' || filter === 'stitched') {
-      // Keep on dashboard tab to show the list
-      setActiveTab('dashboard');
-    } else {
-      setActiveTab('track');
-    }
+    // Keep on dashboard tab to show the dedicated list pages
+    setActiveTab('dashboard');
   };
 
   const handleReassignOrder = (order: OrderAllotment) => {
@@ -359,6 +409,67 @@ export function OwnerDashboard() {
           toast.error('Service order created but failed to save advance payment');
         }
       }
+
+      // Send WhatsApp notification to customer
+      try {
+        console.log('[OwnerDashboard] Sending WhatsApp order confirmation to customer');
+        const customer = await getCustomerById(orderData.customerId);
+        
+        if (customer && (customer.whatsappNumber || customer.phone)) {
+          // Get company name for the message
+          let companyName = 'Tailor Shop';
+          try {
+            const company = await getCompanyProfile(companyId);
+            if (company) {
+              companyName = company.companyName || company.aliasName || 'Tailor Shop';
+            }
+          } catch {
+            // Use default company name
+          }
+
+          // Format dates
+          const orderDate = new Date(orderData.serviceOrderDate).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          });
+          const deliveryDate = new Date(orderData.expectedDeliveryDate).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          });
+
+          // Prepare dress items for message
+          const dressItems = orderData.dressItems?.map(item => ({
+            dressName: item.dressName || item.dressType,
+            quantity: item.quantity
+          })) || [];
+
+          const notificationData: OrderConfirmationData = {
+            customerName: customer.name,
+            customerPhone: customer.whatsappNumber || customer.phone,
+            orderNumber: newServiceOrder.id,
+            orderDate,
+            deliveryDate,
+            totalAmount: orderData.stitchingCost,
+            advanceAmount: advancePaymentData?.amount || orderData.advanceAmount,
+            balanceAmount: orderData.balanceAmount || (orderData.stitchingCost - (advancePaymentData?.amount || orderData.advanceAmount || 0)),
+            dressItems,
+            companyName
+          };
+
+          const { whatsappSent } = await notifyOrderCreated(notificationData);
+          
+          if (whatsappSent) {
+            console.log('[OwnerDashboard] WhatsApp order confirmation sent successfully');
+          }
+        } else {
+          console.log('[OwnerDashboard] Customer phone not available for WhatsApp notification');
+        }
+      } catch (notificationError) {
+        console.error('[OwnerDashboard] Error sending WhatsApp notification:', notificationError);
+        // Don't show error to user as order was created successfully
+      }
     } catch (error) {
       console.error('[OwnerDashboard] Error adding service order:', error);
       toast.error('Failed to create service order');
@@ -367,6 +478,7 @@ export function OwnerDashboard() {
 
   const handleCreateCustomerFromOrder = () => {
     setShowServiceOrderForm(false);
+    setCustomerFormFromOrder(true);
     setShowCustomerForm(true);
   };
 
@@ -377,149 +489,323 @@ export function OwnerDashboard() {
 
   const handleAddOrderAllotment = async (allotmentData: Omit<OrderAllotment, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      console.log('[OwnerDashboard] Adding order allotment to Firestore orderAllotment collection');
+      console.log('[OwnerDashboard] Assigning order using new unified flow');
       console.log('[OwnerDashboard] Order allotment data:', allotmentData);
-      console.log('[OwnerDashboard] Company ID:', companyId);
-      console.log('[OwnerDashboard] Admin ID:', adminId);
 
-      // Add companyId and adminId to allotment data
-      const allotmentWithCompany = {
-        ...allotmentData,
-        companyId,
+      // Determine assignment type (vendor or employee)
+      const assignmentType = allotmentData.stitchingAllotment === 'vendor' ? 'vendor' : 'employee';
+      
+      // Get assignee name
+      let assigneeName = '';
+      if (assignmentType === 'employee') {
+        const emp = employees?.find(e => e.id === allotmentData.assignedTo);
+        assigneeName = emp?.name || '';
+      } else {
+        const vendor = vendors?.find(v => v.id === allotmentData.assignedTo);
+        assigneeName = vendor?.tailorName || '';
+      }
+
+      // Call the new unified assignOrder function
+      // This updates the ServiceOrder in newOrders collection with assignment details
+      await assignOrder(
+        allotmentData.serviceOrderNo,  // orderId
+        assignmentType,
+        allotmentData.assignedTo,
+        assigneeName,
         adminId,
-      };
-
-      const newAllotment = await addOrderAllotment(allotmentWithCompany, companyId, adminId);
-      setOrderAllotments([...(orderAllotments || []), newAllotment]);
+        'Admin',  // assignedByName
+        allotmentData.materialCost,
+        allotmentData.jobWorkCost
+      );
 
       // Reload service orders to reflect status change
       const ordersData = await getServiceOrdersByCompany(companyId);
       setServiceOrders(ordersData);
 
-      toast.success('Order allotted successfully');
+      toast.success(`Order assigned to ${assigneeName}. Status: Awaiting acceptance`);
     } catch (error) {
-      console.error('[OwnerDashboard] Error adding order allotment:', error);
-      toast.error('Failed to allot order');
+      console.error('[OwnerDashboard] Error assigning order:', error);
+      toast.error('Failed to assign order');
     }
   };
 
   return (
     <main className="container mx-auto px-4 py-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/60 gap-1">
+        <TabsListAnimated
+          className="grid w-full grid-cols-4 h-auto p-2 gap-2 rounded-xl"
+          style={{ backgroundColor: '#E9E0FB' }}
+          activeValue={activeTab}
+          tabValues={['dashboard', 'employees', 'customers', 'track']}
+        >
           <TabsTrigger
             value="dashboard"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'dashboard' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('dashboard')}
           </TabsTrigger>
           <TabsTrigger
-            value="tailors"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
+            value="employees"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'employees' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
-            {t('tailors')}
+            {t('employees')}
           </TabsTrigger>
           <TabsTrigger
-            value="inventory"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
+            value="customers"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'customers' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
-            {t('inventory')}
+            {t('customers')}
           </TabsTrigger>
           <TabsTrigger
             value="track"
-            className="py-2.5 px-1.5 text-[10px] sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm whitespace-nowrap leading-tight"
+            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            style={{ backgroundColor: activeTab === 'track' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
-            {t('track')}
+            Jobwork Tailors
           </TabsTrigger>
-        </TabsList>
+        </TabsListAnimated>
 
         <TabsContent value="dashboard" className="space-y-6">
-          {orderFilter === 'rejected' ? (
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <Spinner size={48} className="animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading dashboard...</p>
+              </div>
+            </div>
+          ) : selectedServiceOrder ? (
+            <OrderView
+              serviceOrder={selectedServiceOrder}
+              orderAllotments={orderAllotments || []}
+              customer={customers.find(c => c.id === selectedServiceOrder.customerId)}
+              onBack={() => setSelectedServiceOrder(null)}
+            />
+          ) : orderFilter === 'overdue' ? (
+            <OverDueOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+            />
+          ) : orderFilter === 'jobworkCompleted' ? (
+            <JobworkCompletedOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              onDataRefresh={async () => {
+                // Reload service orders to reflect status change
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+              }}
+            />
+          ) : orderFilter === 'open' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="open"
+              onJobAllotment={(serviceOrderId) => {
+                setInitialServiceOrderId(serviceOrderId);
+                setShowOrderAllotmentForm(true);
+              }}
+            />
+          ) : orderFilter === 'awaiting' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="awaiting"
+            />
+          ) : orderFilter === 'inProgress' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="inProgress"
+            />
+          ) : orderFilter === 'rejected' ? (
             <RejectedOrdersList
               orders={orderAllotments || []}
+              serviceOrders={serviceOrders || []}
               onBack={handleBackToDashboard}
               onReassign={handleReassignOrder}
+              onReassignServiceOrder={(serviceOrderId) => {
+                setInitialServiceOrderId(serviceOrderId);
+                setShowOrderAllotmentForm(true);
+              }}
             />
-          ) : orderFilter === 'stitched' ? (
-            <StitchedOrdersList
-              orders={orderAllotments || []}
+          ) : orderFilter === 'ready' ? (
+            <ReadyToDeliverList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
               onBack={handleBackToDashboard}
-              onReassign={handleReassignOrder}
+              onOrderDelivered={async () => {
+                // Reload service orders and allotments to reflect status change
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+                const allotmentsData = await getOrderAllotmentsByCompany(companyId);
+                setOrderAllotments(allotmentsData);
+              }}
+            />
+          ) : orderFilter === 'receivedNote' ? (
+            <ReceivedNoteList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              onDataRefresh={async () => {
+                // Reload service orders to reflect status change
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+              }}
+            />
+          ) : orderFilter === 'waitingForDC' ? (
+            <WaitingForDCList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              onCreateDC={(orderId) => {
+                // Navigate to Delivery Challan page with pre-filled order ID
+                if (onNavigateToDeliveryChallan) {
+                  onNavigateToDeliveryChallan(orderId);
+                }
+              }}
             />
           ) : (
             <>
               <DashboardStats
                 totalCustomers={(customers || []).length}
-                orders={orders || []}
                 serviceOrders={serviceOrders || []}
                 orderAllotments={orderAllotments || []}
                 onStatClick={handleStatClick}
               />
 
-              <div className="grid grid-cols-2 gap-3 md:gap-6">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center h-9">
-                    <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('customers')}</h2>
-                  </div>
-                  <CustomerList
-                    customers={customers || []}
-                    onAddCustomer={handleAddCustomer}
-                    onUpdateCustomer={handleUpdateCustomer}
-                    onDeleteCustomer={handleDeleteCustomer}
-                  />
+              {/* Quick Action Buttons */}
+              <div className="space-y-3 md:space-y-4">
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  <button
+                    onClick={() => {
+                      setCustomerFormFromOrder(false);
+                      setShowCustomerForm(true);
+                    }}
+                    className="group relative flex flex-col items-center justify-center gap-2 p-4 md:p-6 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all duration-200 cursor-pointer animate-on-load animate-fade-slide-up stagger-1"
+                  >
+                    <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256" className="text-primary">
+                        <path d="M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"></path>
+                      </svg>
+                    </div>
+                    <span className="text-sm md:text-base font-semibold text-foreground">{t('addCustomer')}</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Register new customer</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowServiceOrderForm(true)}
+                    className="group relative flex flex-col items-center justify-center gap-2 p-4 md:p-6 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all duration-200 cursor-pointer animate-on-load animate-fade-slide-up stagger-2"
+                  >
+                    <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 256 256" className="text-primary">
+                        <path d="M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"></path>
+                      </svg>
+                    </div>
+                    <span className="text-sm md:text-base font-semibold text-foreground">{t('newOrder')}</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Create service order</span>
+                  </button>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center h-9">
-                    <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowOrderAllotmentForm(true)}
-                      className="text-xs sm:text-sm"
-                    >
-                      Job Allotment
-                    </Button>
+
+                {/* Job Allotment Box */}
+                <button
+                  onClick={() => setShowOrderAllotmentForm(true)}
+                  className="group relative w-full flex items-center justify-center gap-3 p-3 md:p-4 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all duration-200 cursor-pointer animate-on-load animate-fade-slide-up stagger-3"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256" className="text-primary">
+                      <path d="M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z"></path>
+                    </svg>
                   </div>
-                  <OrderList
-                    orders={orders || []}
-                    serviceOrders={serviceOrders || []}
-                    orderAllotments={orderAllotments || []}
-                    customers={customers || []}
-                    tailors={tailors || []}
-                    inventory={inventory || []}
-                    onAddOrder={handleAddOrder}
-                    onUpdateStatus={handleUpdateOrderStatus}
-                    onAddServiceOrder={handleAddServiceOrder}
-                    onCreateCustomer={handleCreateCustomerFromOrder}
-                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm md:text-base font-semibold text-foreground">Job Allotment</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground">Assign orders to tailors</span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Recent Service Orders */}
+              <div className="space-y-4 animate-on-load animate-fade-slide-up stagger-4">
+                <div className="flex justify-between items-center h-9">
+                  <h2 className="text-sm md:text-xl font-semibold line-clamp-1">{t('orders')}</h2>
                 </div>
+                <OrderList
+                  orders={orders || []}
+                  serviceOrders={serviceOrders || []}
+                  orderAllotments={orderAllotments || []}
+                  customers={customers || []}
+                  tailors={tailors || []}
+                  inventory={inventory || []}
+                  onAddOrder={handleAddOrder}
+                  onUpdateStatus={handleUpdateOrderStatus}
+                  onAddServiceOrder={handleAddServiceOrder}
+                  onCreateCustomer={handleCreateCustomerFromOrder}
+                  hideAddButton
+                  onSelectOrder={(order) => setSelectedServiceOrder(order)}
+                />
               </div>
             </>
           )}
         </TabsContent>
 
-        <TabsContent value="tailors">
-          <TailorManagement />
+        <TabsContent value="employees" className="space-y-6">
+          <EmployeeManagementFirestore onBack={() => setActiveTab('dashboard')} />
         </TabsContent>
 
-        <TabsContent value="inventory" className="space-y-6">
-          <InventoryStats items={inventory || []} transactions={transactions || []} />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <InventoryList
-                items={inventory || []}
-                onAddItem={handleAddInventoryItem}
-                onStockUpdate={handleStockUpdate}
-              />
+        <TabsContent value="customers" className="space-y-6">
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <Spinner size={48} className="animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading customers...</p>
+              </div>
             </div>
-            <div>
-              <TransactionHistory transactions={transactions || []} limit={15} />
-            </div>
-          </div>
+          ) : selectedCustomer ? (
+            // Show CustomerView within Customers tab - no tab switching
+            <CustomerView
+              customer={selectedCustomer}
+              serviceOrders={serviceOrders || []}
+              onBack={() => setSelectedCustomer(null)}
+              onEdit={(customer) => {
+                setSelectedCustomer(null);
+                setEditingCustomer(customer);
+                setShowCustomerForm(true);
+              }}
+              onDelete={async (customerId) => {
+                try {
+                  await deleteCustomer(customerId);
+                  setSelectedCustomer(null);
+                  toast.success('Customer deleted successfully');
+                } catch (error) {
+                  console.error('Error deleting customer:', error);
+                  toast.error('Failed to delete customer');
+                }
+              }}
+            />
+          ) : (
+            <CustomerList
+              customers={customers || []}
+              onAddCustomer={handleAddCustomer}
+              onUpdateCustomer={handleUpdateCustomer}
+              onDeleteCustomer={handleDeleteCustomer}
+              onSelectCustomer={(customer) => {
+                console.log('[OwnerDashboard] Customer selected:', customer.id, customer.name);
+                setSelectedCustomer(customer);
+                // Stay on Customers tab - don't switch tabs
+              }}
+            />
+          )}
         </TabsContent>
 
-        <TabsContent value="track">
-          <OrderTracking orders={orders || []} initialFilter={orderFilter} />
+        <TabsContent value="track" className="space-y-6">
+          <VendorManagementFirestore onBack={() => setActiveTab('dashboard')} />
         </TabsContent>
       </Tabs>
 
@@ -539,26 +825,57 @@ export function OwnerDashboard() {
         initialCustomerId={newlyCreatedCustomerId}
       />
 
-      {/* Customer Form (for creating customer from order form) */}
+      {/* Customer Form */}
       <CustomerForm
         open={showCustomerForm}
         onOpenChange={(open) => {
           setShowCustomerForm(open);
           if (!open) {
-            setShowServiceOrderForm(true);
-            // Clear the newly created customer ID when closing
+            // Clear editing customer when closing
+            setEditingCustomer(null);
+            // Only open ServiceOrderForm if customer was created from order flow
+            if (customerFormFromOrder) {
+              setShowServiceOrderForm(true);
+            }
+            setCustomerFormFromOrder(false);
             setNewlyCreatedCustomerId(undefined);
           }
         }}
+        customer={editingCustomer || undefined}
         onSave={async (customerData) => {
           try {
-            const newCustomer = await handleAddCustomer(customerData);
-            // Store the newly created customer ID
-            setNewlyCreatedCustomerId(newCustomer.id);
-            console.log('[OwnerDashboard] New customer created, ID:', newCustomer.id);
-            handleCustomerSaved();
+            if (editingCustomer) {
+              // Update existing customer
+              await updateCustomer(editingCustomer.id, customerData);
+
+              // Update local customers state with edited data
+              setCustomers(prevCustomers =>
+                prevCustomers.map(c =>
+                  c.id === editingCustomer.id
+                    ? { ...c, ...customerData, updatedAt: Date.now() }
+                    : c
+                )
+              );
+
+              toast.success('Customer updated successfully');
+              setShowCustomerForm(false);
+              setEditingCustomer(null);
+            } else {
+              // Create new customer
+              const newCustomer = await handleAddCustomer(customerData);
+              if (customerFormFromOrder) {
+                // Store the newly created customer ID for order flow
+                setNewlyCreatedCustomerId(newCustomer.id);
+                console.log('[OwnerDashboard] New customer created, ID:', newCustomer.id);
+                handleCustomerSaved();
+              } else {
+                // Just close the form for direct customer creation
+                setShowCustomerForm(false);
+              }
+            }
           } catch (error) {
-            console.error('[OwnerDashboard] Failed to create customer:', error);
+            console.error('[OwnerDashboard] Failed to save customer:', error);
+            toast.error('Failed to save customer');
           }
         }}
       />
@@ -570,6 +887,7 @@ export function OwnerDashboard() {
           setShowOrderAllotmentForm(open);
           if (!open) {
             setReassignOrder(null); // Clear reassign order when dialog closes
+            setInitialServiceOrderId(undefined); // Clear initial service order when dialog closes
           }
         }}
         onSave={handleAddOrderAllotment}
@@ -577,6 +895,7 @@ export function OwnerDashboard() {
         employees={employees || []}
         vendors={vendors || []}
         reassignOrder={reassignOrder}
+        initialServiceOrderId={initialServiceOrderId}
       />
     </main>
   );

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "206247305625",
+    "project_id": "thisai-tailor-shop",
+    "storage_bucket": "thisai-tailor-shop.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:206247305625:android:2b937db6a139901e91b308",
+        "android_client_info": {
+          "package_name": "com.thisaitech.tailorapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDuXxQvrbqooOB6WdPode6senz2lpqdX4k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

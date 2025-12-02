@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -28,8 +29,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Trash, Image as ImageIcon, Upload, FolderOpen, X } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, Trash, Image as ImageIcon, Upload, X, MagnifyingGlass, DotsThree, PencilSimple, FolderSimple, Spinner } from '@phosphor-icons/react';
 import {
   DesignCategory,
   DesignImage,
@@ -76,6 +83,9 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
   const [newCategoryImagePreviews, setNewCategoryImagePreviews] = useState<string[]>([]);
   const newCategoryFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+
   // Load categories
   useEffect(() => {
     loadData();
@@ -119,6 +129,22 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Filter categories by search
+  const filteredCategories = categories.filter(cat =>
+    cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (cat.categoryType && cat.categoryType.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // Get initials for avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   const handleAddCategory = () => {
@@ -343,15 +369,10 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <h1 className="text-xl font-bold">Design Categories</h1>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Loading...</p>
+      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Spinner size={48} className="animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading design categories...</p>
         </div>
       </div>
     );
@@ -360,92 +381,168 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={onBack}>
-          <ArrowLeft size={20} />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft size={20} />
+          </Button>
+          <div>
+            <h1 className="text-xl font-bold">Design Categories</h1>
+            <p className="text-sm text-muted-foreground">{categories.length} categories</p>
+          </div>
+        </div>
+        <Button onClick={handleAddCategory} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
+          <Plus size={18} className="mr-1" />
+          <span className="hidden sm:inline">New Category</span>
         </Button>
-        <h1 className="text-xl font-bold">Design Categories</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Categories List */}
         <div className="lg:col-span-1">
-          <Card>
-            <CardContent className="p-2">
-              {/* Add Category Button */}
-              <div className="flex justify-end mb-2">
-                <Button size="sm" variant="ghost" onClick={handleAddCategory} className="h-8 w-8 p-0">
-                  <Plus size={18} />
-                </Button>
+          {/* Search Bar */}
+          <div className="relative mb-4">
+            <MagnifyingGlass size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search categories..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Categories Grid */}
+          <div
+            className="rounded-xl border-2 p-4 space-y-3"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
+            <h3 className="text-sm font-semibold text-gray-800">
+              {searchTerm ? `Search Results (${filteredCategories.length})` : `Categories (${filteredCategories.length})`}
+            </h3>
+            {filteredCategories.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FolderSimple size={48} className="mx-auto mb-3 opacity-30" />
+                <p className="text-sm">{searchTerm ? 'No categories found' : 'No categories yet'}</p>
               </div>
-              {categories.length > 0 && (
-                <div className="space-y-1">
-                  {categories.map(category => (
+            ) : (
+              <div className="space-y-3">
+                {filteredCategories.map((category, index) => (
+                  <div
+                    key={category.id}
+                    onClick={() => handleSelectCategory(category)}
+                    className={`rounded-xl border-2 hover:shadow-lg transition-all p-3 cursor-pointer w-full flex flex-row gap-3 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
+                    style={{
+                      background: selectedCategory?.id === category.id
+                        ? 'linear-gradient(135deg, #6A64F2 0%, #7c3aed 100%)'
+                        : 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                      borderColor: selectedCategory?.id === category.id ? '#5b55e0' : '#6A64F2',
+                      boxShadow: selectedCategory?.id === category.id
+                        ? '0 4px 12px -2px rgba(106, 100, 242, 0.4)'
+                        : '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)',
+                    }}
+                  >
+                    {/* Left: Icon */}
                     <div
-                      key={category.id}
-                      onClick={() => handleSelectCategory(category)}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedCategory?.id === category.id
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
-                      }`}
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0 text-sm font-bold"
+                      style={{
+                        background: selectedCategory?.id === category.id
+                          ? 'rgba(255,255,255,0.2)'
+                          : 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)'
+                      }}
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{category.name}</p>
-                          <p className={`text-xs ${
+                      {getInitials(category.name)}
+                    </div>
+
+                    {/* Middle: Details */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold truncate ${selectedCategory?.id === category.id ? 'text-white' : 'text-gray-900'}`}>
+                        {category.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge
+                          className={`text-[9px] px-1.5 py-0 capitalize ${
                             selectedCategory?.id === category.id
-                              ? 'text-primary-foreground/70'
-                              : 'text-muted-foreground'
-                          }`}>
-                            {DESIGN_CATEGORY_OPTIONS.find(o => o.value === category.categoryType)?.label || category.categoryType} • {category.images.length} image(s)
-                          </p>
-                        </div>
-                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => handleEditCategory(category)}
-                          >
-                            <span className="sr-only">Edit</span>
-                            ✏️
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
-                            onClick={() => setDeleteCategoryId(category.id)}
-                          >
-                            <Trash size={14} />
-                          </Button>
-                        </div>
+                              ? 'bg-white/20 text-white border-white/30'
+                              : 'bg-purple-100 text-purple-700 border-purple-200'
+                          }`}
+                          variant="outline"
+                        >
+                          {DESIGN_CATEGORY_OPTIONS.find(o => o.value === category.categoryType)?.label || category.categoryType}
+                        </Badge>
+                        <span className={`text-[10px] ${selectedCategory?.id === category.id ? 'text-white/80' : 'text-muted-foreground'}`}>
+                          {category.images.length} image(s)
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                    {/* Right: Actions */}
+                    <div className="flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 ${selectedCategory?.id === category.id ? 'text-white hover:bg-white/20' : ''}`}
+                          >
+                            <DotsThree size={20} weight="bold" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditCategory(category)}>
+                            <PencilSimple size={16} className="mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setDeleteCategoryId(category.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash size={16} className="mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Images Grid */}
         <div className="lg:col-span-2">
-          <Card>
+          <div
+            className="rounded-xl border-2 overflow-hidden"
+            style={{
+              borderColor: 'rgba(196, 181, 253, 0.5)',
+            }}
+          >
             {selectedCategory && (
-              <CardHeader className="py-3 px-4 border-b">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">
+              <div
+                className="py-3 px-4 border-b flex items-center justify-between"
+                style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%)', borderColor: 'rgba(196, 181, 253, 0.5)' }}
+              >
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">
                     Images: {selectedCategory.name}
-                  </CardTitle>
-                  <Button size="sm" onClick={handleUploadClick} disabled={uploading}>
-                    <Upload size={16} className="mr-1" />
-                    {uploading ? 'Uploading...' : 'Upload Images'}
-                  </Button>
+                  </h3>
+                  <p className="text-xs text-muted-foreground">{selectedCategory.images.length} design(s)</p>
                 </div>
-              </CardHeader>
+                <Button
+                  size="sm"
+                  onClick={handleUploadClick}
+                  disabled={uploading}
+                  className="bg-[#6A64F2] hover:bg-[#5b55e0]"
+                >
+                  <Upload size={16} className="mr-1" />
+                  {uploading ? 'Uploading...' : 'Upload'}
+                </Button>
+              </div>
             )}
-            <CardContent className="p-4">
+            <div className="p-4" style={{ background: '#FAF8FF' }}>
               {!selectedCategory ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <ImageIcon size={64} className="mx-auto mb-3 opacity-30" />
@@ -455,13 +552,16 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
                 <div className="text-center py-12 text-muted-foreground">
                   <ImageIcon size={64} className="mx-auto mb-3 opacity-30" />
                   <p>No images in this category</p>
-                  <p className="text-sm mt-1">Click "Upload Images" to add designs</p>
+                  <p className="text-sm mt-1">Click "Upload" to add designs</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {selectedCategory.images.map(image => (
                     <div key={image.id} className="relative group">
-                      <div className="aspect-square rounded-lg overflow-hidden border bg-muted">
+                      <div
+                        className="aspect-square rounded-xl overflow-hidden border-2"
+                        style={{ borderColor: '#6A64F2', background: '#fff' }}
+                      >
                         <img
                           src={image.url}
                           alt={image.name}
@@ -476,14 +576,14 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
                       >
                         <X size={12} />
                       </Button>
-                      <p className="text-xs font-medium text-primary mt-1">{image.designCode || 'N/A'}</p>
+                      <p className="text-xs font-bold mt-1" style={{ color: '#6A64F2' }}>{image.designCode || 'N/A'}</p>
                       <p className="text-xs text-muted-foreground truncate">{image.name}</p>
                     </div>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
 

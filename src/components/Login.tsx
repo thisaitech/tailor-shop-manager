@@ -8,15 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Scissors, Info, UserPlus } from '@phosphor-icons/react';
+import { Scissors, Info, UserPlus, Eye, EyeSlash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
-import { DebugPanel } from './DebugPanel';
+// DebugPanel removed for production
 import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { VendorChangePasswordDialog } from './VendorChangePasswordDialog';
 import { decryptPassword } from '@/lib/firestore/vendorService';
+import { InlineLoader } from './Loader';
 
 export function Login() {
-  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor } = useAuth();
+  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange } = useAuth();
   const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -38,6 +39,7 @@ export function Login() {
     password: '',
     confirmPassword: '',
   });
+  const [showPasswordPreview, setShowPasswordPreview] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,6 +168,7 @@ export function Login() {
       id: customerId,
       name: customerForm.name,
       phone: customerForm.phone,
+      email: '', // Optional email field
       place: customerForm.place,
       gender: customerForm.gender,
       measurements: {},
@@ -204,15 +207,15 @@ export function Login() {
 
   return (
     <>
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)' }}>
+        <div className="w-full max-w-md animate-on-load animate-scale-in rounded-xl border shadow-xl py-6" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(250,248,255,0.95) 100%)', borderColor: 'rgba(196, 181, 253, 0.4)' }}>
           <CardHeader className="space-y-4 text-center">
-            <div className="mx-auto bg-primary p-4 rounded-xl w-fit">
-              <Scissors size={48} className="text-primary-foreground" weight="duotone" />
+            <div className="mx-auto p-4 rounded-xl w-fit animate-on-load animate-fade-slide-up stagger-1 shadow-lg" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #6366f1 100%)' }}>
+              <Scissors size={48} className="text-white" weight="duotone" />
             </div>
             <div>
-              <CardTitle className="text-3xl font-bold">Thisai Technologies Tailor</CardTitle>
-              <CardDescription className="text-base mt-2">Management System</CardDescription>
+              <CardTitle className="text-3xl font-bold text-gray-900">Thisai Technologies Tailor</CardTitle>
+              <CardDescription className="text-base mt-2 text-gray-600">Management System</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
@@ -230,17 +233,39 @@ export function Login() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPasswordPreview ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordPreview(!showPasswordPreview)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPasswordPreview ? (
+                      <EyeSlash size={20} weight="bold" />
+                    ) : (
+                      <Eye size={20} weight="bold" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Logging in...' : 'Login'}
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <InlineLoader />
+                    Logging in...
+                  </span>
+                ) : (
+                  'Login'
+                )}
               </Button>
             </form>
             
@@ -255,15 +280,15 @@ export function Login() {
               </Button>
             </div>
 
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex gap-3">
-              <Info size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
+            <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg flex gap-3">
+              <Info size={20} className="text-purple-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-purple-900">
                 <p className="font-medium mb-1">Password Recovery</p>
-                <p className="text-xs text-blue-700">For password reset, please contact your administrator via WhatsApp. WhatsApp is a free messaging service that works best for account recovery.</p>
+                <p className="text-xs text-purple-700">For password reset, please contact your administrator via WhatsApp. WhatsApp is a free messaging service that works best for account recovery.</p>
               </div>
             </div>
           </CardContent>
-        </Card>
+        </div>
       </div>
 
       <Dialog open={showPasswordSetup} onOpenChange={setShowPasswordSetup}>
@@ -398,10 +423,10 @@ export function Login() {
               onSuccess={() => {
                 console.log('[Login] Password change successful - redirecting to dashboard');
                 setShowEmployeePasswordSetup(false);
+                // Set the employee in auth context to redirect to dashboard
+                setEmployeeAfterPasswordChange({ ...tempEmployee, firstLogin: false });
                 setTempEmployee(null); // Clear temp storage
-                toast.success('Password changed successfully! Redirecting...');
-                // Reload the page to trigger login with new password
-                window.location.reload();
+                toast.success('Password changed successfully! Welcome to your dashboard.');
               }}
             />
           );
@@ -425,10 +450,10 @@ export function Login() {
               onSuccess={() => {
                 console.log('[Login] Vendor password change successful - redirecting to dashboard');
                 setShowVendorPasswordSetup(false);
+                // Set the vendor in auth context to redirect to dashboard
+                setVendorAfterPasswordChange({ ...tempVendor, isFirstLogin: false });
                 setTempVendor(null); // Clear temp storage
-                toast.success('Password changed successfully! Redirecting...');
-                // Reload the page to trigger login with new password
-                window.location.reload();
+                toast.success('Password changed successfully! Welcome to your dashboard.');
               }}
             />
           );
@@ -437,8 +462,12 @@ export function Login() {
         return null;
       })()}
 
-      {/* Debug Panel - Remove before production */}
-      <DebugPanel />
+      {/* Debug Panel removed for production - can be re-enabled in development if needed */}
+      {process.env.NODE_ENV === 'development' && false && (
+        <div>
+          {/* <DebugPanel /> */}
+        </div>
+      )}
     </>
   );
 }

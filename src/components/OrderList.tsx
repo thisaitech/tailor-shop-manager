@@ -19,18 +19,20 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { MagnifyingGlass, Scissors, Plus, Warning, Phone, WhatsappLogo, CaretDown, CaretUp, Funnel } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { format, isPast, isToday, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ServiceOrderForm } from './ServiceOrderForm';
 import { PhotoGallery } from './PhotoGallery';
 import { Customer, Tailor } from '@/lib/types';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
-// Display status type for combined status from both collections
-type DisplayStatus = 'pending' | 'in-progress' | 'delivered' | 'completed';
-type ServiceOrderFilter = 'all' | 'in-progress' | 'pending' | 'delivered' | 'completed' | 'overdue';
+// Display status type based on unified ServiceOrder.orderStatus
+type DisplayStatus = 'open' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'rejected' | 'ready' | 'job-completed' | 'received-note' | 'delivered';
+type ServiceOrderFilter = 'all' | 'open' | 'awaiting' | 'inprogress' | 'ready' | 'delivered' | 'overdue';
 type DateFilter = 'all' | 'exact' | 'range';
+type DateFieldType = 'orderDate' | 'deliveryDate'; // Which date field to filter on
 
-const ITEMS_PER_PAGE = 3;
+const ITEMS_PER_PAGE = 6;
 
 interface OrderListProps {
   orders: Order[];
@@ -59,6 +61,8 @@ interface OrderListProps {
     advancePayment?: Omit<AdvancePayment, 'id' | 'proformaInvoiceNo' | 'invoiceNo' | 'createdAt' | 'updatedAt'>
   ) => void;
   onCreateCustomer: () => void;
+  hideAddButton?: boolean;
+  onSelectOrder?: (order: ServiceOrder) => void;
 }
 
 export function OrderList({
@@ -72,12 +76,15 @@ export function OrderList({
   onUpdateStatus,
   onAddServiceOrder,
   onCreateCustomer,
+  hideAddButton = false,
+  onSelectOrder,
 }: OrderListProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
   const [serviceOrderFilter, setServiceOrderFilter] = useState<ServiceOrderFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [dateFieldType, setDateFieldType] = useState<DateFieldType>('orderDate'); // Order Date or Delivery Date
   const [exactDate, setExactDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -88,60 +95,11 @@ export function OrderList({
   const [currentPage, setCurrentPage] = useState(1);
 
   /**
-   * Get the display status for a service order based on allotment status
-   * Status logic:
-   * - Not assigned → 'Pending'
-   * - In progress → 'In Progress'
-   * - Ready to deliver / Ready to dispatch → 'Delivered'
-   * - Reassigned → 'Pending'
-   * - Final payment completed → 'Completed'
+   * Get the display status for a service order from unified orderStatus field
    */
   const getDisplayStatus = (serviceOrder: ServiceOrder): DisplayStatus => {
-    // Find the allotment for this service order (exclude reassigned orders)
-    const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
-
-    // If no allotment exists or order is reassigned → Pending
-    if (!allotment) {
-      return 'pending';
-    }
-
-    // Check allotment status fields
-    // - status: used by job work tailors (vendors) - values: 'allotted', 'in_progress', 'stitched', 'rejected', 'delivered'
-    // - orderStatus: used by employee tailors - values: 'open', 'in-progress', 'closed'
-    // - serviceOrderStatus: status synced to service order - values: 'pending', 'in-progress', 'ready', 'delivered'
-    const allotmentStatus = allotment.status; // Job work tailor status
-    const orderTicketStatus = allotment.orderStatus; // Employee tailor status
-    const serviceOrderStatus = allotment.serviceOrderStatus;
-
-    // If final payment is completed → Completed
-    // Check if serviceOrder.orderStatus is 'delivered' and payment is complete
-    if (serviceOrder.orderStatus === 'delivered') {
-      return 'completed';
-    }
-
-    // Ready to deliver or ready to dispatch → Delivered
-    // Job work: status='stitched' or 'delivered'
-    // Employee: serviceOrderStatus='ready'
-    if (allotmentStatus === 'stitched' || allotmentStatus === 'delivered' || serviceOrderStatus === 'ready') {
-      return 'delivered';
-    }
-
-    // In progress
-    // Job work: status='in_progress'
-    // Employee: orderStatus='in-progress'
-    if (allotmentStatus === 'in_progress' || orderTicketStatus === 'in-progress') {
-      return 'in-progress';
-    }
-
-    // Allotted but not started → Pending
-    // Job work: status='allotted'
-    // Employee: orderStatus='open'
-    if (allotmentStatus === 'allotted' || orderTicketStatus === 'open') {
-      return 'pending';
-    }
-
-    // Default to pending
-    return 'pending';
+    // Use the unified orderStatus directly from ServiceOrder
+    return serviceOrder.orderStatus as DisplayStatus;
   };
 
   const filteredOrders = (orders || []).filter((o) => {
@@ -210,20 +168,34 @@ export function OrderList({
       o.orderCategory.toLowerCase().includes(searchLower) ||
       hasMeasurementMatch(o.measurements, searchLower);
 
-    // Status filter using display status
+    // Status filter using unified orderStatus
     let matchesStatus = true;
     if (serviceOrderFilter !== 'all') {
       if (serviceOrderFilter === 'overdue') {
         matchesStatus = isServiceOrderOverdue(o);
       } else {
-        // Use getDisplayStatus for filtering
-        matchesStatus = getDisplayStatus(o) === serviceOrderFilter;
+        // Map filter values to orderStatus values
+        const statusMap: Record<string, string[]> = {
+          'open': ['open'],
+          'awaiting': ['awaiting', 'waitingForDC'],
+          'inprogress': ['inprogress'],
+          'ready': ['ready', 'job-completed', 'received-note'],
+          'delivered': ['delivered'],
+        };
+        const validStatuses = statusMap[serviceOrderFilter] || [serviceOrderFilter];
+        matchesStatus = validStatuses.includes(o.orderStatus);
       }
     }
 
-    // Date filter
+    // Date filter - choose between order date and delivery date
     const dateRange = getDateRange(dateFilter);
-    const matchesDate = !dateRange || (o.createdAt && isWithinInterval(new Date(o.createdAt), dateRange));
+    let matchesDate = true;
+    if (dateRange) {
+      const dateToCheck = dateFieldType === 'orderDate' 
+        ? (o.serviceOrderDate || o.createdAt) 
+        : o.expectedDeliveryDate;
+      matchesDate = dateToCheck ? isWithinInterval(new Date(dateToCheck), dateRange) : false;
+    }
 
     return matchesSearch && matchesStatus && matchesDate;
   });
@@ -234,16 +206,25 @@ export function OrderList({
     if (filter === 'overdue') {
       return (serviceOrders || []).filter(o => isServiceOrderOverdue(o)).length;
     }
-    // Use getDisplayStatus for filtering counts
-    return (serviceOrders || []).filter(o => getDisplayStatus(o) === filter).length;
+    // Map filter values to orderStatus values
+    const statusMap: Record<string, string[]> = {
+      'open': ['open'],
+      'awaiting': ['awaiting', 'waitingForDC'],
+      'inprogress': ['inprogress'],
+      'ready': ['ready', 'job-completed', 'received-note'],
+      'delivered': ['delivered'],
+    };
+    const validStatuses = statusMap[filter] || [filter];
+    return (serviceOrders || []).filter(o => validStatuses.includes(o.orderStatus)).length;
   };
 
   const serviceOrderFilterOptions: { value: ServiceOrderFilter; label: string }[] = [
     { value: 'all', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'in-progress', label: 'In Progress' },
+    { value: 'open', label: 'Open' },
+    { value: 'awaiting', label: 'Awaiting' },
+    { value: 'inprogress', label: 'In Progress' },
+    { value: 'ready', label: 'Ready' },
     { value: 'delivered', label: 'Delivered' },
-    { value: 'completed', label: 'Completed' },
     { value: 'overdue', label: 'Overdue' },
   ];
 
@@ -253,8 +234,13 @@ export function OrderList({
     { value: 'range', label: 'Date Range' },
   ];
 
+  const dateFieldOptions: { value: DateFieldType; label: string }[] = [
+    { value: 'orderDate', label: 'Order Date' },
+    { value: 'deliveryDate', label: 'Delivery Date' },
+  ];
+
   const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Status Filter */}
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Status</label>
@@ -279,9 +265,32 @@ export function OrderList({
         </div>
       </div>
 
+      {/* Date Field Type Selector */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date Type</label>
+        <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
+          {dateFieldOptions.map((option) => (
+            <Button
+              key={option.value}
+              variant={dateFieldType === option.value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setDateFieldType(option.value);
+                setCurrentPage(1);
+              }}
+              className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Date Filter */}
       <div>
-        <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date</label>
+        <label className="text-xs font-medium text-muted-foreground mb-2 block">
+          {dateFieldType === 'orderDate' ? 'Order Date' : 'Delivery Date'} Filter
+        </label>
         {/* Date Filter Type Selection */}
         <div className={`flex gap-1.5 mb-3 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
           {dateFilterOptions.map((option) => (
@@ -312,7 +321,7 @@ export function OrderList({
             />
             {exactDate && (
               <p className="text-xs text-muted-foreground">
-                Showing {filteredServiceOrders.length} order(s) on {format(new Date(exactDate), 'MMM dd, yyyy')}
+                Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} on {format(new Date(exactDate), 'MMM dd, yyyy')}
               </p>
             )}
 
@@ -374,7 +383,7 @@ export function OrderList({
 
             {startDate && endDate && (
               <p className="text-xs text-muted-foreground">
-                Showing {filteredServiceOrders.length} order(s) from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
+                Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
               </p>
             )}
 
@@ -481,9 +490,9 @@ export function OrderList({
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const showPagination = filteredServiceOrders.length > ITEMS_PER_PAGE;
 
-  // Get paginated service orders (filtered and sorted)
+  // Get paginated service orders (filtered and sorted by serviceOrderDate in descending order)
   const recentServiceOrders = filteredServiceOrders
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => b.serviceOrderDate - a.serviceOrderDate)
     .slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // Reset to page 1 when filters change
@@ -499,30 +508,52 @@ export function OrderList({
 
   const getServiceOrderStatusColor = (status: string) => {
     switch (status) {
-      case 'in-progress':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+      case 'open':
+        return 'bg-purple-600 text-white dark:bg-purple-700';
+      case 'awaiting':
+        return 'bg-amber-500 text-white dark:bg-amber-600';
+      case 'waitingForDC':
+        return 'bg-teal-500 text-white dark:bg-teal-600';
+      case 'inprogress':
+        return 'bg-blue-600 text-white dark:bg-blue-700';
+      case 'rejected':
+        return 'bg-red-600 text-white dark:bg-red-700';
+      case 'ready':
+        return 'bg-indigo-600 text-white dark:bg-indigo-700';
+      case 'job-completed':
+        return 'bg-orange-600 text-white dark:bg-orange-700';
+      case 'received-note':
+        return 'bg-cyan-600 text-white dark:bg-cyan-700';
       case 'delivered':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-      case 'completed':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300';
+        return 'bg-green-600 text-white dark:bg-green-700';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-500 text-white';
     }
   };
 
   // Get display status label for UI
-  const getDisplayStatusLabel = (status: DisplayStatus): string => {
+  const getDisplayStatusLabel = (status: string): string => {
     switch (status) {
-      case 'pending':
-        return 'PENDING';
-      case 'in-progress':
+      case 'open':
+        return 'OPEN';
+      case 'awaiting':
+        return 'AWAITING';
+      case 'waitingForDC':
+        return 'WAITING DC';
+      case 'inprogress':
         return 'IN PROGRESS';
+      case 'rejected':
+        return 'REJECTED';
+      case 'ready':
+        return 'READY';
+      case 'job-completed':
+        return 'JOB DONE';
+      case 'received-note':
+        return 'RECEIVED';
       case 'delivered':
         return 'DELIVERED';
-      case 'completed':
-        return 'COMPLETED';
+      default:
+        return status.toUpperCase();
     }
   };
 
@@ -542,10 +573,12 @@ export function OrderList({
               className="pl-10 h-10 touch-manipulation"
             />
           </div>
-          <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
-            <Plus size={18} className="mr-1.5" weight="bold" />
-            {t('newOrder')}
-          </Button>
+          {!hideAddButton && (
+            <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
+              <Plus size={18} className="mr-1.5" weight="bold" />
+              {t('newOrder')}
+            </Button>
+          )}
         </div>
 
         {/* Mobile: Filter button that opens modal */}
@@ -575,61 +608,67 @@ export function OrderList({
       {filteredOrders.length === 0 ? (
         recentServiceOrders.length === 0 ? (
           // Show "No orders yet" or "No results" based on search
-          <Card className="p-8 sm:p-12 text-center">
-            <Scissors size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
-            <p className="text-base text-muted-foreground mb-4 font-medium">
-              {search ? `No orders found for "${search}"` : 'No orders yet'}
-            </p>
-            {!search && (
-              <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation text-xs sm:text-sm">
-                <Plus size={18} className="mr-1.5" weight="bold" />
-                {t('newOrder')}
-              </Button>
-            )}
-          </Card>
+          <EmptyState
+            icon={Scissors}
+            title={search ? `No orders found for "${search}"` : 'No orders yet'}
+            description={search ? 'Try adjusting your search terms' : 'Create your first order to get started'}
+            actionLabel={!search ? t('newOrder') : undefined}
+            onAction={!search ? () => setShowForm(true) : undefined}
+          />
         ) : (
           // Show Recent Service Orders when count > 0
-          <Card className="p-3 sm:p-4 w-full max-w-full h-[750px] lg:h-[350px] flex flex-col gap-6 overflow-auto">
-            <h3 className="text-base font-semibold text-foreground">
+          <div
+            className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+            style={{
+              background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+              borderColor: 'rgba(196, 181, 253, 0.5)'
+            }}
+          >
+            <h3 className="text-base font-semibold text-gray-800">
               {search ? `Search Results (${recentServiceOrders.length})` : `Recent Service Orders (${recentServiceOrders.length})`}
             </h3>
-            {/* Mobile: Vertical stack | Desktop: 3-column grid */}
-            <div className="flex flex-col gap-4 flex-1 overflow-y-auto pr-2 scrollbar-hide sm:grid sm:grid-cols-3">
-              {recentServiceOrders.map((serviceOrder) => (
+            {/* 6 cards per page: 2 cols × 3 rows on mobile */}
+            <div className="grid grid-cols-2 gap-3">
+              {recentServiceOrders.map((serviceOrder, index) => (
                 <div
                   key={serviceOrder.id}
-                  className="rounded-lg border-2 border-gray-300 dark:border-gray-600 hover:shadow-md transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm"
+                  className={`rounded-lg border hover:shadow-lg transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
+                    borderColor: 'rgba(167, 139, 250, 0.3)'
+                  }}
+                  onClick={() => onSelectOrder?.(serviceOrder)}
                 >
                   {/* Order details */}
                   <div className="flex-1 min-h-0 flex flex-col">
                     <div className="flex items-start justify-between mb-1">
-                      <p className="text-[10px] sm:text-xs font-bold text-primary">{serviceOrder.id}</p>
-                      <Badge className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold ${getServiceOrderStatusColor(getDisplayStatus(serviceOrder))}`}>
+                      <p className="text-[10px] sm:text-xs font-bold text-purple-700">{serviceOrder.id}</p>
+                      <Badge variant="outline" className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-extrabold border-transparent ${getServiceOrderStatusColor(getDisplayStatus(serviceOrder))}`}>
                         {getDisplayStatusLabel(getDisplayStatus(serviceOrder))}
                       </Badge>
                     </div>
-                    <p className="text-xs sm:text-sm font-semibold text-foreground truncate mb-2">{serviceOrder.customerName}</p>
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground mb-2 flex-wrap">
-                      <span className="capitalize truncate">{serviceOrder.orderCategory}</span>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate mb-2">{serviceOrder.customerName}</p>
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 mb-2 flex-wrap">
+                      <span className="truncate">{serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'}</span>
                       <span>•</span>
                       <span>{serviceOrder.orderQty} {serviceOrder.uom}</span>
                       <span>•</span>
-                      <span className="font-bold text-primary">₹{serviceOrder.stitchingCost.toFixed(2)}</span>
+                      <span className="font-bold text-purple-700">₹{serviceOrder.stitchingCost.toFixed(2)}</span>
                     </div>
 
                     {/* Design Images */}
                     {serviceOrder.designList && serviceOrder.designList.length > 0 && (
                       <div className="flex gap-1 mb-2">
-                        {serviceOrder.designList.slice(0, 3).map((image, index) => (
+                        {serviceOrder.designList.slice(0, 3).map((image, imgIndex) => (
                           <img
-                            key={index}
+                            key={imgIndex}
                             src={image}
-                            alt={`Design ${index + 1}`}
-                            className="w-8 h-8 rounded object-cover border"
+                            alt={`Design ${imgIndex + 1}`}
+                            className="w-8 h-8 rounded object-cover border border-purple-200"
                           />
                         ))}
                         {serviceOrder.designList.length > 3 && (
-                          <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground border">
+                          <div className="w-8 h-8 rounded bg-purple-100 flex items-center justify-center text-[10px] font-bold text-purple-700 border border-purple-200">
                             +{serviceOrder.designList.length - 3}
                           </div>
                         )}
@@ -638,17 +677,17 @@ export function OrderList({
                   </div>
 
                   {/* Bottom row: Delivery Date */}
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between pt-2 border-t border-purple-200">
                     <div className="text-left">
-                      <p className="text-[8px] sm:text-[10px] text-muted-foreground leading-tight">Delivery</p>
-                      <p className="text-[10px] sm:text-xs font-semibold text-foreground">{format(new Date(serviceOrder.expectedDeliveryDate), 'MMM dd')}</p>
+                      <p className="text-[8px] sm:text-[10px] text-gray-500 leading-tight">Delivery</p>
+                      <p className="text-[10px] sm:text-xs font-semibold text-gray-800">{format(new Date(serviceOrder.expectedDeliveryDate), 'MMM dd')}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
             {showPagination && <Pagination />}
-          </Card>
+          </div>
         )
       ) : (
         <div className="space-y-2 sm:space-y-3">
@@ -850,6 +889,15 @@ export function OrderList({
           </DialogHeader>
           <div className="py-4">
             <FilterButtons inModal />
+          </div>
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setShowFilterModal(false)}
+              className="w-full h-10 font-semibold"
+            >
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

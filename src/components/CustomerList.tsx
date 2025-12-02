@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { MagnifyingGlass, UserCircle, Plus, DotsThree, PencilSimple, Trash, Phone, WhatsappLogo, Funnel } from '@phosphor-icons/react';
+import { EmptyState } from './EmptyState';
 import { CustomerForm } from './CustomerForm';
 import { sendWhatsAppMessage } from '@/lib/utils';
 import { startOfDay, endOfDay, subDays, subMonths, isWithinInterval, format } from 'date-fns';
@@ -39,14 +40,15 @@ interface CustomerListProps {
   onUpdateCustomer?: (id: string, customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onDeleteCustomer?: (id: string) => void;
   onSelectCustomer?: (customer: Customer) => void;
+  hideAddButton?: boolean;
 }
 
 type DateFilter = 'all' | 'exact' | 'range';
 
-const ITEMS_PER_PAGE = 3;
-const RECENT_CUSTOMERS_PER_PAGE = 3;
+const ITEMS_PER_PAGE = 6;
+const RECENT_CUSTOMERS_PER_PAGE = 6;
 
-export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer, onSelectCustomer }: CustomerListProps) {
+export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDeleteCustomer, onSelectCustomer, hideAddButton = false }: CustomerListProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
@@ -353,10 +355,12 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
               className="pl-10 h-10 touch-manipulation"
             />
           </div>
-          <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
-            <Plus size={18} className="mr-1.5" weight="bold" />
-            {t('addCustomer')}
-          </Button>
+          {!hideAddButton && (
+            <Button onClick={() => setShowForm(true)} className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap min-w-[100px] sm:min-w-[120px]">
+              <Plus size={18} className="mr-1.5" weight="bold" />
+              {t('addCustomer')}
+            </Button>
+          )}
         </div>
         
         {/* Mobile: Filter button that opens modal */}
@@ -382,76 +386,95 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
       </div>
 
       {filteredCustomers.length === 0 ? (
-        <Card className="p-8 sm:p-12 text-center">
-          <UserCircle size={64} className="mx-auto text-muted-foreground mb-4" weight="duotone" />
-          <p className="text-base text-muted-foreground mb-4 font-medium">
-            {search ? t('noCustomers') : t('noCustomers')}
-          </p>
-          {!search && (
-            <Button onClick={() => setShowForm(true)} className="h-10 touch-manipulation text-xs sm:text-sm">
-              <Plus size={18} className="mr-1.5" weight="bold" />
-              {t('addCustomer')}
-            </Button>
-          )}
-        </Card>
+        <EmptyState
+          icon={UserCircle}
+          title={search ? 'No customers found' : t('noCustomers')}
+          description={search ? 'Try adjusting your search terms' : 'Get started by adding your first customer'}
+          actionLabel={!search ? t('addCustomer') : undefined}
+          onAction={!search ? () => setShowForm(true) : undefined}
+        />
       ) : (
         // Show Recent Customers when count > 0
-        <Card className="p-3 sm:p-4 w-full max-w-full h-[750px] lg:h-[350px] flex flex-col gap-6 overflow-auto">
-          <h3 className="text-base font-semibold text-foreground">
+        <div
+          className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+          style={{
+            background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.5)'
+          }}
+        >
+          <h3 className="text-base font-semibold text-gray-800">
             {search ? `Search Results (${sortedCustomers.length})` : `Recent Customers (${sortedCustomers.length})`}
           </h3>
-          {/* Mobile: Vertical stack | Desktop: 3-column grid */}
-          <div className="flex flex-col gap-4 flex-1 overflow-y-auto pr-2 scrollbar-hide sm:grid sm:grid-cols-3">
-            {recentCustomers.map((customer) => (
+          {/* 6 cards per page: 2 cols × 3 rows on mobile, 3 cols × 2 rows on desktop */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {recentCustomers.map((customer, index) => (
               <div
                 key={customer.id}
-                className="rounded-lg border-2 border-gray-300 dark:border-gray-600 hover:shadow-md transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm"
-                onClick={() => onSelectCustomer?.(customer)}
+                className={`rounded-xl border-2 hover:shadow-lg transition-all cursor-pointer flex-shrink-0 w-full overflow-hidden shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                style={{
+                  background: '#ffffff',
+                  borderColor: 'rgba(139, 92, 246, 0.25)'
+                }}
+                onClick={() => {
+                  console.log('[CustomerList] Card clicked:', customer.id, customer.name);
+                  console.log('[CustomerList] onSelectCustomer:', typeof onSelectCustomer);
+                  onSelectCustomer?.(customer);
+                }}
               >
-                {/* Customer details */}
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-[10px] sm:text-xs font-bold text-primary mb-1">{customer.id}</p>
-                  <p className="text-xs sm:text-sm font-semibold text-foreground truncate mb-2">{customer.name}</p>
-                  <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground flex-wrap mb-2">
-                    <span className="truncate">{customer.phone}</span>
-                    {customer.place && (
-                      <>
-                        <span>•</span>
-                        <span className="capitalize truncate">{customer.place}</span>
-                      </>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold w-fit">
-                    {t(customer.gender).toUpperCase()}
+                {/* Header with ID and Gender Badge */}
+                <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)' }}>
+                  <span className="text-[10px] sm:text-xs font-bold text-white/90 font-mono">{customer.id}</span>
+                  <Badge className="text-[8px] sm:text-[10px] px-1.5 py-0 font-bold bg-white/20 text-white border-0 uppercase">
+                    {t(customer.gender)}
                   </Badge>
                 </div>
 
-                {/* Bottom row: Actions and Date */}
-                <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                {/* Main Content */}
+                <div className="p-3 space-y-2">
+                  {/* Customer Name */}
+                  <p className="text-sm sm:text-base font-bold text-gray-900 truncate leading-tight">{customer.name}</p>
+                  
+                  {/* Phone */}
+                  <div className="flex items-center gap-1.5">
+                    <Phone size={12} weight="fill" className="text-violet-600 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold text-violet-700 truncate">{customer.phone}</span>
+                  </div>
+                  
+                  {/* Place */}
+                  <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+                    {customer.place || 'Not Specified'}
+                  </p>
+                </div>
+
+                {/* Footer with Actions and Date */}
+                <div className="px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between border-t gap-1" style={{ borderColor: 'rgba(139, 92, 246, 0.15)', background: '#FAFAFF' }}>
                   {/* Action buttons */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0 sm:gap-0.5 flex-shrink-0">
                     <a
                       href={`tel:${customer.phone}`}
-                      className="text-primary hover:text-primary/80 transition-colors p-1 touch-manipulation"
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full bg-violet-100 text-violet-600 hover:bg-violet-200 transition-colors touch-manipulation"
                       onClick={(e) => e.stopPropagation()}
                       title={t('call')}
                     >
-                      <Phone size={14} weight="fill" />
+                      <Phone size={12} className="sm:hidden" weight="fill" />
+                      <Phone size={14} className="hidden sm:block" weight="fill" />
                     </a>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
                       }}
-                      className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors touch-manipulation"
                       title={t('whatsapp')}
                     >
-                      <WhatsappLogo size={14} weight="fill" />
+                      <WhatsappLogo size={12} className="sm:hidden" weight="fill" />
+                      <WhatsappLogo size={14} className="hidden sm:block" weight="fill" />
                     </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0 touch-manipulation">
-                          <DotsThree size={16} weight="bold" />
+                        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-full hover:bg-gray-100 touch-manipulation">
+                          <DotsThree size={14} className="sm:hidden" weight="bold" />
+                          <DotsThree size={16} className="hidden sm:block" weight="bold" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -472,9 +495,9 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
 
                   {/* Created date */}
                   {customer.createdAt && (
-                    <div className="text-right">
-                      <p className="text-[8px] sm:text-[10px] text-muted-foreground leading-tight">Joined</p>
-                      <p className="text-[10px] sm:text-xs font-semibold text-foreground">
+                    <div className="text-right flex-shrink-0 min-w-0">
+                      <p className="text-[8px] sm:text-[10px] text-gray-400 leading-tight">Joined</p>
+                      <p className="text-[9px] sm:text-xs font-bold text-gray-700 whitespace-nowrap">
                         {format(new Date(customer.createdAt), 'MMM dd')}
                       </p>
                     </div>
@@ -484,7 +507,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             ))}
           </div>
           {showRecentPagination && <RecentCustomersPagination />}
-        </Card>
+        </div>
       )}
 
       <CustomerForm

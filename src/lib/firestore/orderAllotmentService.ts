@@ -13,8 +13,8 @@ import {
   deleteField,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { OrderAllotment, ServiceOrderStatus } from '@/lib/types';
-import { updateServiceOrderStatus } from './serviceOrderService';
+import { OrderAllotment, ServiceOrderStatus, EmbeddedAllotment } from '@/lib/types';
+import { updateServiceOrderStatus, addEmbeddedAllotment, updateEmbeddedAllotment, deleteEmbeddedAllotment } from './serviceOrderService';
 
 const ORDER_ALLOTMENTS_COLLECTION = 'orderAllotment';
 
@@ -50,7 +50,7 @@ export async function addOrderAllotment(
     const initialHistoryEntry = {
       timestamp: Date.now(),
       action: 'created' as const,
-      newStatus: allotmentData.stitchingAllotment === 'vendor' ? 'allotted' : 'open',
+      newStatus: 'allotted', // All allotments start with 'allotted' status (awaiting acceptance)
       newAssignedTo: allotmentData.assignedTo,
       newAssignedName: allotmentData.assignedName,
       newStitchingAllotment: allotmentData.stitchingAllotment,
@@ -68,12 +68,12 @@ export async function addOrderAllotment(
       createdAt: Date.now(),
       updatedAt: Date.now(),
       history: [initialHistoryEntry],
+      status: 'allotted', // All allotments start with 'allotted' status (awaiting acceptance)
+      assignedDate: Date.now(), // Set assignment date for all allotments
     };
 
     // If this is a vendor allotment, initialize vendor-specific fields
     if (allotmentData.stitchingAllotment === 'vendor') {
-      newAllotment.status = 'allotted'; // Initialize status for job work tailor
-      newAllotment.assignedDate = Date.now(); // Set assignment date
       newAllotment.jobWorkNo = jobWorkId; // Set job work number for reference
       newAllotment.jobWorkTailorId = allotmentData.assignedTo; // Set job work tailor ID
       newAllotment.jobWorkTailorName = allotmentData.assignedName; // Set job work tailor name
@@ -88,9 +88,43 @@ export async function addOrderAllotment(
       updatedAt: serverTimestamp(),
     });
 
-    // Update service order status to 'pending' (after job allotment)
-    await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'pending');
-    console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} status to 'pending'`);
+    // Also add embedded allotment to service order (unified structure)
+    const embeddedAllotment: EmbeddedAllotment = {
+      id: newAllotment.id,
+      jobWorkDate: newAllotment.jobWorkDate,
+      dressItemId: newAllotment.dressItemId,
+      dressItemName: newAllotment.dressItemName,
+      dressType: newAllotment.dressType,
+      stitchingAllotment: newAllotment.stitchingAllotment,
+      assignedTo: newAllotment.assignedTo,
+      assignedName: newAllotment.assignedName,
+      jobWorkNo: newAllotment.jobWorkNo,
+      jobWorkTailorId: newAllotment.jobWorkTailorId,
+      jobWorkTailorName: newAllotment.jobWorkTailorName,
+      status: newAllotment.status,
+      assignedDate: newAllotment.assignedDate,
+      orderNumber: newAllotment.orderNumber,
+      materialCost: newAllotment.materialCost,
+      jobWorkCost: newAllotment.jobWorkCost,
+      expectedDeliveryDate: newAllotment.expectedDeliveryDate,
+      orderStatus: newAllotment.orderStatus,
+      createdAt: newAllotment.createdAt,
+      updatedAt: newAllotment.updatedAt,
+      history: newAllotment.history,
+    };
+
+    try {
+      await addEmbeddedAllotment(allotmentData.serviceOrderNo, embeddedAllotment);
+      console.log(`[orderAllotmentService] Embedded allotment added to service order ${allotmentData.serviceOrderNo}`);
+    } catch (embeddedError) {
+      console.warn('[orderAllotmentService] Failed to add embedded allotment (non-critical):', embeddedError);
+    }
+
+    // Update service order status based on assignment type:
+    // 'allotment' for employee, 'job-network' for vendor
+    const newServiceOrderStatus = allotmentData.stitchingAllotment === 'employee' ? 'allotment' : 'job-network';
+    await updateServiceOrderStatus(allotmentData.serviceOrderNo, newServiceOrderStatus);
+    console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} status to '${newServiceOrderStatus}'`);
 
     console.log(`[orderAllotmentService] Order allotment ${jobWorkId} added successfully with initial history`);
     return newAllotment;
@@ -160,10 +194,27 @@ export async function updateOrderAllotment(
   try {
     console.log(`[orderAllotmentService] Updating order allotment ${allotmentId}`);
 
+    // Get the current allotment to find serviceOrderNo
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    const currentData = allotmentDoc.exists() ? allotmentDoc.data() : null;
+
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
       ...allotmentData,
       updatedAt: serverTimestamp(),
     });
+
+    // Also update the embedded allotment in service order (unified structure)
+    if (currentData?.serviceOrderNo) {
+      try {
+        await updateEmbeddedAllotment(currentData.serviceOrderNo, allotmentId, {
+          ...allotmentData,
+          updatedAt: Date.now(),
+        } as Partial<EmbeddedAllotment>);
+        console.log(`[orderAllotmentService] Embedded allotment updated in service order ${currentData.serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to update embedded allotment (non-critical):', embeddedError);
+      }
+    }
 
     console.log(`[orderAllotmentService] Order allotment ${allotmentId} updated successfully`);
   } catch (error) {
@@ -173,21 +224,52 @@ export async function updateOrderAllotment(
 }
 
 /**
- * Update order allotment status
+ * Update order allotment status (for both employee and vendor workflows)
+ * This updates both 'orderStatus' and 'status' fields for consistency
  */
 export async function updateOrderAllotmentStatus(
   allotmentId: string,
-  status: 'open' | 'in-progress' | 'closed'
+  newOrderStatus: 'open' | 'in-progress' | 'closed'
 ): Promise<void> {
   try {
-    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} status to ${status}`);
+    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} status to ${newOrderStatus}`);
+
+    // Get the current allotment to find serviceOrderNo
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    const currentData = allotmentDoc.exists() ? allotmentDoc.data() : null;
+
+    // Map orderStatus to status field values for consistency with DashboardStats
+    // 'in-progress' (orderStatus) → 'in_progress' (status)
+    // 'closed' (orderStatus) → 'stitched' (status)
+    // 'open' (orderStatus) → 'allotted' (status)
+    let statusFieldValue: 'allotted' | 'in_progress' | 'stitched' | 'rejected' = 'allotted';
+    if (newOrderStatus === 'in-progress') {
+      statusFieldValue = 'in_progress';
+    } else if (newOrderStatus === 'closed') {
+      statusFieldValue = 'stitched';
+    }
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
-      orderStatus: status,
+      orderStatus: newOrderStatus,
+      status: statusFieldValue, // Also update the 'status' field for DashboardStats consistency
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[orderAllotmentService] Order allotment ${allotmentId} status updated to ${status}`);
+    // Also update the embedded allotment in service order (unified structure)
+    if (currentData?.serviceOrderNo) {
+      try {
+        await updateEmbeddedAllotment(currentData.serviceOrderNo, allotmentId, {
+          orderStatus: newOrderStatus,
+          status: statusFieldValue,
+          updatedAt: Date.now(),
+        });
+        console.log(`[orderAllotmentService] Embedded allotment status updated in service order ${currentData.serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to update embedded allotment (non-critical):', embeddedError);
+      }
+    }
+
+    console.log(`[orderAllotmentService] Order allotment ${allotmentId} status updated to orderStatus=${newOrderStatus}, status=${statusFieldValue}`);
   } catch (error) {
     console.error('[orderAllotmentService] Error updating order allotment status:', error);
     throw error;
@@ -196,22 +278,50 @@ export async function updateOrderAllotmentStatus(
 
 /**
  * Update both order allotment status and service order status
+ * This updates 'orderStatus', 'status', and 'serviceOrderStatus' fields for consistency
  */
 export async function updateOrderAllotmentWithServiceStatus(
   allotmentId: string,
-  orderStatus: 'open' | 'in-progress' | 'closed',
+  newOrderStatus: 'open' | 'in-progress' | 'closed',
   serviceOrderStatus: ServiceOrderStatus
 ): Promise<void> {
   try {
-    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${orderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
+    console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${newOrderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
+
+    // Get the current allotment to find serviceOrderNo
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    const currentData = allotmentDoc.exists() ? allotmentDoc.data() : null;
+
+    // Map orderStatus to status field values for consistency with DashboardStats
+    let statusFieldValue: 'allotted' | 'in_progress' | 'stitched' | 'rejected' = 'allotted';
+    if (newOrderStatus === 'in-progress') {
+      statusFieldValue = 'in_progress';
+    } else if (newOrderStatus === 'closed') {
+      statusFieldValue = 'stitched';
+    }
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), {
-      orderStatus: orderStatus,
+      orderStatus: newOrderStatus,
+      status: statusFieldValue, // Also update the 'status' field for DashboardStats consistency
       serviceOrderStatus: serviceOrderStatus,
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[orderAllotmentService] Order allotment ${allotmentId} updated successfully`);
+    // Also update the embedded allotment in service order (unified structure)
+    if (currentData?.serviceOrderNo) {
+      try {
+        await updateEmbeddedAllotment(currentData.serviceOrderNo, allotmentId, {
+          orderStatus: newOrderStatus,
+          status: statusFieldValue,
+          updatedAt: Date.now(),
+        });
+        console.log(`[orderAllotmentService] Embedded allotment status updated in service order ${currentData.serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to update embedded allotment (non-critical):', embeddedError);
+      }
+    }
+
+    console.log(`[orderAllotmentService] Order allotment ${allotmentId} updated - orderStatus=${newOrderStatus}, status=${statusFieldValue}, serviceOrderStatus=${serviceOrderStatus}`);
   } catch (error) {
     console.error('[orderAllotmentService] Error updating order allotment:', error);
     throw error;
@@ -310,6 +420,25 @@ export async function updateVendorOrderStatus(
     // Update the order allotment
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
 
+    // Also update the embedded allotment in service order (unified structure)
+    if (allotmentData.serviceOrderNo) {
+      try {
+        const embeddedUpdates: any = {
+          status: status,
+          history: updateData.history,
+        };
+        if (status === 'stitched') {
+          embeddedUpdates.stitchedId = updateData.stitchedId;
+          embeddedUpdates.stitchedDate = Date.now();
+          embeddedUpdates.orderStatus = 'closed';
+        }
+        await updateEmbeddedAllotment(allotmentData.serviceOrderNo, allotmentId, embeddedUpdates);
+        console.log(`[orderAllotmentService] Embedded allotment updated in service order ${allotmentData.serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to update embedded allotment (non-critical):', embeddedError);
+      }
+    }
+
     console.log(`[orderAllotmentService] Vendor order ${allotmentId} status updated to ${status} with history`);
   } catch (error) {
     console.error('[orderAllotmentService] Error updating vendor order status:', error);
@@ -403,6 +532,37 @@ export async function reassignStitchedOrder(
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
 
+    // Also update the embedded allotment in service order (unified structure)
+    if (currentData.serviceOrderNo) {
+      try {
+        const embeddedUpdates: Partial<EmbeddedAllotment> = {
+          status: currentData.status ?? 'stitched',
+          stitchingAllotment: newAssignment.stitchingAllotment,
+          assignedTo: newAssignment.assignedTo,
+          assignedName: newAssignment.assignedName,
+          materialCost: newAssignment.materialCost ?? 0,
+          jobWorkCost: newAssignment.jobWorkCost ?? 0,
+          orderStatus: 'open',
+          assignedDate: Date.now(),
+          reassigned: true,
+          reassignedDate: Date.now(),
+          history: updateData.history,
+          updatedAt: Date.now(),
+        };
+        if (newAssignment.expectedDeliveryDate !== undefined) {
+          embeddedUpdates.expectedDeliveryDate = newAssignment.expectedDeliveryDate;
+        }
+        if (newAssignment.stitchingAllotment === 'vendor') {
+          embeddedUpdates.jobWorkTailorId = newAssignment.assignedTo;
+          embeddedUpdates.jobWorkTailorName = newAssignment.assignedName;
+        }
+        await updateEmbeddedAllotment(currentData.serviceOrderNo, allotmentId, embeddedUpdates);
+        console.log(`[orderAllotmentService] Embedded allotment reassigned in service order ${currentData.serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to update embedded allotment (non-critical):', embeddedError);
+      }
+    }
+
     console.log(`[orderAllotmentService] Stitched order ${allotmentId} reassigned successfully with history preserved`);
   } catch (error) {
     console.error('[orderAllotmentService] Error reassigning stitched order:', error);
@@ -453,6 +613,22 @@ export async function rejectOrderAllotment(
 
     await updateDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId), updateData);
 
+    // Also update the embedded allotment in service order (unified structure)
+    if (currentData.serviceOrderNo) {
+      try {
+        await updateEmbeddedAllotment(currentData.serviceOrderNo, allotmentId, {
+          status: 'rejected',
+          orderStatus: 'open',
+          rejectedDate: Date.now(),
+          history: updateData.history,
+          updatedAt: Date.now(),
+        });
+        console.log(`[orderAllotmentService] Embedded allotment rejected in service order ${currentData.serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to update embedded allotment (non-critical):', embeddedError);
+      }
+    }
+
     console.log(`[orderAllotmentService] Order allotment ${allotmentId} rejected successfully`);
   } catch (error) {
     console.error('[orderAllotmentService] Error rejecting order allotment:', error);
@@ -467,7 +643,21 @@ export async function deleteOrderAllotment(allotmentId: string): Promise<void> {
   try {
     console.log(`[orderAllotmentService] Deleting order allotment ${allotmentId}`);
 
+    // Get the allotment to find serviceOrderNo before deleting
+    const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+    const serviceOrderNo = allotmentDoc.exists() ? allotmentDoc.data().serviceOrderNo : null;
+
     await deleteDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
+
+    // Also delete the embedded allotment from service order (unified structure)
+    if (serviceOrderNo) {
+      try {
+        await deleteEmbeddedAllotment(serviceOrderNo, allotmentId);
+        console.log(`[orderAllotmentService] Embedded allotment deleted from service order ${serviceOrderNo}`);
+      } catch (embeddedError) {
+        console.warn('[orderAllotmentService] Failed to delete embedded allotment (non-critical):', embeddedError);
+      }
+    }
 
     console.log(`[orderAllotmentService] Order allotment ${allotmentId} deleted successfully`);
   } catch (error) {
@@ -524,6 +714,38 @@ export async function getOrderAllotmentsByTailor(employeeId: string): Promise<Or
     return allotments;
   } catch (error) {
     console.error('[orderAllotmentService] Error getting allotments by tailor:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get order allotments by employee ID
+ * Queries for allotments where stitchingAllotment is 'employee' and assignedTo matches employeeId
+ */
+export async function getOrderAllotmentsByEmployee(employeeId: string): Promise<OrderAllotment[]> {
+  try {
+    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
+    const q = query(
+      allotmentsRef,
+      where('stitchingAllotment', '==', 'employee'),
+      where('assignedTo', '==', employeeId)
+    );
+    const snapshot = await getDocs(q);
+
+    const allotments: OrderAllotment[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        ...data,
+        createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt,
+        updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : data.updatedAt,
+        assignedDate: data.assignedDate instanceof Timestamp ? data.assignedDate.toMillis() : data.assignedDate || data.jobWorkDate,
+      } as OrderAllotment;
+    });
+
+    console.log(`[orderAllotmentService] Found ${allotments.length} allotments for employee ${employeeId}`);
+    return allotments;
+  } catch (error) {
+    console.error('[orderAllotmentService] Error getting allotments by employee:', error);
     throw error;
   }
 }

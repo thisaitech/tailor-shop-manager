@@ -2,17 +2,48 @@ export type Gender = 'male' | 'female';
 
 export type OrderStatus = 'pending' | 'in-progress' | 'ready' | 'delivered';
 
+// Pant options type
+export type PantOptions = 'withFlit' | 'withoutFlit' | 'packet' | 'backPacket';
+
+// Special notes with audio support
+export interface SpecialNote {
+  text?: string;
+  audioUrl?: string;
+  createdAt?: number;
+}
+
 export interface Measurements {
   // Shirt measurements (inches)
   shirt?: {
-    chest?: number;
-    waist?: number;
     length?: number;
     shoulder?: number;
+    sleeveType?: 'half' | 'full';
+    sleeveLength?: number;
+    sleeveLoose?: number;
+    body?: number;
+    waist?: number; // Voiure
+    neck?: number;
+    bodyLooseFront?: number;
+    bodyLooseBack?: number;
+    pocket?: number;
+    bottomCut?: number;
+    // Legacy fields for backward compatibility
+    chest?: number;
   };
   // Pant measurements (inches)
   pant?: {
+    kneeLength?: number;
+    length?: number;
     waist?: number;
+    seat?: number;
+    fly?: number; // Zip
+    fork?: number;
+    thighLoose?: number;
+    kneeLoose?: number;
+    bottom?: number;
+    options?: PantOptions[]; // Multi-select: withFlit, withoutFlit, packet, backPacket
+    specialNote?: SpecialNote; // Text + Audio note for packet/options
+    // Legacy fields for backward compatibility
     inseam?: number;
     outseam?: number;
     rise?: number;
@@ -28,21 +59,6 @@ export interface Measurements {
     length?: number;
     shoulder?: number;
   };
-  // Chudithar Top measurements (inches)
-  chuditharTop?: {
-    shoulder?: number;
-    bust?: number;
-    waist?: number;
-    hip?: number;
-    length?: number;
-  };
-  // Chudithar Pant measurements (inches)
-  chuditharPant?: {
-    waist?: number;
-    hip?: number;
-    inseam?: number;
-    fullLength?: number;
-  };
   // Blouse measurements (inches)
   blouse?: {
     shoulder?: number;
@@ -52,6 +68,39 @@ export interface Measurements {
     armhole?: number;
     halfSleeve?: number;
     fullSleeve?: number;
+    length?: number;
+    waist?: number;
+  };
+  // Churidar measurements (inches)
+  churidar?: {
+    shoulder?: number;
+    bust?: number;
+    waist?: number;
+    hip?: number;
+    length?: number;
+    sleeveLength?: number;
+  };
+  // Half Trousers measurements (Kids)
+  halfTrousers?: {
+    waist?: number;
+    length?: number;
+    thighLoose?: number;
+    bottom?: number;
+  };
+  // Chudithar Top measurements (inches) - Legacy
+  chuditharTop?: {
+    shoulder?: number;
+    bust?: number;
+    waist?: number;
+    hip?: number;
+    length?: number;
+  };
+  // Chudithar Pant measurements (inches) - Legacy
+  chuditharPant?: {
+    waist?: number;
+    hip?: number;
+    inseam?: number;
+    fullLength?: number;
   };
   // Trouser measurements (inches)
   trouser?: {
@@ -117,7 +166,21 @@ export interface Customer {
 
 // Service Order
 export type OrderCategory = 'male' | 'female' | 'kids';
-export type ServiceOrderStatus = 'open' | 'allotment' | 'job-network' | 'ready' | 'delivered';
+// Unified order status flow:
+// VENDOR FLOW: open → awaiting → waitingForDC (after accept) → inprogress (after DC created) → job-completed → received-note → delivered
+// EMPLOYEE FLOW: open → awaiting → inprogress (after accept) → ready → delivered
+// rejected can happen from awaiting, waitingForDC, or inprogress
+// re-assign can happen from rejected
+export type ServiceOrderStatus = 
+  | 'open'           // Initial status - not assigned yet
+  | 'awaiting'       // Assigned, waiting for vendor/employee acceptance
+  | 'waitingForDC'   // Vendor accepted, waiting for Delivery Challan to be created (VENDOR ONLY)
+  | 'inprogress'     // Work in progress (for vendors: after DC created, for employees: after accept)
+  | 'rejected'       // Rejected by vendor/employee
+  | 'ready'          // Ready to deliver (for employees)
+  | 'job-completed'  // Job work completed (for vendors - needs goods receipt)
+  | 'received-note'  // Goods received at shop (for vendors after goods receipt)
+  | 'delivered';     // Final delivery to customer
 
 // Unit of Measurement (UOM)
 export type UOM = 'Nos' | 'Cms' | 'Inches' | 'Meters' | 'Yards' | 'Feet' | 'Pieces' | 'Sets';
@@ -138,6 +201,37 @@ export interface DressItem {
   isAllotted?: boolean; // Whether this item has been assigned to a tailor
 }
 
+// Embedded allotment within ServiceOrder (unified structure)
+export interface EmbeddedAllotment {
+  id: string; // Job Work No (JOB0001, etc.)
+  jobWorkDate: number;
+  dressItemId?: string;
+  dressItemName?: string;
+  dressType?: string;
+  stitchingAllotment: StitchingAllotmentType;
+  assignedTo: string;
+  assignedName: string;
+  jobWorkNo?: string;
+  jobWorkTailorId?: string;
+  jobWorkTailorName?: string;
+  status?: 'allotted' | 'in_progress' | 'stitched' | 'rejected' | 'delivered';
+  assignedDate?: number;
+  orderNumber?: string;
+  stitchedId?: string;
+  stitchedDate?: number;
+  deliveredDate?: number;
+  reassigned?: boolean;
+  reassignedDate?: number;
+  rejectedDate?: number;
+  materialCost: number;
+  jobWorkCost: number;
+  expectedDeliveryDate: number;
+  orderStatus: OrderTicketStatus;
+  createdAt: number;
+  updatedAt: number;
+  history?: OrderAllotmentHistoryEntry[];
+}
+
 export interface ServiceOrder {
   id: string; // Service Order No (SO0001, SO0002, etc.)
   serviceOrderDate: number; // Auto-set to current date
@@ -153,7 +247,51 @@ export interface ServiceOrder {
   stitchingCost: number; // Total INR amount (sum of all dress items)
   expectedDeliveryDate: number; // Delivery date timestamp
   reference?: string; // Notes, instructions
-  orderStatus: ServiceOrderStatus; // In-Progress/Pending/Ready/Delivered
+  orderStatus: ServiceOrderStatus; // Order status
+  
+  // === Assignment/Allotment Fields (merged from orderAllotment) ===
+  assignmentType?: StitchingAllotmentType; // 'employee' or 'vendor'
+  assignedTo?: string; // Employee ID or Vendor ID
+  assignedToName?: string; // Employee/Vendor name (denormalized)
+  assignedDate?: number; // Date when assigned
+  assignedBy?: string; // Admin ID who assigned
+  
+  // Job Work specific fields (when assignmentType === 'vendor')
+  jobWorkNo?: string; // Job work number (JOB0001, etc.)
+  jobWorkDate?: number; // Date of job work creation
+  materialCost?: number; // Material cost in INR
+  jobWorkCost?: number; // Job work cost in INR
+  
+  // Delivery Challan fields (for vendors)
+  dcNumber?: string; // Delivery Challan number
+  dcDate?: number; // DC date
+  dcApproved?: boolean; // DC approved status
+  
+  // Status tracking dates
+  acceptedDate?: number; // Date when vendor/employee accepted
+  rejectedDate?: number; // Date when rejected
+  rejectionReason?: string; // Reason for rejection
+  completedDate?: number; // Date when work completed (ready/job-completed)
+  goodsReceivedDate?: number; // Date when goods received (for vendors)
+  goodsReceiptNo?: string; // Goods receipt number
+  deliveredDate?: number; // Date when delivered to customer
+  
+  // Re-assignment tracking
+  isReassigned?: boolean; // Flag if order was reassigned
+  reassignedDate?: number; // Date of reassignment
+  previousAssignedTo?: string; // Previous assignee ID
+  previousAssignedToName?: string; // Previous assignee name
+  
+  // Payment fields
+  totalAmount?: number; // Total amount
+  advanceAmount?: number; // Advance paid
+  balanceAmount?: number; // Balance due
+  paymentStatus?: 'pending' | 'partial' | 'completed';
+  
+  // Company/Admin reference
+  companyId?: string; // Company ID
+  adminId?: string; // Admin user ID
+  
   createdAt: number;
   updatedAt: number;
 }
@@ -201,7 +339,29 @@ export interface OrderAllotment {
   history?: OrderAllotmentHistoryEntry[];
 }
 
-// History entry for order allotment changes
+// History entry for order changes (stored in orderHistory collection)
+export interface OrderHistoryEntry {
+  id: string; // Auto-generated history entry ID
+  orderId: string; // Reference to Service Order ID
+  timestamp: number;
+  action: 'created' | 'assigned' | 'accepted' | 'rejected' | 'status_changed' | 'reassigned' | 'dc_created' | 'dc_approved' | 'goods_received' | 'delivered' | 'payment';
+  previousStatus?: ServiceOrderStatus;
+  newStatus?: ServiceOrderStatus;
+  previousAssignedTo?: string;
+  previousAssignedToName?: string;
+  newAssignedTo?: string;
+  newAssignedToName?: string;
+  assignmentType?: StitchingAllotmentType;
+  dcNumber?: string;
+  goodsReceiptNo?: string;
+  paymentAmount?: number;
+  notes?: string;
+  performedBy: string; // User ID who performed the action
+  performedByName: string; // User name who performed the action
+  metadata?: Record<string, any>; // Additional data
+}
+
+// Legacy: History entry for order allotment changes (keeping for backward compatibility)
 export interface OrderAllotmentHistoryEntry {
   timestamp: number;
   action: 'created' | 'reassigned' | 'status_changed' | 'delivered';
@@ -451,4 +611,37 @@ export interface Vendor {
   createdBy: string; // Admin user ID who created vendor
   createdAt: number;
   updatedAt: number;
+}
+
+// ==========================================
+// NOTIFICATION TYPES
+// ==========================================
+
+export type NotificationType = 
+  | 'order_assigned'
+  | 'order_accepted'
+  | 'order_rejected'
+  | 'order_completed'
+  | 'order_ready'
+  | 'order_delivered'
+  | 'goods_received'
+  | 'order_reassigned'
+  | 'dc_created'
+  | 'general';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  recipientId: string; // User ID who should receive this notification (vendor/employee/admin)
+  recipientType: 'admin' | 'employee' | 'vendor';
+  senderId?: string; // Who triggered this notification
+  senderName?: string;
+  orderId?: string; // Related order if applicable
+  orderNumber?: string;
+  isRead: boolean;
+  createdAt: number;
+  companyId?: string;
+  metadata?: Record<string, any>; // Additional data
 }

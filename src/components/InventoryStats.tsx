@@ -47,50 +47,57 @@ export function InventoryStats({ items, transactions = [] }: InventoryStatsProps
       label: t('totalItems'),
       value: totalItems,
       icon: Package,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
+      color: 'text-violet-600',
+      bgColor: 'bg-violet-100',
     },
     {
       label: t('lowStockItems'),
       value: lowStockItems,
       icon: WarningCircle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50',
+      color: 'text-rose-600',
+      bgColor: 'bg-rose-100',
     },
     {
       label: t('spentOnInventory'),
       value: `₹${safeSpent.toLocaleString('en-IN')}`,
       icon: ShoppingCart,
       color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50',
+      bgColor: 'bg-emerald-100',
     },
     {
       label: t('totalValue'),
       value: `₹${safeTotal.toLocaleString('en-IN')}`,
       icon: CurrencyDollar,
       color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
+      bgColor: 'bg-purple-100',
     },
   ];
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {stats.map((stat, index) => (
-        <Card key={index} className="p-3 sm:p-6">
+        <div
+          key={index}
+          className="p-3 sm:p-6 rounded-xl border shadow-md transition-all hover:shadow-lg"
+          style={{
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(124, 58, 237, 0.1) 50%, rgba(99, 102, 241, 0.1) 100%)',
+            borderColor: 'rgba(196, 181, 253, 0.4)'
+          }}
+        >
           <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
-            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0`}>
+            <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-3 rounded-lg flex-shrink-0 shadow-sm`}>
               <stat.icon size={20} className="sm:size-7" weight="duotone" />
             </div>
             <div className="w-full min-w-0">
-              <p className="text-3xl sm:text-5xl font-bold text-foreground mb-1">
+              <p className="text-3xl sm:text-5xl font-bold text-gray-900 mb-1">
                 {stat.value}
               </p>
-              <p className="text-[9px] sm:text-xs font-medium text-muted-foreground line-clamp-2 leading-tight px-1">
+              <p className="text-[9px] sm:text-xs font-medium text-gray-500 line-clamp-2 leading-tight px-1">
                 {stat.label}
               </p>
             </div>
           </div>
-        </Card>
+        </div>
       ))}
     </div>
   );

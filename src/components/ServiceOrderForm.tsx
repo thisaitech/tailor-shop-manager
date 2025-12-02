@@ -3,6 +3,14 @@ import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 import { generateServiceOrderId } from '@/lib/firestore/serviceOrderService';
 import {
+  ProformaInvoiceData,
+  ProformaInvoiceItem,
+  generateProformaInvoiceHtml,
+  generateProformaInvoicePdf,
+  downloadProformaInvoicePdf,
+  printProformaInvoice,
+} from '@/lib/proformaInvoiceTemplate';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -25,9 +33,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { ServiceOrder, OrderCategory, Customer, Measurements, UOM, ModeOfPayment, AdvancePayment, DressItem, DressType } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank } from '@phosphor-icons/react';
+import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank, Microphone, Stop, Play, Trash, ArrowLeft } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { uploadPhoto } from '@/lib/storage';
+import { useNativeCamera, dataUrlToFile, isNativePlatform } from '@/hooks/use-mobile-app';
 import { generateProformaInvoiceId } from '@/lib/firestore/advancePaymentService';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -37,19 +46,161 @@ import {
 } from '@/lib/firestore/designCategoryService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { getRecentCustomers, searchCustomers, addCustomer } from '@/lib/firestore/customerService';
+import { 
+  WhatsAppConfirmationDialog, 
+  generateOrderConfirmationMessage,
+  OrderConfirmationMessageData,
+  MeasurementData
+} from '@/components/WhatsAppConfirmationDialog';
 
-// Measurement categories configuration
+// Garment types by category (Men/Women/Kids)
+const GARMENT_TYPES_BY_CATEGORY = {
+  male: [
+    { key: 'shirt', label: 'Shirt', icon: TShirt },
+    { key: 'pant', label: 'Pant', icon: Pants },
+    { key: 'coat', label: 'Coat', icon: Hoodie },
+  ],
+  female: [
+    { key: 'blouse', label: 'Blouse', icon: TShirt },
+    { key: 'churidar', label: 'Churidar', icon: Dress },
+  ],
+  kids: [
+    { key: 'shirt', label: 'Shirt', icon: TShirt },
+    { key: 'pant', label: 'Pant', icon: Pants },
+    { key: 'halfTrousers', label: 'Half Trousers', icon: Pants },
+  ],
+} as const;
+
+// Measurement field configurations for each garment type
 const MEASUREMENT_CATEGORIES = {
-  shirt: { label: 'Shirt', icon: TShirt, fields: ['chest', 'waist', 'length', 'shoulder'] },
-  pant: { label: 'Pant', icon: Pants, fields: ['waist', 'inseam', 'outseam', 'rise', 'thigh', 'hips', 'legOpening'] },
-  coat: { label: 'Coat', icon: Hoodie, fields: ['standardSize', 'chest', 'waist', 'length', 'shoulder'] },
-  chuditharTop: { label: 'Chudithar Top', icon: Dress, fields: ['shoulder', 'bust', 'waist', 'hip', 'length'] },
-  chuditharPant: { label: 'Chudithar Pant', icon: Pants, fields: ['waist', 'hip', 'inseam', 'fullLength'] },
-  blouse: { label: 'Blouse', icon: TShirt, fields: ['shoulder', 'chest', 'neckDepthFront', 'neckDepthBack', 'armhole', 'halfSleeve', 'fullSleeve'] },
-  trouser: { label: 'Trouser', icon: Pants, fields: ['waist', 'inseam', 'outseam', 'rise', 'thigh', 'hips', 'legOpening'] },
+  shirt: {
+    label: 'Shirt',
+    icon: TShirt,
+    fields: [
+      { key: 'length', label: 'Length', type: 'number' },
+      { key: 'shoulder', label: 'Shoulder', type: 'number' },
+      { key: 'sleeveType', label: 'Sleeve Type', type: 'select', options: ['half', 'full'] },
+      { key: 'sleeveLength', label: 'Sleeve Length', type: 'number' },
+      { key: 'sleeveLoose', label: 'Sleeve Loose', type: 'number' },
+      { key: 'body', label: 'Body', type: 'number' },
+      { key: 'waist', label: 'Voiure (Waist)', type: 'number' },
+      { key: 'neck', label: 'Neck', type: 'number' },
+      { key: 'bodyLooseFront', label: 'Body Loose Front', type: 'number' },
+      { key: 'bodyLooseBack', label: 'Body Loose Back', type: 'number' },
+      { key: 'pocket', label: 'Pocket', type: 'number' },
+      { key: 'bottomCut', label: 'Bottom Cut', type: 'number' },
+    ],
+  },
+  pant: {
+    label: 'Pant',
+    icon: Pants,
+    fields: [
+      { key: 'kneeLength', label: 'Knee Length', type: 'number' },
+      { key: 'length', label: 'Length', type: 'number' },
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'seat', label: 'Seat', type: 'number' },
+      { key: 'fly', label: 'Fly (Zip)', type: 'number' },
+      { key: 'fork', label: 'Fork', type: 'number' },
+      { key: 'thighLoose', label: 'Thigh Loose', type: 'number' },
+      { key: 'kneeLoose', label: 'Knee Loose', type: 'number' },
+      { key: 'bottom', label: 'Bottom', type: 'number' },
+      { key: 'options', label: 'Options', type: 'multiselect', options: ['withFlit', 'withoutFlit', 'packet', 'backPacket'] },
+    ],
+  },
+  coat: {
+    label: 'Coat',
+    icon: Hoodie,
+    fields: [
+      { key: 'standardSize', label: 'Standard Size', type: 'text' },
+      { key: 'chest', label: 'Chest', type: 'number' },
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'length', label: 'Length', type: 'number' },
+      { key: 'shoulder', label: 'Shoulder', type: 'number' },
+    ],
+  },
+  blouse: {
+    label: 'Blouse',
+    icon: TShirt,
+    fields: [
+      { key: 'shoulder', label: 'Shoulder', type: 'number' },
+      { key: 'chest', label: 'Chest', type: 'number' },
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'length', label: 'Length', type: 'number' },
+      { key: 'neckDepthFront', label: 'Neck Depth Front', type: 'number' },
+      { key: 'neckDepthBack', label: 'Neck Depth Back', type: 'number' },
+      { key: 'armhole', label: 'Armhole', type: 'number' },
+      { key: 'halfSleeve', label: 'Half Sleeve', type: 'number' },
+      { key: 'fullSleeve', label: 'Full Sleeve', type: 'number' },
+    ],
+  },
+  churidar: {
+    label: 'Churidar',
+    icon: Dress,
+    fields: [
+      { key: 'shoulder', label: 'Shoulder', type: 'number' },
+      { key: 'bust', label: 'Bust', type: 'number' },
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'hip', label: 'Hip', type: 'number' },
+      { key: 'length', label: 'Length', type: 'number' },
+      { key: 'sleeveLength', label: 'Sleeve Length', type: 'number' },
+    ],
+  },
+  halfTrousers: {
+    label: 'Half Trousers',
+    icon: Pants,
+    fields: [
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'length', label: 'Length', type: 'number' },
+      { key: 'thighLoose', label: 'Thigh Loose', type: 'number' },
+      { key: 'bottom', label: 'Bottom', type: 'number' },
+    ],
+  },
+  // Legacy types for backward compatibility
+  chuditharTop: {
+    label: 'Chudithar Top',
+    icon: Dress,
+    fields: [
+      { key: 'shoulder', label: 'Shoulder', type: 'number' },
+      { key: 'bust', label: 'Bust', type: 'number' },
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'hip', label: 'Hip', type: 'number' },
+      { key: 'length', label: 'Length', type: 'number' },
+    ],
+  },
+  chuditharPant: {
+    label: 'Chudithar Pant',
+    icon: Pants,
+    fields: [
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'hip', label: 'Hip', type: 'number' },
+      { key: 'inseam', label: 'Inseam', type: 'number' },
+      { key: 'fullLength', label: 'Full Length', type: 'number' },
+    ],
+  },
+  trouser: {
+    label: 'Trouser',
+    icon: Pants,
+    fields: [
+      { key: 'waist', label: 'Waist', type: 'number' },
+      { key: 'inseam', label: 'Inseam', type: 'number' },
+      { key: 'outseam', label: 'Outseam', type: 'number' },
+      { key: 'rise', label: 'Rise', type: 'number' },
+      { key: 'thigh', label: 'Thigh', type: 'number' },
+      { key: 'hips', label: 'Hips', type: 'number' },
+      { key: 'legOpening', label: 'Leg Opening', type: 'number' },
+    ],
+  },
 };
 
 type MeasurementCategoryKey = keyof typeof MEASUREMENT_CATEGORIES;
+
+// Pant options labels
+const PANT_OPTIONS_LABELS: Record<string, string> = {
+  withFlit: 'With Flit',
+  withoutFlit: 'Without Flit',
+  packet: 'Packet',
+  backPacket: 'Back Packet',
+};
 
 // Dress type options for line items
 const DRESS_TYPE_OPTIONS: { value: DressType; label: string }[] = [
@@ -149,6 +300,29 @@ export function ServiceOrderForm({
   const [uploadProgress, setUploadProgress] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Native camera hook for mobile
+  const { takePhoto: takeNativePhoto, isNative } = useNativeCamera();
+  
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Selected garment types for the current order
+  const [selectedGarmentTypes, setSelectedGarmentTypes] = useState<string[]>([]);
+  
+  // Special note text for pant options
+  const [specialNoteText, setSpecialNoteText] = useState('');
+
+  // WhatsApp confirmation dialog state
+  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
+  const [pendingAdvancePaymentData, setPendingAdvancePaymentData] = useState<Omit<AdvancePayment, 'id' | 'proformaInvoiceNo' | 'invoiceNo' | 'createdAt' | 'updatedAt'> | null>(null);
+  const [companyName, setCompanyName] = useState<string>('Tailor Shop');
 
   // Load design categories, recent customers, and next service order ID on mount
   useEffect(() => {
@@ -162,6 +336,11 @@ export function ServiceOrderForm({
         if (actualCompanyId) {
           // Store the actual company ID for use in search
           setActualCompanyId(actualCompanyId);
+          
+          // Store company name for WhatsApp messages
+          if (company) {
+            setCompanyName(company.companyName || company.aliasName || 'Tailor Shop');
+          }
 
           // Load design categories
           const categories = await getDesignCategoriesByCompany(actualCompanyId);
@@ -324,6 +503,13 @@ export function ServiceOrderForm({
     // Reset design selection
     setSelectedDesignCategory('');
     setSelectedDesigns([]);
+    // Reset garment types and audio
+    setSelectedGarmentTypes([]);
+    setIsRecording(false);
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setIsPlayingAudio(false);
+    setSpecialNoteText('');
   };
 
   // Loading state for PI number generation
@@ -372,6 +558,11 @@ export function ServiceOrderForm({
       return;
     }
 
+    // Validate garment types and measurements (mandatory)
+    if (!validateMeasurements()) {
+      return;
+    }
+
     if (!expectedDeliveryDate) {
       toast.error('Please select expected delivery date');
       return;
@@ -380,6 +571,28 @@ export function ServiceOrderForm({
     if (orderQty <= 0) {
       toast.error('Order quantity must be greater than 0');
       return;
+    }
+
+    // Upload audio note if exists
+    let audioNoteUrl: string | null = null;
+    if (audioBlob && needsSpecialNote) {
+      audioNoteUrl = await uploadAudioNote();
+    }
+
+    // Add special note to pant measurements if applicable
+    if (needsSpecialNote) {
+      const pantMeasurements = measurements.pant || {};
+      setMeasurements({
+        ...measurements,
+        pant: {
+          ...pantMeasurements,
+          specialNote: {
+            text: specialNoteText || undefined,
+            audioUrl: audioNoteUrl || undefined,
+            createdAt: Date.now(),
+          },
+        },
+      });
     }
 
     const customer = customers.find((c) => c.id === customerId);
@@ -439,7 +652,7 @@ export function ServiceOrderForm({
     toast.success('Order details saved. Please complete the advance payment.');
   };
 
-  // Step 2: Save with Advance Payment
+  // Step 2: Save with Advance Payment - Show WhatsApp dialog first
   const handleStep2Submit = () => {
     if (!createdOrderData) {
       toast.error('Order data not found');
@@ -461,21 +674,120 @@ export function ServiceOrderForm({
       adminId: '', // Will be set by the parent component
     };
 
-    onSave(createdOrderData, advancePaymentData);
+    // Check if customer has WhatsApp/phone number
+    if (selectedCustomer && (selectedCustomer.whatsappNumber || selectedCustomer.phone)) {
+      // Store payment data and show WhatsApp dialog
+      setPendingAdvancePaymentData(advancePaymentData);
+      setShowWhatsAppDialog(true);
+    } else {
+      // No phone number, save directly
+      onSave(createdOrderData, advancePaymentData);
+      onOpenChange(false);
+      resetForm();
+    }
+  };
+
+  // Complete save after WhatsApp dialog (send or skip)
+  const completeOrderSave = () => {
+    if (!createdOrderData) return;
+    
+    onSave(createdOrderData, pendingAdvancePaymentData || undefined);
     onOpenChange(false);
+    setShowWhatsAppDialog(false);
+    setPendingAdvancePaymentData(null);
     resetForm();
   };
 
-  // Skip advance payment and save order only
+  // Generate WhatsApp message for order confirmation
+  const getWhatsAppMessageData = () => {
+    if (!createdOrderData || !selectedCustomer) {
+      return {
+        customerName: '',
+        customerPhone: '',
+        message: '',
+      };
+    }
+
+    const orderDate = new Date(createdOrderData.serviceOrderDate).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    const deliveryDate = new Date(createdOrderData.expectedDeliveryDate).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+
+    // Build measurements data for WhatsApp message
+    const measurementsData: MeasurementData[] = [];
+    if (createdOrderData.measurements) {
+      const measurementCategories = Object.keys(createdOrderData.measurements) as Array<keyof typeof createdOrderData.measurements>;
+      measurementCategories.forEach(category => {
+        const categoryMeasurements = createdOrderData.measurements?.[category];
+        if (categoryMeasurements && typeof categoryMeasurements === 'object') {
+          const hasValues = Object.values(categoryMeasurements).some(v => v !== undefined && v !== null && v !== '' && v !== 0);
+          if (hasValues) {
+            // Get display label for garment type
+            const garmentLabel = MEASUREMENT_CATEGORIES[category as MeasurementCategoryKey]?.label || category;
+            measurementsData.push({
+              garmentType: garmentLabel,
+              measurements: categoryMeasurements as Record<string, number | string | undefined>,
+            });
+          }
+        }
+      });
+    }
+
+    // Get garment type labels
+    const garmentTypeLabels = selectedGarmentTypes.map(gt => {
+      const config = MEASUREMENT_CATEGORIES[gt as MeasurementCategoryKey];
+      return config?.label || gt;
+    });
+
+    const messageData: OrderConfirmationMessageData = {
+      customerName: createdOrderData.customerName,
+      orderNumber: nextServiceOrderId || serviceOrderNo,
+      orderDate,
+      deliveryDate,
+      totalAmount: createdOrderData.stitchingCost,
+      advanceAmount: advanceAmount,
+      balanceAmount: createdOrderData.stitchingCost - advanceAmount,
+      dressItems: createdOrderData.dressItems?.map(item => ({
+        dressName: item.dressName || item.dressType,
+        quantity: item.quantity
+      })),
+      garmentTypes: garmentTypeLabels.length > 0 ? garmentTypeLabels : undefined,
+      measurements: measurementsData.length > 0 ? measurementsData : undefined,
+      companyName,
+      orderCategory: createdOrderData.orderCategory,
+    };
+
+    return {
+      customerName: selectedCustomer.name,
+      customerPhone: selectedCustomer.whatsappNumber || selectedCustomer.phone,
+      message: generateOrderConfirmationMessage(messageData),
+    };
+  };
+
+  // Skip advance payment and save order only - Show WhatsApp dialog first
   const handleSkipAdvancePayment = () => {
     if (!createdOrderData) {
       toast.error('Order data not found');
       return;
     }
 
-    onSave(createdOrderData);
-    onOpenChange(false);
-    resetForm();
+    // Check if customer has WhatsApp/phone number
+    if (selectedCustomer && (selectedCustomer.whatsappNumber || selectedCustomer.phone)) {
+      // Show WhatsApp dialog without advance payment data
+      setPendingAdvancePaymentData(null);
+      setShowWhatsAppDialog(true);
+    } else {
+      // No phone number, save directly
+      onSave(createdOrderData);
+      onOpenChange(false);
+      resetForm();
+    }
   };
 
   // Generate measurements HTML for invoice
@@ -520,276 +832,70 @@ export function ServiceOrderForm({
     return measurementSections.length > 0 ? measurementSections.join('') : '<p style="color: #666; font-size: 12px;">No measurements recorded</p>';
   };
 
-  // Generate invoice HTML content
-  const getInvoiceHtml = () => {
-    if (!createdOrderData) return '';
+  // Build proforma invoice data for the new template
+  const buildProformaInvoiceData = (): ProformaInvoiceData | null => {
+    if (!createdOrderData) return null;
 
     const customer = customers.find((c) => c.id === createdOrderData.customerId);
     const paymentMode = modeOfPayment === 'cash' ? 'Cash' : modeOfPayment === 'qrpay' ? 'QR Pay' : 'Nil';
     const effectiveAdvance = modeOfPayment === 'nil' ? 0 : advanceAmount;
     const balanceDue = createdOrderData.stitchingCost - effectiveAdvance;
 
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Proforma Invoice - ${proformaInvoiceNo}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background: #fff; color: #333; }
+    // Build line items
+    const items: ProformaInvoiceItem[] = createdOrderData.dressItems && createdOrderData.dressItems.length > 0
+      ? createdOrderData.dressItems.map((item: DressItem) => ({
+          name: item.name || item.dressName || 'Stitching',
+          quantity: item.qty || item.quantity || 1,
+          rate: item.rate || item.stitchingCost || 0,
+          amount: item.amount || (item.qty || item.quantity || 1) * (item.rate || item.stitchingCost || 0),
+        }))
+      : [{
+          name: 'Tailoring Service',
+          quantity: createdOrderData.orderQty,
+          rate: createdOrderData.stitchingCost,
+          amount: createdOrderData.stitchingCost,
+        }];
 
-            /* Header / Company Branding */
-            .company-header { text-align: center; padding-bottom: 20px; border-bottom: 3px solid #1a5f7a; margin-bottom: 20px; }
-            .company-name { font-size: 28px; font-weight: bold; color: #1a5f7a; margin-bottom: 5px; letter-spacing: 1px; }
-            .company-tagline { font-size: 12px; color: #666; margin-bottom: 10px; }
-            .company-contact { font-size: 11px; color: #888; }
-
-            /* Invoice Title */
-            .invoice-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 15px; background: linear-gradient(135deg, #1a5f7a 0%, #2d8fba 100%); border-radius: 8px; }
-            .invoice-title h1 { font-size: 22px; color: #fff; letter-spacing: 2px; }
-            .invoice-meta { text-align: right; color: #fff; }
-            .invoice-meta .pi-no { font-size: 18px; font-weight: bold; }
-            .invoice-meta .pi-date { font-size: 12px; opacity: 0.9; }
-
-            /* Section Styling */
-            .section { margin-bottom: 20px; }
-            .section-header { font-size: 13px; font-weight: 600; color: #1a5f7a; text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px; background: #f0f7fa; border-left: 4px solid #1a5f7a; margin-bottom: 12px; }
-
-            /* Two Column Layout */
-            .two-col { display: flex; gap: 20px; margin-bottom: 20px; }
-            .col { flex: 1; }
-
-            /* Customer & Invoice Info Boxes */
-            .info-box { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 15px; height: 100%; }
-            .info-box h3 { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-            .info-box .name { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 4px; }
-            .info-box .detail { font-size: 12px; color: #666; line-height: 1.6; }
-
-            /* Table Styling */
-            .data-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            .data-table th { background: #1a5f7a; color: #fff; padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-            .data-table td { padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 13px; }
-            .data-table tr:nth-child(even) { background: #f9f9f9; }
-            .data-table .text-right { text-align: right; }
-            .data-table .text-center { text-align: center; }
-
-            /* Totals Section */
-            .totals-section { background: linear-gradient(135deg, #f0f9f4 0%, #e8f5e9 100%); border: 2px solid #4caf50; border-radius: 8px; padding: 20px; margin-top: 20px; }
-            .totals-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
-            .totals-row.subtotal { color: #666; }
-            .totals-row.advance { color: #1a5f7a; }
-            .totals-row.balance { font-size: 18px; font-weight: bold; color: #2e7d32; border-top: 2px dashed #4caf50; padding-top: 12px; margin-top: 8px; }
-            .totals-row .amount { font-weight: 600; }
-
-            /* Signature Section */
-            .signature-section { display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px; }
-            .signature-box { width: 45%; text-align: center; }
-            .signature-line { border-top: 1px solid #333; margin-top: 50px; padding-top: 8px; font-size: 12px; color: #666; }
-
-            /* Footer */
-            .footer { text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; }
-            .footer p { font-size: 11px; color: #888; margin-bottom: 3px; }
-            .footer .thank-you { font-size: 14px; color: #1a5f7a; font-weight: 600; margin-bottom: 8px; }
-
-            /* Print Styles */
-            @media print {
-              body { padding: 15px; }
-              .no-print { display: none; }
-              .invoice-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .data-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .totals-section { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            }
-
-            /* Mobile Responsive */
-            @media (max-width: 800px) {
-              body { padding: 10px; }
-              .two-col { flex-direction: column; gap: 10px; }
-              .invoice-title { flex-direction: column; text-align: center; gap: 10px; }
-              .invoice-meta { text-align: center; }
-              .signature-section { flex-direction: column; gap: 30px; }
-              .signature-box { width: 100%; }
-            }
-          </style>
-        </head>
-        <body>
-          <!-- Company Header / Branding -->
-          <div class="company-header">
-            <div class="company-name">TAILOR SHOP</div>
-            <div class="company-tagline">Quality Tailoring Services</div>
-            <div class="company-contact">Contact: support@tailorshop.com</div>
-          </div>
-
-          <!-- Invoice Title Bar -->
-          <div class="invoice-title">
-            <h1>PROFORMA INVOICE</h1>
-            <div class="invoice-meta">
-              <div class="pi-no">${proformaInvoiceNo}</div>
-              <div class="pi-date">${format(new Date(), 'dd MMM yyyy')}</div>
-            </div>
-          </div>
-
-          <!-- Customer & Invoice Details -->
-          <div class="two-col">
-            <div class="col">
-              <div class="section-header">Customer Details</div>
-              <div class="info-box">
-                <h3>Bill To</h3>
-                <div class="name">${createdOrderData.customerName}</div>
-                <div class="detail">
-                  ${customer?.phone ? `Phone: ${customer.phone}<br>` : ''}
-                  ${customer?.whatsappNumber ? `WhatsApp: ${customer.whatsappNumber}<br>` : ''}
-                  ${customer?.address1 ? `${customer.address1}<br>` : ''}
-                  ${customer?.address2 ? `${customer.address2}<br>` : ''}
-                  ${customer?.place ? `${customer.place}` : ''}${customer?.pincode ? ` - ${customer.pincode}` : ''}
-                </div>
-              </div>
-            </div>
-            <div class="col">
-              <div class="section-header">Invoice Details</div>
-              <div class="info-box">
-                <table style="width: 100%; font-size: 12px;">
-                  <tr>
-                    <td style="color: #888; padding: 4px 0;">PI Number:</td>
-                    <td style="font-weight: 600; text-align: right;">${proformaInvoiceNo}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #888; padding: 4px 0;">Invoice Date:</td>
-                    <td style="font-weight: 600; text-align: right;">${format(new Date(), 'dd MMM yyyy')}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #888; padding: 4px 0;">Customer ID:</td>
-                    <td style="font-weight: 600; text-align: right;">${createdOrderData.customerId}</td>
-                  </tr>
-                  <tr>
-                    <td style="color: #888; padding: 4px 0;">Delivery Date:</td>
-                    <td style="font-weight: 600; text-align: right;">${format(new Date(createdOrderData.expectedDeliveryDate), 'dd MMM yyyy')}</td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Order Details Table -->
-          <div class="section">
-            <div class="section-header">Order Details</div>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th class="text-center">Category</th>
-                  <th class="text-center">Qty</th>
-                  <th class="text-center">UOM</th>
-                  <th class="text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Tailoring / Stitching Services</td>
-                  <td class="text-center" style="text-transform: capitalize;">${createdOrderData.orderCategory}</td>
-                  <td class="text-center">${createdOrderData.orderQty}</td>
-                  <td class="text-center">${createdOrderData.uom}</td>
-                  <td class="text-right">₹${createdOrderData.stitchingCost.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Measurements Section -->
-          <div class="section">
-            <div class="section-header">Measurements</div>
-            <div style="padding: 10px; background: #fafafa; border-radius: 6px;">
-              ${getMeasurementsHtml()}
-            </div>
-          </div>
-
-          <!-- Payment Details -->
-          <div class="section">
-            <div class="section-header">Payment Details</div>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Payment Mode</th>
-                  <th class="text-right">Amount Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>${paymentMode}</td>
-                  <td class="text-right">₹${effectiveAdvance.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Totals Section -->
-          <div class="totals-section">
-            <div class="totals-row subtotal">
-              <span>Subtotal (Stitching Cost)</span>
-              <span class="amount">₹${createdOrderData.stitchingCost.toFixed(2)}</span>
-            </div>
-            <div class="totals-row advance">
-              <span>Advance Paid</span>
-              <span class="amount">- ₹${effectiveAdvance.toFixed(2)}</span>
-            </div>
-            <div class="totals-row balance">
-              <span>BALANCE DUE</span>
-              <span class="amount">₹${balanceDue.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <!-- Signature Section -->
-          <div class="signature-section">
-            <div class="signature-box">
-              <div class="signature-line">Customer Signature</div>
-            </div>
-            <div class="signature-box">
-              <div class="signature-line">Authorized Signature</div>
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="footer">
-            <p class="thank-you">Thank you for your business!</p>
-            <p>This is a computer-generated proforma invoice.</p>
-            <p>Terms: Payment due upon delivery unless otherwise agreed.</p>
-          </div>
-        </body>
-      </html>
-    `;
+    return {
+      proformaInvoiceNo,
+      invoiceDate: new Date(),
+      serviceOrderNo: nextServiceOrderId || undefined,
+      customerName: createdOrderData.customerName,
+      customerId: createdOrderData.customerId,
+      customerPhone: customer?.phone,
+      customerAddress: customer?.address1,
+      orderCategory: createdOrderData.orderCategory,
+      expectedDeliveryDate: createdOrderData.expectedDeliveryDate,
+      items,
+      subtotal: createdOrderData.stitchingCost,
+      advanceAmount: effectiveAdvance,
+      balanceDue,
+      paymentMode,
+    };
   };
 
   // Print Proforma Invoice - Opens print preview only
   const handlePrintInvoice = () => {
-    if (!createdOrderData) return;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(getInvoiceHtml());
-      printWindow.document.close();
-      printWindow.onload = () => {
-        printWindow.print();
-      };
+    const invoiceData = buildProformaInvoiceData();
+    if (!invoiceData) {
+      toast.error('Unable to generate invoice');
+      return;
     }
 
+    printProformaInvoice(invoiceData);
     toast.success('Proforma Invoice sent to printer');
   };
 
-  // Download as PDF (downloads HTML file directly)
+  // Download as PDF using new template
   const handleDownloadPdf = () => {
-    if (!createdOrderData) return;
+    const invoiceData = buildProformaInvoiceData();
+    if (!invoiceData) {
+      toast.error('Unable to generate invoice');
+      return;
+    }
 
-    const htmlContent = getInvoiceHtml();
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Proforma_Invoice_${proformaInvoiceNo}.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    toast.success(`Proforma Invoice ${proformaInvoiceNo} downloaded.`);
+    downloadProformaInvoicePdf(invoiceData);
+    toast.success(`Proforma Invoice ${proformaInvoiceNo} downloaded as PDF.`);
   };
 
   const handleCustomerChange = (value: string) => {
@@ -969,39 +1075,168 @@ export function ServiceOrderForm({
     toast.info('Image removed');
   };
 
+  // Audio recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.info('Recording started...');
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      toast.success('Recording saved');
+    }
+  };
+
+  const playAudio = () => {
+    if (audioUrl && audioRef.current) {
+      audioRef.current.play();
+      setIsPlayingAudio(true);
+    }
+  };
+
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlayingAudio(false);
+    }
+  };
+
+  const deleteAudio = () => {
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setIsPlayingAudio(false);
+    toast.info('Audio note deleted');
+  };
+
+  // Upload audio to storage
+  const uploadAudioNote = async (): Promise<string | null> => {
+    if (!audioBlob) return null;
+    try {
+      const file = new File([audioBlob], `audio_note_${Date.now()}.webm`, { type: 'audio/webm' });
+      const downloadURL = await uploadPhoto(file, `orders/audio_notes/${companyId}`);
+      return downloadURL;
+    } catch (error) {
+      console.error('Error uploading audio:', error);
+      return null;
+    }
+  };
+
+  // Check if any pant option requires special note (packet or backPacket)
+  const needsSpecialNote = useMemo(() => {
+    const pantData = measurements.pant as { options?: string[] } | undefined;
+    if (!pantData?.options) return false;
+    return pantData.options.includes('packet') || pantData.options.includes('backPacket');
+  }, [measurements]);
+
+  // Get garment types available for the selected category
+  const availableGarmentTypes = useMemo(() => {
+    if (!orderCategory) return [];
+    return GARMENT_TYPES_BY_CATEGORY[orderCategory] || [];
+  }, [orderCategory]);
+
+  // Validate measurements are filled for selected garment types
+  const validateMeasurements = (): boolean => {
+    if (selectedGarmentTypes.length === 0) {
+      toast.error('Please select at least one garment type');
+      return false;
+    }
+
+    for (const garmentType of selectedGarmentTypes) {
+      const config = MEASUREMENT_CATEGORIES[garmentType as MeasurementCategoryKey];
+      if (!config) continue;
+
+      const garmentMeasurements = measurements[garmentType as keyof typeof measurements] as Record<string, unknown> | undefined;
+      if (!garmentMeasurements) {
+        toast.error(`Please fill measurements for ${config.label}`);
+        return false;
+      }
+
+      // Check if at least some measurements are filled
+      const filledFields = config.fields.filter(field => {
+        const value = garmentMeasurements[field.key];
+        return value !== undefined && value !== null && value !== '' && value !== 0;
+      });
+
+      if (filledFields.length === 0) {
+        toast.error(`Please fill at least one measurement for ${config.label}`);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+        className="max-w-2xl h-[100vh] sm:h-[95vh] flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-          <DialogTitle className="flex items-center gap-3">
+        <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+          <DialogTitle className="flex items-center gap-2 text-white text-base">
+            {/* Back/Close Button */}
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors mr-1"
+            >
+              <ArrowLeft size={18} weight="bold" />
+            </button>
             <span>{order ? 'Edit Service Order' : currentStep === 1 ? 'New Service Order' : 'Advance Payment'}</span>
-            <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-1 rounded">
+            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded">
               {order?.id || nextServiceOrderId || 'Loading...'}
             </span>
           </DialogTitle>
           {/* Step Indicator */}
           {!order && (
-            <div className="flex items-center gap-3 mt-3">
+            <div className="flex items-center gap-2 mt-2">
               <button
                 type="button"
                 onClick={() => currentStep === 2 && setCurrentStep(1)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
+                  'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all',
                   currentStep === 1
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-white text-purple-700 shadow-sm'
+                    : 'bg-white/20 text-white hover:bg-white/30'
                 )}
               >
-                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">1</span>
+                <span className={cn(
+                  'w-5 h-5 rounded-full flex items-center justify-center text-[10px]',
+                  currentStep === 1 ? 'bg-purple-100 text-purple-700' : 'bg-white/20 text-white'
+                )}>1</span>
                 <span>Order Details</span>
               </button>
-              <div className="w-8 h-0.5 bg-muted" />
+              <div className="w-6 h-0.5 bg-white/30" />
               <button
                 type="button"
                 onClick={() => {
@@ -1013,6 +1248,10 @@ export function ServiceOrderForm({
                     }
                     if (!orderCategory) {
                       toast.error('Please select a category');
+                      return;
+                    }
+                    // Validate garment types and measurements
+                    if (!validateMeasurements()) {
                       return;
                     }
                     if (!orderQty || orderQty < 1) {
@@ -1035,13 +1274,16 @@ export function ServiceOrderForm({
                   }
                 }}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
+                  'flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all',
                   currentStep === 2
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-white text-purple-700 shadow-sm'
+                    : 'bg-white/20 text-white hover:bg-white/30'
                 )}
               >
-                <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">2</span>
+                <span className={cn(
+                  'w-5 h-5 rounded-full flex items-center justify-center text-[10px]',
+                  currentStep === 2 ? 'bg-purple-100 text-purple-700' : 'bg-white/20 text-white'
+                )}>2</span>
                 <span>Payment</span>
               </button>
             </div>
@@ -1051,7 +1293,7 @@ export function ServiceOrderForm({
         {/* Step 1: Order Form */}
         {currentStep === 1 && (
         <form onSubmit={handleStep1Submit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
             {/* Customer Selection with Search */}
             <div className="space-y-3">
@@ -1228,9 +1470,9 @@ export function ServiceOrderForm({
             </div>
 
             {/* Order Details Grid */}
-            <div className="bg-muted/30 rounded-xl p-5 border space-y-5">
+            <div className="bg-muted/30 rounded-xl p-4 border space-y-3">
               <h3 className="text-sm font-semibold text-muted-foreground">Order Details</h3>
-              <div className="grid grid-cols-2 gap-5">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="orderQty" className="text-sm font-medium">Order Qty *</Label>
                   <Input
@@ -1294,194 +1536,227 @@ export function ServiceOrderForm({
               </div>
             </div>
 
-            {/* Measurements Display - Professional Card Layout */}
-            {availableMeasurementCategories.length > 0 && (
-              <Card>
-                <CardHeader className="py-3 px-4 border-b">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium">
-                      Customer Measurements
-                    </CardTitle>
-                    {/* UOM Toggle */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Display:</span>
-                      <div className="flex bg-muted rounded-md p-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setDisplayUom('Inches')}
-                          className={`px-2 py-1 text-xs rounded transition-colors ${
-                            displayUom === 'Inches'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          Inches
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDisplayUom('Cms')}
-                          className={`px-2 py-1 text-xs rounded transition-colors ${
-                            displayUom === 'Cms'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          Cms
-                        </button>
-                      </div>
-                    </div>
+            {/* Measurements Section - Mandatory, based on category */}
+            {orderCategory && (
+              <div className="space-y-4 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
+                {/* Header with UOM Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-semibold text-purple-700 dark:text-purple-300">Select Garment Type *</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Measurements are mandatory for order</p>
                   </div>
-                </CardHeader>
-                <CardContent className="p-4">
-                  {/* Dress Type Selector Dropdown */}
-                  <div className="mb-4 space-y-3">
-                    <Label className="text-sm font-semibold">Add Dress Type Measurements</Label>
-                    <Select
-                      value={activeDressType || ''}
-                      onValueChange={(value) => {
-                        const category = value as MeasurementCategoryKey;
-                        setActiveDressType(category);
-                        // Add to selected categories if not already present
-                        if (!selectedMeasurementCategories.includes(category)) {
-                          setSelectedMeasurementCategories([...selectedMeasurementCategories, category]);
-                        }
-                      }}
+                  <div className="flex rounded-md border-2 border-purple-500 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setDisplayUom('Inches')}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
+                        displayUom === 'Inches'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-purple-600 hover:bg-purple-50'
+                      }`}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a dress type to add measurements" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="shirt">
-                          <div className="flex items-center gap-2">
-                            <TShirt size={16} />
-                            <span>Shirt</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="pant">
-                          <div className="flex items-center gap-2">
-                            <Pants size={16} />
-                            <span>Pant</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="coat">
-                          <div className="flex items-center gap-2">
-                            <Hoodie size={16} />
-                            <span>Coat</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="chuditharTop">
-                          <div className="flex items-center gap-2">
-                            <Dress size={16} />
-                            <span>Chudithar Top</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="chuditharPant">
-                          <div className="flex items-center gap-2">
-                            <Pants size={16} />
-                            <span>Chudithar Pant</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="blouse">
-                          <div className="flex items-center gap-2">
-                            <TShirt size={16} />
-                            <span>Blouse</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="trouser">
-                          <div className="flex items-center gap-2">
-                            <Pants size={16} />
-                            <span>Trouser</span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {/* Show selected dress types as badges */}
-                    {selectedMeasurementCategories.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        <p className="text-xs text-muted-foreground w-full">Selected dress types:</p>
-                        {selectedMeasurementCategories.map((category) => {
-                          const config = MEASUREMENT_CATEGORIES[category];
-                          const Icon = config.icon;
-                          const isActive = activeDressType === category;
-                          const categoryData = measurements[category] as Record<string, unknown> | undefined;
-                          const hasData = categoryData && Object.values(categoryData).some((v) => v !== undefined && v !== null);
-
-                          return (
-                            <button
-                              key={category}
-                              type="button"
-                              onClick={() => setActiveDressType(category)}
-                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all border ${
-                                isActive
-                                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                  : hasData
-                                  ? 'bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
-                                  : 'bg-muted text-muted-foreground border-border'
-                              }`}
-                            >
-                              <Icon size={14} />
-                              <span>{config.label}</span>
-                              {hasData && <Check size={12} className="text-green-600" />}
-                              <X
-                                size={12}
-                                className="ml-1 hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Remove from selected categories
-                                  setSelectedMeasurementCategories(
-                                    selectedMeasurementCategories.filter(c => c !== category)
-                                  );
-                                  // Clear measurements for this category
-                                  const updatedMeasurements = { ...measurements };
-                                  delete updatedMeasurements[category];
-                                  setMeasurements(updatedMeasurements);
-                                  // If this was active, clear active state
-                                  if (activeDressType === category) {
-                                    setActiveDressType(null);
-                                  }
-                                }}
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                      Inches
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDisplayUom('Cms')}
+                      className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
+                        displayUom === 'Cms'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-purple-600 hover:bg-purple-50'
+                      }`}
+                    >
+                      Cms
+                    </button>
                   </div>
+                </div>
 
-                  {/* Measurement Fields - Show only for active dress type */}
-                  {activeDressType && (
-                    <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-green-200 dark:border-green-800">
-                        {(() => {
-                          const Icon = MEASUREMENT_CATEGORIES[activeDressType].icon;
-                          const categoryData = measurements[activeDressType] as Record<string, unknown> | undefined;
-                          const hasExistingData = categoryData && Object.values(categoryData).some((v) => v !== undefined && v !== null);
+                {/* Garment Type Selection - Based on Category */}
+                <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                  {availableGarmentTypes.map((garment) => {
+                    const isSelected = selectedGarmentTypes.includes(garment.key);
+                    const isActive = activeDressType === garment.key;
+                    const garmentMeasurements = measurements[garment.key as keyof typeof measurements] as Record<string, unknown> | undefined;
+                    const filledFieldsCount = garmentMeasurements
+                      ? Object.values(garmentMeasurements).filter((v) => v !== undefined && v !== null && v !== 0 && v !== '').length
+                      : 0;
+                    const Icon = garment.icon;
 
+                    return (
+                      <button
+                        key={garment.key}
+                        type="button"
+                        onClick={() => {
+                          // Toggle selection
+                          if (isSelected) {
+                            setSelectedGarmentTypes(selectedGarmentTypes.filter(g => g !== garment.key));
+                            if (activeDressType === garment.key) {
+                              setActiveDressType(null);
+                            }
+                          } else {
+                            setSelectedGarmentTypes([...selectedGarmentTypes, garment.key]);
+                          }
+                          setActiveDressType(garment.key as MeasurementCategoryKey);
+                        }}
+                        className={cn(
+                          'relative flex flex-col items-center gap-1 min-w-[70px] p-3 rounded-xl transition-all border-2',
+                          isActive
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
+                            : isSelected
+                            ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-700'
+                            : 'bg-white dark:bg-gray-800 text-muted-foreground border-transparent hover:border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                        )}
+                      >
+                        {isSelected && (
+                          <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center">
+                            <Check size={14} weight="bold" className={isActive ? 'text-white' : 'text-purple-600'} />
+                          </span>
+                        )}
+                        {filledFieldsCount > 0 && (
+                          <span className="absolute -bottom-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold bg-green-500 text-white rounded-full border-2 border-background">
+                            {filledFieldsCount}
+                          </span>
+                        )}
+                        <Icon size={26} weight={isActive || isSelected ? 'fill' : 'regular'} />
+                        <span className="text-[11px] font-semibold">{garment.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Measurement Fields - Show for active garment type */}
+                {activeDressType && MEASUREMENT_CATEGORIES[activeDressType] && (
+                  <div className="space-y-4 pt-3 border-t border-purple-200 dark:border-purple-700">
+                    {/* Garment Title */}
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const config = MEASUREMENT_CATEGORIES[activeDressType];
+                        const Icon = config.icon;
+                        return (
+                          <>
+                            <Icon size={20} weight="duotone" className="text-purple-600" />
+                            <h4 className="font-semibold text-sm text-purple-700 dark:text-purple-300">
+                              {config.label} Measurements
+                            </h4>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Measurement Input Grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {MEASUREMENT_CATEGORIES[activeDressType].fields.map((field) => {
+                        const garmentData = measurements[activeDressType as keyof typeof measurements] as Record<string, unknown> | undefined;
+                        const value = garmentData?.[field.key];
+
+                        // Handle different field types
+                        if (field.type === 'select') {
                           return (
-                            <>
-                              <Icon size={20} weight="duotone" className="text-green-600" />
-                              <h4 className="font-semibold text-base text-green-800 dark:text-green-200">
-                                {MEASUREMENT_CATEGORIES[activeDressType].label} Measurements
-                              </h4>
-                              {!hasExistingData && (
-                                <span className="ml-auto text-xs text-amber-600 dark:text-amber-400 font-medium px-2 py-1 bg-amber-50 dark:bg-amber-950/20 rounded">
-                                  New - Enter measurements
-                                </span>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {MEASUREMENT_CATEGORIES[activeDressType].fields.map((field) => {
-                          const categoryData = measurements[activeDressType] as Record<string, unknown> | undefined;
-                          const value = categoryData?.[field];
-                          return (
-                            <div key={field} className="space-y-1">
-                              <label className="text-[10px] text-green-600 dark:text-green-400 uppercase tracking-wide font-medium">
-                                {field.replace(/([A-Z])/g, ' $1').trim()}
+                            <div key={field.key} className="space-y-1.5">
+                              <label className="text-xs text-muted-foreground font-medium">
+                                {field.label}
                               </label>
+                              <Select
+                                value={typeof value === 'string' ? value : ''}
+                                onValueChange={(newValue) => {
+                                  setMeasurements({
+                                    ...measurements,
+                                    [activeDressType]: {
+                                      ...(measurements[activeDressType as keyof typeof measurements] || {}),
+                                      [field.key]: newValue,
+                                    },
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="h-11 bg-white dark:bg-gray-800">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {field.options?.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                      {option.charAt(0).toUpperCase() + option.slice(1)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          );
+                        }
+
+                        if (field.type === 'multiselect') {
+                          const selectedOptions = (Array.isArray(value) ? value : []) as string[];
+                          return (
+                            <div key={field.key} className="space-y-1.5 col-span-2">
+                              <label className="text-xs text-muted-foreground font-medium">
+                                {field.label}
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                {field.options?.map((option) => {
+                                  const isSelected = selectedOptions.includes(option);
+                                  return (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      onClick={() => {
+                                        const newOptions = isSelected
+                                          ? selectedOptions.filter(o => o !== option)
+                                          : [...selectedOptions, option];
+                                        setMeasurements({
+                                          ...measurements,
+                                          [activeDressType]: {
+                                            ...(measurements[activeDressType as keyof typeof measurements] || {}),
+                                            [field.key]: newOptions,
+                                          },
+                                        });
+                                      }}
+                                      className={cn(
+                                        'px-3 py-2 rounded-lg text-sm font-medium transition-all border',
+                                        isSelected
+                                          ? 'bg-purple-600 text-white border-purple-600'
+                                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                                      )}
+                                    >
+                                      {PANT_OPTIONS_LABELS[option] || option}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (field.type === 'text') {
+                          return (
+                            <div key={field.key} className="space-y-1.5">
+                              <label className="text-xs text-muted-foreground font-medium">
+                                {field.label}
+                              </label>
+                              <Input
+                                type="text"
+                                value={typeof value === 'string' ? value : ''}
+                                onChange={(e) => {
+                                  setMeasurements({
+                                    ...measurements,
+                                    [activeDressType]: {
+                                      ...(measurements[activeDressType as keyof typeof measurements] || {}),
+                                      [field.key]: e.target.value,
+                                    },
+                                  });
+                                }}
+                                placeholder="Enter..."
+                                className="h-11 text-base bg-white dark:bg-gray-800"
+                              />
+                            </div>
+                          );
+                        }
+
+                        // Default: number input
+                        return (
+                          <div key={field.key} className="space-y-1.5">
+                            <label className="text-xs text-muted-foreground font-medium">
+                              {field.label}
+                            </label>
+                            <div className="relative">
                               <Input
                                 type="number"
                                 step="0.1"
@@ -1491,22 +1766,159 @@ export function ServiceOrderForm({
                                   setMeasurements({
                                     ...measurements,
                                     [activeDressType]: {
-                                      ...(measurements[activeDressType] || {}),
-                                      [field]: newValue,
+                                      ...(measurements[activeDressType as keyof typeof measurements] || {}),
+                                      [field.key]: newValue,
                                     },
                                   });
                                 }}
-                                placeholder="0.0"
-                                className="h-9 text-sm bg-white dark:bg-green-900/30 border-green-200 dark:border-green-800 focus:ring-green-500"
+                                placeholder="0"
+                                className="h-11 text-base pr-10 bg-white dark:bg-gray-800 border-purple-200 dark:border-purple-700 focus:border-purple-500 focus:ring-purple-500"
                               />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                {displayUom === 'Inches' ? 'in' : 'cm'}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    {/* Special Note Section - Appears when packet/backPacket is selected */}
+                    {activeDressType === 'pant' && needsSpecialNote && (
+                      <div className="space-y-3 pt-3 border-t border-purple-200 dark:border-purple-700">
+                        <div className="flex items-center gap-2">
+                          <Microphone size={18} className="text-purple-600" />
+                          <label className="text-sm font-semibold text-purple-700 dark:text-purple-300">
+                            Special Instructions (Packet Details)
+                          </label>
+                        </div>
+                        
+                        {/* Text Input */}
+                        <Textarea
+                          value={specialNoteText}
+                          onChange={(e) => setSpecialNoteText(e.target.value)}
+                          placeholder="Enter special instructions for pocket/packet..."
+                          rows={2}
+                          className="bg-white dark:bg-gray-800"
+                        />
+
+                        {/* Audio Recorder */}
+                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border">
+                          {!audioUrl ? (
+                            <>
+                              <Button
+                                type="button"
+                                variant={isRecording ? 'destructive' : 'outline'}
+                                size="sm"
+                                onClick={isRecording ? stopRecording : startRecording}
+                                className="gap-2"
+                              >
+                                {isRecording ? (
+                                  <>
+                                    <Stop size={16} weight="fill" />
+                                    Stop Recording
+                                  </>
+                                ) : (
+                                  <>
+                                    <Microphone size={16} weight="fill" />
+                                    Record Audio Note
+                                  </>
+                                )}
+                              </Button>
+                              {isRecording && (
+                                <span className="flex items-center gap-2 text-sm text-red-500">
+                                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                  Recording...
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlayingAudio(false)} className="hidden" />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={isPlayingAudio ? stopAudio : playAudio}
+                                className="gap-2"
+                              >
+                                {isPlayingAudio ? <Stop size={16} /> : <Play size={16} />}
+                                {isPlayingAudio ? 'Stop' : 'Play'}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={deleteAudio}
+                                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash size={16} />
+                                Delete
+                              </Button>
+                              <span className="text-sm text-green-600 font-medium">✓ Audio recorded</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Selected Garments Summary */}
+                {selectedGarmentTypes.length > 0 && (
+                  <div className="space-y-2 pt-3 border-t border-purple-200 dark:border-purple-700">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Selected Garments ({selectedGarmentTypes.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedGarmentTypes.map((garmentKey) => {
+                        const config = MEASUREMENT_CATEGORIES[garmentKey as MeasurementCategoryKey];
+                        if (!config) return null;
+                        const garmentData = measurements[garmentKey as keyof typeof measurements] as Record<string, unknown> | undefined;
+                        const filledFieldsCount = garmentData
+                          ? Object.values(garmentData).filter((v) => v !== undefined && v !== null && v !== 0 && v !== '').length
+                          : 0;
+
+                        return (
+                          <div
+                            key={garmentKey}
+                            onClick={() => setActiveDressType(garmentKey as MeasurementCategoryKey)}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all',
+                              activeDressType === garmentKey
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800/50'
+                            )}
+                          >
+                            <span>{config.label}</span>
+                            {filledFieldsCount > 0 && (
+                              <span className="w-5 h-5 flex items-center justify-center bg-green-500 text-white rounded-full text-[10px]">
+                                {filledFieldsCount}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGarmentTypes(selectedGarmentTypes.filter(g => g !== garmentKey));
+                                const updatedMeasurements = { ...measurements };
+                                delete updatedMeasurements[garmentKey as keyof typeof measurements];
+                                setMeasurements(updatedMeasurements);
+                                if (activeDressType === garmentKey) {
+                                  setActiveDressType(null);
+                                }
+                              }}
+                              className="ml-1 hover:text-red-300"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Design Selection from Categories */}
@@ -1582,22 +1994,75 @@ export function ServiceOrderForm({
               </div>
             </div>
 
-            {/* Manual Design Image Upload */}
+            {/* Attach Sample Cloths */}
             <div className="space-y-2">
-              <Label>Upload Design Images</Label>
+              <Label>Attach Sample Cloths</Label>
+              
+              {/* Hidden Camera Input for direct capture - Back Camera (fallback for web) */}
+              <input
+                id="sample-cloth-camera"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      setIsUploading(true);
+                      const downloadURL = await uploadPhoto(file, `designs/${Date.now()}_${file.name}`);
+                      setDesignList((prev) => [...prev, downloadURL]);
+                      toast.success('Photo uploaded successfully');
+                    } catch (error) {
+                      console.error('Upload error:', error);
+                      toast.error('Failed to upload photo');
+                    } finally {
+                      setIsUploading(false);
+                      e.target.value = ''; // Reset input
+                    }
+                  }
+                }}
+                className="hidden"
+              />
+              
               <div className="space-y-2">
-                {/* Single Upload Designs Button */}
+                {/* Camera Button - Uses native camera on mobile, HTML input on web */}
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowUploadModal(true)}
-                  className="w-full h-auto py-4"
+                  onClick={async () => {
+                    if (isNative) {
+                      // Use native camera (back camera)
+                      try {
+                        setIsUploading(true);
+                        const photoDataUrl = await takeNativePhoto();
+                        if (photoDataUrl) {
+                          const file = dataUrlToFile(photoDataUrl, `capture_${Date.now()}.jpg`);
+                          const downloadURL = await uploadPhoto(file, `designs/${Date.now()}_capture.jpg`);
+                          setDesignList((prev) => [...prev, downloadURL]);
+                          toast.success('Photo captured and uploaded!');
+                        }
+                      } catch (error) {
+                        console.error('Native camera error:', error);
+                        toast.error('Failed to capture photo');
+                      } finally {
+                        setIsUploading(false);
+                      }
+                    } else {
+                      // Fallback to HTML file input for web
+                      document.getElementById('sample-cloth-camera')?.click();
+                    }
+                  }}
+                  className="w-full h-auto py-4 flex items-center justify-center gap-3 border-2 border-dashed hover:border-primary hover:bg-primary/5"
                   disabled={isUploading}
                 >
-                  <div className="flex flex-col items-center gap-2">
-                    <ImageIcon size={24} weight="bold" />
-                    <span className="text-sm font-semibold">Upload Designs</span>
-                    <span className="text-xs text-muted-foreground">Camera or Gallery</span>
+                  <Camera size={24} weight="bold" className="text-primary" />
+                  <div className="text-left">
+                    <span className="text-sm font-semibold block">
+                      {isUploading ? 'Uploading...' : 'Take Photo'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {isNative ? 'Opens back camera' : 'Capture sample cloth image'}
+                    </span>
                   </div>
                 </Button>
 
@@ -1611,7 +2076,7 @@ export function ServiceOrderForm({
                       >
                         <img
                           src={imageUrl}
-                          alt={`Design ${index + 1}`}
+                          alt={`Sample ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                         <button
@@ -1642,11 +2107,11 @@ export function ServiceOrderForm({
           </div>
 
           {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t bg-muted/30 flex-shrink-0">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-between items-center gap-3 px-4 py-2 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               {t('cancel')}
             </Button>
-            <Button type="submit" className="min-w-[140px]">
+            <Button type="submit" size="sm" className="min-w-[100px] bg-white text-purple-700 hover:bg-white/90">
               {order ? t('save') : 'Next'}
             </Button>
           </div>
@@ -1656,7 +2121,7 @@ export function ServiceOrderForm({
         {/* Step 2: Advance Payment */}
         {currentStep === 2 && createdOrderData && (
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
               {/* Order Summary Card */}
               <div className="bg-muted/30 rounded-xl p-5 border space-y-4">
                 <h3 className="text-sm font-semibold text-muted-foreground">Order Summary</h3>
@@ -1804,30 +2269,35 @@ export function ServiceOrderForm({
             </div>
 
             {/* Footer with action buttons */}
-            <div className="flex justify-between items-center gap-3 px-6 py-4 border-t bg-muted/30 flex-shrink-0">
+            <div className="flex justify-between items-center gap-3 px-4 py-2 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
               <Button
                 type="button"
                 variant="ghost"
+                size="sm"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setCurrentStep(1);
                 }}
+                className="text-white hover:text-white/80 hover:bg-white/10"
               >
                 Back
               </Button>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
+                  size="sm"
                   onClick={handleSkipAdvancePayment}
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Skip Payment
                 </Button>
                 <Button
                   type="button"
+                  size="sm"
                   onClick={handleStep2Submit}
-                  className="min-w-[120px]"
+                  className="min-w-[100px] bg-white text-purple-700 hover:bg-white/90"
                 >
                   Save Order
                 </Button>
@@ -1837,6 +2307,19 @@ export function ServiceOrderForm({
         )}
       </DialogContent>
     </Dialog>
+
+    {/* WhatsApp Confirmation Dialog */}
+    <WhatsAppConfirmationDialog
+      open={showWhatsAppDialog}
+      onOpenChange={setShowWhatsAppDialog}
+      title="Send Order Confirmation"
+      description="Send order details to customer via WhatsApp"
+      messageData={getWhatsAppMessageData()}
+      onSend={completeOrderSave}
+      onSkip={completeOrderSave}
+      sendButtonText="Send & Save Order"
+      skipButtonText="Skip & Save Order"
+    />
 
     {/* Design Selection Modal */}
     <Dialog open={showDesignModal} onOpenChange={setShowDesignModal}>
@@ -2012,7 +2495,8 @@ export function ServiceOrderForm({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* File Input */}
+              {/* Hidden File Inputs */}
+              {/* Gallery Input - for selecting existing images */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -2021,21 +2505,43 @@ export function ServiceOrderForm({
                 onChange={handleFileSelect}
                 className="hidden"
               />
+              {/* Camera Input - for direct camera capture on mobile */}
+              <input
+                id="camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
 
-              {/* Select Files Button */}
+              {/* Select Files Buttons */}
               {selectedFiles.length === 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-32"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <ImageIcon size={32} weight="duotone" />
-                    <span className="text-sm font-semibold">Select Images from Gallery</span>
-                    <span className="text-xs text-muted-foreground">Multiple selection allowed</span>
-                  </div>
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Camera Button - Opens back camera directly */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('camera-input')?.click()}
+                    className="h-32 flex flex-col items-center justify-center gap-2 border-2 border-dashed hover:border-primary hover:bg-primary/5"
+                  >
+                    <Camera size={32} weight="duotone" className="text-primary" />
+                    <span className="text-sm font-semibold">Take Photo</span>
+                    <span className="text-xs text-muted-foreground">Back Camera</span>
+                  </Button>
+                  
+                  {/* Gallery Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-32 flex flex-col items-center justify-center gap-2 border-2 border-dashed hover:border-primary hover:bg-primary/5"
+                  >
+                    <ImageIcon size={32} weight="duotone" className="text-primary" />
+                    <span className="text-sm font-semibold">From Gallery</span>
+                    <span className="text-xs text-muted-foreground">Multiple allowed</span>
+                  </Button>
+                </div>
               )}
 
               {/* Selected Files Preview */}

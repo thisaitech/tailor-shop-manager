@@ -4,6 +4,10 @@
  * This service supports:
  * 1. WhatsApp Cloud API (Free for testing) - Primary method
  * 2. Twilio - for SMS and WhatsApp (Alternative)
+ * 
+ * Notifications are sent:
+ * 1. When a new order is created (confirmation to customer)
+ * 2. When order status changes to "Ready to Delivery" (pickup notification)
  */
 
 export interface CustomerNotification {
@@ -11,6 +15,19 @@ export interface CustomerNotification {
   customerPhone: string;
   orderNumber: string;
   message: string;
+}
+
+export interface OrderConfirmationData {
+  customerName: string;
+  customerPhone: string;
+  orderNumber: string;
+  orderDate: string;
+  deliveryDate: string;
+  totalAmount?: number;
+  advanceAmount?: number;
+  balanceAmount?: number;
+  dressItems?: Array<{ dressName: string; quantity: number }>;
+  companyName?: string;
 }
 
 // Get environment variables
@@ -228,18 +245,68 @@ export async function sendSMSNotification(
 }
 
 /**
- * Generate order ready notification message
+ * Generate order confirmation message (when order is created)
+ */
+export function generateOrderConfirmationMessage(data: OrderConfirmationData): string {
+  const { 
+    customerName, 
+    orderNumber, 
+    orderDate, 
+    deliveryDate, 
+    totalAmount, 
+    advanceAmount, 
+    balanceAmount,
+    dressItems,
+    companyName 
+  } = data;
+
+  let message = `Dear ${customerName},\n\n`;
+  message += `Thank you for your order! ✨\n\n`;
+  message += `📋 *Order Details*\n`;
+  message += `Order No: ${orderNumber}\n`;
+  message += `Order Date: ${orderDate}\n`;
+  message += `Expected Delivery: ${deliveryDate}\n`;
+
+  // Add dress items if available
+  if (dressItems && dressItems.length > 0) {
+    message += `\n📦 *Items*\n`;
+    dressItems.forEach((item, index) => {
+      message += `${index + 1}. ${item.dressName} (Qty: ${item.quantity})\n`;
+    });
+  }
+
+  // Add payment details if available
+  if (totalAmount !== undefined && totalAmount > 0) {
+    message += `\n💰 *Payment Details*\n`;
+    message += `Total Amount: ₹${totalAmount.toLocaleString('en-IN')}\n`;
+    if (advanceAmount !== undefined && advanceAmount > 0) {
+      message += `Advance Paid: ₹${advanceAmount.toLocaleString('en-IN')}\n`;
+    }
+    if (balanceAmount !== undefined && balanceAmount > 0) {
+      message += `Balance Due: ₹${balanceAmount.toLocaleString('en-IN')}\n`;
+    }
+  }
+
+  message += `\nWe will notify you when your order is ready for pickup.\n\n`;
+  message += `Thank you for choosing us! 🙏\n`;
+  message += `${companyName || 'Tailor Shop'}`;
+
+  return message;
+}
+
+/**
+ * Generate order ready notification message (when order is ready for delivery)
  */
 export function generateOrderReadyMessage(
   customerName: string,
   orderNumber: string,
   companyName?: string
 ): string {
-  return `Dear ${customerName},\n\nYour order ${orderNumber} is ready for delivery! 🎉\n\nPlease visit us to collect your order at your convenience.\n\nThank you,\n${companyName || 'Tailor Shop'}`;
+  return `Dear ${customerName},\n\n🎉 *Great News!*\n\nYour order *${orderNumber}* is ready for delivery!\n\nPlease visit us to collect your order at your convenience.\n\nThank you for your patience! 🙏\n${companyName || 'Tailor Shop'}`;
 }
 
 /**
- * Send notification when order is ready
+ * Send notification when order is ready for delivery
  */
 export async function notifyOrderReady(
   customerName: string,
@@ -247,6 +314,8 @@ export async function notifyOrderReady(
   orderNumber: string,
   companyName?: string
 ): Promise<{ whatsappSent: boolean; smsSent: boolean }> {
+  console.log('[Notification] Sending "Order Ready" notification');
+  
   const message = generateOrderReadyMessage(customerName, orderNumber, companyName);
 
   const notificationData: CustomerNotification = {
@@ -261,4 +330,44 @@ export async function notifyOrderReady(
   const smsSent = await sendSMSNotification(notificationData);
 
   return { whatsappSent, smsSent };
+}
+
+/**
+ * Send notification when order is created (confirmation)
+ */
+export async function notifyOrderCreated(
+  data: OrderConfirmationData
+): Promise<{ whatsappSent: boolean; smsSent: boolean }> {
+  console.log('[Notification] Sending "Order Confirmation" notification');
+  
+  const message = generateOrderConfirmationMessage(data);
+
+  const notificationData: CustomerNotification = {
+    customerName: data.customerName,
+    customerPhone: data.customerPhone,
+    orderNumber: data.orderNumber,
+    message,
+  };
+
+  // Try WhatsApp first, then SMS as fallback
+  const whatsappSent = await sendWhatsAppNotification(notificationData);
+  const smsSent = await sendSMSNotification(notificationData);
+
+  return { whatsappSent, smsSent };
+}
+
+/**
+ * Open WhatsApp with pre-filled message (for manual sending)
+ * Useful when API is not configured
+ */
+export function openWhatsAppWithMessage(
+  phone: string,
+  message: string
+): void {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const phoneWithCountryCode = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
+  const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodeURIComponent(message)}`;
+  
+  // Open in new window/tab
+  window.open(whatsappUrl, '_blank');
 }
