@@ -698,12 +698,42 @@ export async function rejectOrder(
     const orderData = orderDoc.data();
     const now = Date.now();
 
+    // Update the ServiceOrder status
     await updateDoc(orderRef, {
       orderStatus: 'rejected',
       rejectedDate: now,
       rejectionReason: reason,
       updatedAt: serverTimestamp(),
     });
+
+    // Also update the corresponding OrderAllotment status
+    // Find allotments for this service order and update their status to 'rejected'
+    try {
+      const allotmentsRef = collection(db, 'orderAllotment');
+      // Use simple query and filter in JavaScript - Firestore inequality queries don't match missing fields
+      const allotmentQuery = query(allotmentsRef, where('serviceOrderNo', '==', orderId));
+      const allotmentSnapshot = await getDocs(allotmentQuery);
+      
+      let updatedCount = 0;
+      // Update each allotment that hasn't been reassigned
+      for (const allotmentDoc of allotmentSnapshot.docs) {
+        const data = allotmentDoc.data();
+        // Only update if not reassigned (handles undefined, null, false)
+        if (data.reassigned !== true) {
+          await updateDoc(doc(db, 'orderAllotment', allotmentDoc.id), {
+            status: 'rejected',
+            rejectedDate: now,
+            updatedAt: serverTimestamp(),
+          });
+          updatedCount++;
+          console.log(`[rejectOrder] Updated OrderAllotment ${allotmentDoc.id} status to rejected`);
+        }
+      }
+      console.log(`[rejectOrder] Updated ${updatedCount} OrderAllotment(s) for order ${orderId}`);
+    } catch (allotmentError) {
+      console.error('[rejectOrder] Error updating OrderAllotment status:', allotmentError);
+      // Continue - don't fail the whole operation if allotment update fails
+    }
 
     await addOrderHistory(
       orderId,

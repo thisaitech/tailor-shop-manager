@@ -2,7 +2,17 @@ import { useState, lazy, Suspense } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Package, ArrowLeft, Eye, CheckCircle, Spinner } from '@phosphor-icons/react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Package, ArrowLeft, Eye, CheckCircle, Spinner, CheckFat } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format } from 'date-fns';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
@@ -25,6 +35,7 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onO
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [deliveringOrderId, setDeliveringOrderId] = useState<string | null>(null);
+  const [orderToDeliver, setOrderToDeliver] = useState<ServiceOrder | null>(null); // For confirmation dialog
 
   // Filter ready-to-deliver orders using the new status flow:
   // - 'ready' status: Employee orders that are ready to deliver
@@ -36,13 +47,21 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onO
     setShowDetailsDialog(true);
   };
 
+  // Show confirmation dialog before marking as delivered
+  const handleDeliveredClick = (order: ServiceOrder) => {
+    setOrderToDeliver(order);
+  };
+
   // Handle marking order as delivered using the new unified flow
-  const handleMarkDelivered = async (order: ServiceOrder) => {
+  const handleConfirmDelivery = async () => {
+    if (!orderToDeliver) return;
+    
     try {
-      setDeliveringOrderId(order.id);
+      setDeliveringOrderId(orderToDeliver.id);
+      setOrderToDeliver(null); // Close dialog
 
       // Use the new unified markOrderDelivered function
-      await markOrderDelivered(order.id, 'ADMIN', 'Admin');
+      await markOrderDelivered(orderToDeliver.id, 'ADMIN', 'Admin');
 
       toast.success('Order marked as delivered successfully!');
 
@@ -154,7 +173,7 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onO
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleMarkDelivered(order);
+                          handleDeliveredClick(order);
                         }}
                         disabled={deliveringOrderId === order.id}
                         className="whitespace-nowrap shadow-sm"
@@ -195,6 +214,62 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onO
           />
         </Suspense>
       )}
+
+      {/* Delivery Confirmation Dialog */}
+      <AlertDialog open={!!orderToDeliver} onOpenChange={(open) => !open && setOrderToDeliver(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckFat size={32} weight="fill" className="text-green-600" />
+            </div>
+            <AlertDialogTitle className="text-center text-xl">
+              Confirm Delivery
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center space-y-3">
+              <p>Are you sure you want to mark this order as delivered?</p>
+              {orderToDeliver && (
+                <div className="bg-muted/50 rounded-lg p-4 text-left space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Order ID:</span>
+                    <span className="font-semibold text-foreground">{orderToDeliver.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Customer:</span>
+                    <span className="font-semibold text-foreground">{orderToDeliver.customerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Category:</span>
+                    <span className="font-semibold text-foreground">
+                      {orderToDeliver.orderCategory === 'male' ? 'Men' : orderToDeliver.orderCategory === 'female' ? 'Women' : 'Kids'}
+                    </span>
+                  </div>
+                  {orderToDeliver.orderQty && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Quantity:</span>
+                      <span className="font-semibold text-foreground">{orderToDeliver.orderQty} {orderToDeliver.uom}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="text-sm text-amber-600 font-medium">
+                This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center gap-3">
+            <AlertDialogCancel className="flex-1 sm:flex-none sm:min-w-[120px]">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelivery}
+              className="flex-1 sm:flex-none sm:min-w-[120px] bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CheckCircle size={18} className="mr-2" weight="bold" />
+              Confirm Delivery
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

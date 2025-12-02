@@ -520,27 +520,6 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
               customer={customers.find(c => c.id === selectedServiceOrder.customerId)}
               onBack={() => setSelectedServiceOrder(null)}
             />
-          ) : selectedCustomer ? (
-            <CustomerView
-              customer={selectedCustomer}
-              serviceOrders={serviceOrders || []}
-              onBack={() => setSelectedCustomer(null)}
-              onEdit={(customer) => {
-                setSelectedCustomer(null);
-                setEditingCustomer(customer);
-                setShowCustomerForm(true);
-              }}
-              onDelete={async (customerId) => {
-                try {
-                  await deleteCustomer(customerId);
-                  setSelectedCustomer(null);
-                  toast.success('Customer deleted successfully');
-                } catch (error) {
-                  console.error('Error deleting customer:', error);
-                  toast.error('Failed to delete customer');
-                }
-              }}
-            />
           ) : orderFilter === 'overdue' ? (
             <OverDueOrdersList
               serviceOrders={serviceOrders || []}
@@ -586,8 +565,13 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
           ) : orderFilter === 'rejected' ? (
             <RejectedOrdersList
               orders={orderAllotments || []}
+              serviceOrders={serviceOrders || []}
               onBack={handleBackToDashboard}
               onReassign={handleReassignOrder}
+              onReassignServiceOrder={(serviceOrderId) => {
+                setInitialServiceOrderId(serviceOrderId);
+                setShowOrderAllotmentForm(true);
+              }}
             />
           ) : orderFilter === 'ready' ? (
             <ReadyToDeliverList
@@ -720,6 +704,28 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
                 <p className="text-muted-foreground">Loading customers...</p>
               </div>
             </div>
+          ) : selectedCustomer ? (
+            // Show CustomerView within Customers tab - no tab switching
+            <CustomerView
+              customer={selectedCustomer}
+              serviceOrders={serviceOrders || []}
+              onBack={() => setSelectedCustomer(null)}
+              onEdit={(customer) => {
+                setSelectedCustomer(null);
+                setEditingCustomer(customer);
+                setShowCustomerForm(true);
+              }}
+              onDelete={async (customerId) => {
+                try {
+                  await deleteCustomer(customerId);
+                  setSelectedCustomer(null);
+                  toast.success('Customer deleted successfully');
+                } catch (error) {
+                  console.error('Error deleting customer:', error);
+                  toast.error('Failed to delete customer');
+                }
+              }}
+            />
           ) : (
             <CustomerList
               customers={customers || []}
@@ -729,7 +735,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
               onSelectCustomer={(customer) => {
                 console.log('[OwnerDashboard] Customer selected:', customer.id, customer.name);
                 setSelectedCustomer(customer);
-                setActiveTab('dashboard');
+                // Stay on Customers tab - don't switch tabs
               }}
             />
           )}

@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Package, User, Calendar, Ruler, UserCircle, ClockCounterClockwise, ArrowRight, FilePdf, Printer } from '@phosphor-icons/react';
+import { Package, User, Calendar, Ruler, UserCircle, ClockCounterClockwise, ArrowRight, FilePdf, Printer, CheckCircle, XCircle, ArrowsClockwise, FileText, Truck, Spinner } from '@phosphor-icons/react';
 import { format, isValid, parseISO } from 'date-fns';
 import { ServiceOrder, OrderAllotment, DressItem } from '@/lib/types';
 
@@ -168,43 +168,50 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
           borderColor: '#6A64F2'
         }}
       >
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-2" style={{ color: '#6A64F2' }}>
-              <Package size={24} style={{ color: '#6A64F2' }} weight="duotone" />
-              Order Details
-            </DialogTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintInvoice}
-                className="flex items-center gap-1.5 border-2 hover:bg-purple-50"
-                style={{ borderColor: '#6A64F2', color: '#6A64F2' }}
-              >
-                <Printer size={16} weight="duotone" />
-                Print
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleDownloadInvoice}
-                className="flex items-center gap-1.5"
-                style={{ background: '#6A64F2', color: 'white' }}
-              >
-                <FilePdf size={16} weight="duotone" />
-                Download Invoice
-              </Button>
+        <DialogHeader className="space-y-3 pb-2">
+          {/* Title Row */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#6A64F2' }}>
+              <Package size={22} weight="duotone" className="text-white" />
+            </div>
+            <div className="flex-1">
+              <DialogTitle className="text-lg font-bold" style={{ color: '#6A64F2' }}>
+                Order Details
+              </DialogTitle>
+              <DialogDescription className="mt-0.5">
+                <Badge
+                  variant="outline"
+                  className="font-mono text-xs font-semibold"
+                  style={{ background: '#FAF8FF', color: '#6A64F2', borderColor: '#6A64F2' }}
+                >
+                  {serviceOrder.id}
+                </Badge>
+              </DialogDescription>
             </div>
           </div>
-          <DialogDescription>
-            <Badge
+          
+          {/* Action Buttons - Full width on mobile */}
+          <div className="flex gap-2">
+            <Button
               variant="outline"
-              className="font-mono text-sm"
-              style={{ background: '#FAF8FF', color: '#6A64F2', borderColor: '#6A64F2' }}
+              size="sm"
+              onClick={handlePrintInvoice}
+              className="flex-1 h-10 flex items-center justify-center gap-2 border-2 hover:bg-purple-50"
+              style={{ borderColor: '#6A64F2', color: '#6A64F2' }}
             >
-              {serviceOrder.id}
-            </Badge>
-          </DialogDescription>
+              <Printer size={18} weight="duotone" />
+              <span>Print</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDownloadInvoice}
+              className="flex-1 h-10 flex items-center justify-center gap-2"
+              style={{ background: '#6A64F2', color: 'white' }}
+            >
+              <FilePdf size={18} weight="duotone" />
+              <span>Invoice</span>
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -328,57 +335,279 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
             </div>
           )}
 
-          {/* Order History */}
-          {orderAllotment?.history && orderAllotment.history.length > 0 && (
-            <div
-              className="p-4 rounded-xl border-2"
-              style={{
-                background: '#FAF8FF',
-                borderColor: '#6A64F2',
-                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
-              }}
-            >
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#6A64F2' }}>
-                <ClockCounterClockwise size={20} weight="duotone" />
-                Order History
-              </h3>
-              <div className="space-y-3">
-                {orderAllotment.history.map((entry, index) => (
-                  <div
-                    key={index}
-                    className="p-3 rounded-lg border flex items-start gap-3"
-                    style={{ background: '#EADDFD', borderColor: 'rgba(106, 100, 242, 0.3)' }}
-                  >
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                      <span className="text-xs font-bold text-purple-600">{orderAllotment.history!.length - index}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-gray-900">{getHistoryActionLabel(entry.action)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {safeFormatDate(entry.timestamp, 'dd MMM yyyy, hh:mm a')}
-                        </span>
+          {/* Order Timeline */}
+          {(() => {
+            // Build timeline from ServiceOrder data
+            const buildTimeline = () => {
+              const stages: Array<{
+                id: string;
+                stage: string;
+                status: string;
+                timestamp: number;
+                assignedTo?: string;
+                assignedBy?: string;
+                duration?: string;
+                notes?: string;
+                icon: React.ReactNode;
+                color: string;
+              }> = [];
+              
+              // Calculate duration helper
+              const calcDuration = (start: number, end: number): string => {
+                const diffMs = end - start;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMins / 60);
+                const diffDays = Math.floor(diffHours / 24);
+                if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+                if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+                if (diffMins > 0) return `${diffMins} min${diffMins > 1 ? 's' : ''}`;
+                return 'Just now';
+              };
+
+              // 1. Order Created
+              if (serviceOrder.createdAt) {
+                stages.push({
+                  id: 'created', stage: 'Order Created', status: 'open',
+                  timestamp: serviceOrder.createdAt,
+                  assignedBy: serviceOrder.adminId || 'Admin',
+                  icon: <Package size={16} className="text-purple-600" weight="fill" />,
+                  color: 'bg-purple-100 border-purple-400',
+                });
+              }
+
+              // 2. Order Assigned
+              if (serviceOrder.assignedDate) {
+                stages.push({
+                  id: 'assigned', stage: 'Order Assigned', status: 'awaiting',
+                  timestamp: serviceOrder.assignedDate,
+                  assignedTo: serviceOrder.assignedToName || 'Unknown',
+                  assignedBy: serviceOrder.adminId || 'Admin',
+                  duration: serviceOrder.createdAt ? calcDuration(serviceOrder.createdAt, serviceOrder.assignedDate) : undefined,
+                  notes: `Assigned to ${serviceOrder.assignmentType === 'vendor' ? 'Vendor' : 'Employee'}`,
+                  icon: <User size={16} className="text-amber-600" weight="fill" />,
+                  color: 'bg-amber-100 border-amber-400',
+                });
+              }
+
+              // 3. Order Accepted
+              if (serviceOrder.acceptedDate) {
+                stages.push({
+                  id: 'accepted', stage: 'Order Accepted', 
+                  status: serviceOrder.assignmentType === 'vendor' ? 'waitingForDC' : 'inprogress',
+                  timestamp: serviceOrder.acceptedDate,
+                  assignedTo: serviceOrder.assignedToName,
+                  duration: serviceOrder.assignedDate ? calcDuration(serviceOrder.assignedDate, serviceOrder.acceptedDate) : undefined,
+                  icon: <CheckCircle size={16} className="text-green-600" weight="fill" />,
+                  color: 'bg-green-100 border-green-400',
+                });
+              }
+
+              // 4. Order Rejected
+              if (serviceOrder.rejectedDate) {
+                stages.push({
+                  id: 'rejected', stage: 'Order Rejected', status: 'rejected',
+                  timestamp: serviceOrder.rejectedDate,
+                  assignedTo: serviceOrder.assignedToName,
+                  duration: serviceOrder.assignedDate ? calcDuration(serviceOrder.assignedDate, serviceOrder.rejectedDate) : undefined,
+                  notes: serviceOrder.rejectionReason,
+                  icon: <XCircle size={16} className="text-red-600" weight="fill" />,
+                  color: 'bg-red-100 border-red-400',
+                });
+              }
+
+              // 5. DC Created
+              if (serviceOrder.dcDate && serviceOrder.dcNumber) {
+                stages.push({
+                  id: 'dc_created', stage: 'Delivery Challan Created', status: 'inprogress',
+                  timestamp: serviceOrder.dcDate,
+                  assignedBy: serviceOrder.adminId || 'Admin',
+                  duration: serviceOrder.acceptedDate ? calcDuration(serviceOrder.acceptedDate, serviceOrder.dcDate) : undefined,
+                  notes: `DC No: ${serviceOrder.dcNumber}`,
+                  icon: <FileText size={16} className="text-teal-600" weight="fill" />,
+                  color: 'bg-teal-100 border-teal-400',
+                });
+              }
+
+              // 6. Work Completed
+              if (serviceOrder.completedDate) {
+                const prevDate = serviceOrder.dcDate || serviceOrder.acceptedDate;
+                stages.push({
+                  id: 'completed', 
+                  stage: serviceOrder.assignmentType === 'vendor' ? 'Job Work Completed' : 'Work Completed',
+                  status: serviceOrder.assignmentType === 'vendor' ? 'job-completed' : 'ready',
+                  timestamp: serviceOrder.completedDate,
+                  assignedTo: serviceOrder.assignedToName,
+                  duration: prevDate ? calcDuration(prevDate, serviceOrder.completedDate) : undefined,
+                  icon: <CheckCircle size={16} className="text-indigo-600" weight="fill" />,
+                  color: 'bg-indigo-100 border-indigo-400',
+                });
+              }
+
+              // 7. Goods Received
+              if (serviceOrder.goodsReceivedDate && serviceOrder.goodsReceiptNo) {
+                stages.push({
+                  id: 'goods_received', stage: 'Goods Received', status: 'received-note',
+                  timestamp: serviceOrder.goodsReceivedDate,
+                  assignedBy: serviceOrder.adminId || 'Admin',
+                  duration: serviceOrder.completedDate ? calcDuration(serviceOrder.completedDate, serviceOrder.goodsReceivedDate) : undefined,
+                  notes: `GRN No: ${serviceOrder.goodsReceiptNo}`,
+                  icon: <Truck size={16} className="text-cyan-600" weight="fill" />,
+                  color: 'bg-cyan-100 border-cyan-400',
+                });
+              }
+
+              // 8. Reassigned
+              if (serviceOrder.isReassigned && serviceOrder.reassignedDate) {
+                stages.push({
+                  id: 'reassigned', stage: 'Order Reassigned', status: 'awaiting',
+                  timestamp: serviceOrder.reassignedDate,
+                  assignedTo: serviceOrder.assignedToName,
+                  assignedBy: serviceOrder.adminId || 'Admin',
+                  notes: serviceOrder.previousAssignedToName ? `Previously: ${serviceOrder.previousAssignedToName}` : undefined,
+                  icon: <ArrowsClockwise size={16} className="text-orange-600" weight="fill" />,
+                  color: 'bg-orange-100 border-orange-400',
+                });
+              }
+
+              // 9. Delivered
+              if (serviceOrder.deliveredDate) {
+                const prevDate = serviceOrder.goodsReceivedDate || serviceOrder.completedDate;
+                stages.push({
+                  id: 'delivered', stage: 'Order Delivered', status: 'delivered',
+                  timestamp: serviceOrder.deliveredDate,
+                  assignedBy: serviceOrder.adminId || 'Admin',
+                  duration: prevDate ? calcDuration(prevDate, serviceOrder.deliveredDate) : undefined,
+                  icon: <CheckCircle size={16} className="text-emerald-600" weight="fill" />,
+                  color: 'bg-emerald-100 border-emerald-400',
+                });
+              }
+
+              return stages.sort((a, b) => a.timestamp - b.timestamp);
+            };
+
+            const timeline = buildTimeline();
+            const totalDuration = serviceOrder.createdAt 
+              ? (() => {
+                  const start = serviceOrder.createdAt;
+                  const end = serviceOrder.deliveredDate || Date.now();
+                  const diffMs = end - start;
+                  const diffMins = Math.floor(diffMs / 60000);
+                  const diffHours = Math.floor(diffMins / 60);
+                  const diffDays = Math.floor(diffHours / 24);
+                  if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+                  if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+                  if (diffMins > 0) return `${diffMins} min${diffMins > 1 ? 's' : ''}`;
+                  return 'Just now';
+                })()
+              : '';
+
+            if (timeline.length === 0) return null;
+
+            return (
+              <div
+                className="p-4 sm:p-5 rounded-xl border-2"
+                style={{ background: '#f8f5ff', borderColor: '#a78bfa' }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: '#6A64F2' }}>
+                    <ClockCounterClockwise size={20} weight="duotone" />
+                    Order Timeline
+                  </h3>
+                  <Badge className="bg-purple-100 text-purple-700 text-xs">
+                    Total: {totalDuration}
+                  </Badge>
+                </div>
+
+                <div className="relative">
+                  {/* Vertical Timeline Line */}
+                  <div className="absolute left-[19px] top-6 bottom-6 w-0.5" style={{ backgroundColor: '#c4b5fd' }} />
+
+                  <div className="space-y-4">
+                    {timeline.map((stage) => (
+                      <div key={stage.id} className="relative flex gap-4">
+                        {/* Timeline Node */}
+                        <div className="relative z-10 flex-shrink-0">
+                          <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center bg-white ${stage.color}`}>
+                            {stage.icon}
+                          </div>
+                        </div>
+
+                        {/* Content Card */}
+                        <div className="flex-1 p-3 rounded-xl border" style={{ backgroundColor: 'white', borderColor: '#e9d5ff' }}>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{stage.stage}</p>
+                              {getStatusBadge(stage.status)}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-xs font-medium text-gray-700">
+                                {safeFormatDate(stage.timestamp, 'MMM dd, yyyy')}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {safeFormatDate(stage.timestamp, 'hh:mm a')}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Stage Details */}
+                          <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                            {stage.assignedTo && (
+                              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-blue-50">
+                                <User size={14} className="text-blue-600" weight="fill" />
+                                <div>
+                                  <p className="text-[10px] text-blue-600 font-medium">Assigned To</p>
+                                  <p className="font-semibold text-gray-800">{stage.assignedTo}</p>
+                                </div>
+                              </div>
+                            )}
+                            {stage.assignedBy && (
+                              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-purple-50">
+                                <User size={14} className="text-purple-600" weight="fill" />
+                                <div>
+                                  <p className="text-[10px] text-purple-600 font-medium">Assigned By</p>
+                                  <p className="font-semibold text-gray-800">{stage.assignedBy}</p>
+                                </div>
+                              </div>
+                            )}
+                            {stage.duration && (
+                              <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-50">
+                                <Calendar size={14} className="text-amber-600" weight="fill" />
+                                <div>
+                                  <p className="text-[10px] text-amber-600 font-medium">Duration</p>
+                                  <p className="font-semibold text-gray-800">{stage.duration}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Notes */}
+                          {stage.notes && (
+                            <div className="mt-2 p-2 rounded-lg bg-gray-50">
+                              <p className="text-xs text-gray-600">
+                                <span className="font-medium">Note:</span> {stage.notes}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {entry.action === 'status_changed' && entry.previousStatus && entry.newStatus && (
-                        <div className="flex items-center gap-2 text-sm">
-                          {getStatusBadge(entry.previousStatus)}
-                          <ArrowRight size={14} className="text-gray-400" />
-                          {getStatusBadge(entry.newStatus)}
-                        </div>
-                      )}
-                      {entry.action === 'reassigned' && (
-                        <div className="text-sm text-gray-600">
-                          <span>{entry.previousAssignedName || 'Unknown'}</span>
-                          <ArrowRight size={14} className="inline mx-1 text-gray-400" />
-                          <span>{entry.newAssignedName || 'Unknown'}</span>
-                        </div>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                ))}
+
+                  {/* Current Status Indicator */}
+                  {serviceOrder.orderStatus !== 'delivered' && (
+                    <div className="mt-4 p-3 rounded-xl border-2 border-dashed" style={{ borderColor: '#c4b5fd', backgroundColor: '#faf5ff' }}>
+                      <div className="flex items-center gap-2">
+                        <Spinner size={16} className="animate-spin text-purple-500" />
+                        <p className="text-sm font-medium text-purple-700">
+                          Current Status: <span className="capitalize">{serviceOrder.orderStatus.replace(/-/g, ' ')}</span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Order Details */}
           <div
@@ -563,32 +792,33 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
               <Calendar size={20} weight="duotone" />
               Pricing Information
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-3">
+              {/* Total Amount */}
               <div
                 className="p-3 rounded-lg border text-center"
                 style={{ background: '#EADDFD', borderColor: 'rgba(106, 100, 242, 0.3)' }}
               >
-                <p className="text-sm text-muted-foreground">Total Amount</p>
-                <p className="font-bold text-xl" style={{ color: '#6A64F2' }}>₹{serviceOrder.totalAmount || 0}</p>
+                <p className="text-xs text-muted-foreground mb-1">Total Amount</p>
+                <p className="font-bold text-lg" style={{ color: '#6A64F2' }}>₹{serviceOrder.totalAmount || serviceOrder.stitchingCost || 0}</p>
               </div>
-              {serviceOrder.advanceAmount && serviceOrder.advanceAmount > 0 && (
-                <div
-                  className="p-3 rounded-lg border text-center"
-                  style={{ background: '#d1fae5', borderColor: 'rgba(16, 185, 129, 0.3)' }}
-                >
-                  <p className="text-sm text-muted-foreground">Advance Paid</p>
-                  <p className="font-bold text-xl text-green-600">₹{serviceOrder.advanceAmount}</p>
-                </div>
-              )}
-              {serviceOrder.balanceAmount !== undefined && (
-                <div
-                  className="p-3 rounded-lg border text-center"
-                  style={{ background: '#ffedd5', borderColor: 'rgba(249, 115, 22, 0.3)' }}
-                >
-                  <p className="text-sm text-muted-foreground">Balance</p>
-                  <p className="font-bold text-xl text-orange-600">₹{serviceOrder.balanceAmount}</p>
-                </div>
-              )}
+              {/* Advance Payment - Always show */}
+              <div
+                className="p-3 rounded-lg border text-center"
+                style={{ background: '#d1fae5', borderColor: 'rgba(16, 185, 129, 0.3)' }}
+              >
+                <p className="text-xs text-muted-foreground mb-1">Advance Paid</p>
+                <p className="font-bold text-lg text-green-600">₹{serviceOrder.advanceAmount || 0}</p>
+              </div>
+              {/* Balance - Always show */}
+              <div
+                className="p-3 rounded-lg border text-center"
+                style={{ background: '#ffedd5', borderColor: 'rgba(249, 115, 22, 0.3)' }}
+              >
+                <p className="text-xs text-muted-foreground mb-1">Balance</p>
+                <p className="font-bold text-lg text-orange-600">
+                  ₹{serviceOrder.balanceAmount ?? ((serviceOrder.totalAmount || serviceOrder.stitchingCost || 0) - (serviceOrder.advanceAmount || 0))}
+                </p>
+              </div>
             </div>
           </div>
         </div>

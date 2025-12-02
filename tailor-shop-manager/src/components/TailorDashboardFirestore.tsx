@@ -4,10 +4,19 @@ import { ServiceOrder } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
 import { TailorProfile } from '@/components/TailorProfile';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -90,12 +99,30 @@ export function TailorDashboardFirestore() {
     order: ServiceOrderWithCompany | null;
   }>({ open: false, type: 'accept', order: null });
 
+  // Rejection dialog state
+  const [rejectDialog, setRejectDialog] = useState<{
+    open: boolean;
+    order: ServiceOrderWithCompany | null;
+  }>({ open: false, order: null });
+  const [rejectionReason, setRejectionReason] = useState('');
+
   const openConfirmDialog = (type: StatusChangeType, order: ServiceOrderWithCompany) => {
-    setConfirmDialog({ open: true, type, order });
+    if (type === 'reject') {
+      // Open rejection dialog instead of confirm dialog
+      setRejectDialog({ open: true, order });
+      setRejectionReason('');
+    } else {
+      setConfirmDialog({ open: true, type, order });
+    }
   };
 
   const closeConfirmDialog = () => {
     setConfirmDialog({ open: false, type: 'accept', order: null });
+  };
+
+  const closeRejectDialog = () => {
+    setRejectDialog({ open: false, order: null });
+    setRejectionReason('');
   };
 
   const handleConfirmAction = async () => {
@@ -104,9 +131,6 @@ export function TailorDashboardFirestore() {
     switch (confirmDialog.type) {
       case 'accept':
         await handleAcceptOrder(confirmDialog.order);
-        break;
-      case 'reject':
-        await handleRejectOrder(confirmDialog.order);
         break;
       case 'ready':
         await handleMarkAsReady(confirmDialog.order);
@@ -188,14 +212,14 @@ export function TailorDashboardFirestore() {
   };
 
   // Handle reject order using the new unified flow
-  const handleRejectOrder = async (order: ServiceOrderWithCompany) => {
+  const handleRejectOrder = async (order: ServiceOrderWithCompany, reason: string) => {
     if (!employee) return;
     
     try {
       setRejectingOrder(order.id);
 
-      // Reject the order using the new unified function
-      await rejectOrder(order.id, employee.id, employee.name, 'Rejected by employee');
+      // Reject the order using the new unified function with the reason
+      await rejectOrder(order.id, employee.id, employee.name, reason || 'Rejected by employee');
 
       // Get company profile to send email to admin
       if (employee?.companyDocId) {
@@ -214,6 +238,7 @@ export function TailorDashboardFirestore() {
               dressType: order.orderCategory,
               rejectionDate: format(new Date(), 'dd MMM yyyy, hh:mm a'),
               companyName: companyProfile.companyName,
+              rejectionReason: reason,
             });
             console.log('[TailorDashboard] Rejection email sent to admin');
           }
@@ -223,6 +248,7 @@ export function TailorDashboardFirestore() {
       }
 
       toast.success('Order rejected successfully. Admin has been notified.');
+      closeRejectDialog();
       // Real-time subscription will automatically update the UI
     } catch (error) {
       console.error('Error rejecting order:', error);
@@ -780,10 +806,75 @@ export function TailorDashboardFirestore() {
         }}
         isLoading={
           acceptingOrder === confirmDialog.order?.id ||
-          rejectingOrder === confirmDialog.order?.id ||
           markingReady === confirmDialog.order?.id
         }
       />
+
+      {/* Rejection Reason Dialog */}
+      <Dialog open={rejectDialog.open} onOpenChange={(open) => !open && closeRejectDialog()}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 flex items-center gap-2">
+              <XCircle size={24} weight="bold" />
+              Reject Order
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">Order:</span> {rejectDialog.order?.jobWorkNo || rejectDialog.order?.id}
+              </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">Customer:</span> {rejectDialog.order?.customerName}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rejectionReason" className="text-sm font-medium">
+                Reason for Rejection *
+              </Label>
+              <Textarea
+                id="rejectionReason"
+                placeholder="Please provide a reason for rejecting this order..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="min-h-[100px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                This reason will be shared with the admin.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={closeRejectDialog}
+              disabled={rejectingOrder === rejectDialog.order?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (rejectDialog.order && rejectionReason.trim()) {
+                  handleRejectOrder(rejectDialog.order, rejectionReason.trim());
+                } else if (!rejectionReason.trim()) {
+                  toast.error('Please provide a reason for rejection');
+                }
+              }}
+              disabled={rejectingOrder === rejectDialog.order?.id || !rejectionReason.trim()}
+            >
+              {rejectingOrder === rejectDialog.order?.id ? (
+                <>
+                  <Spinner size={16} className="mr-2 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                'Reject Order'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

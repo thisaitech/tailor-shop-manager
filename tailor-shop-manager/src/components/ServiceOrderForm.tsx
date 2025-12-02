@@ -1357,22 +1357,49 @@ export function ServiceOrderForm({
               </div>
             </div>
 
-            {/* Manual Design Image Upload */}
+            {/* Attach Sample Cloths */}
             <div className="space-y-2">
-              <Label>Upload Design Images</Label>
+              <Label>Attach Sample Cloths</Label>
+              
+              {/* Hidden Camera Input for direct capture - Back Camera */}
+              <input
+                id="sample-cloth-camera"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      setIsUploading(true);
+                      const downloadURL = await uploadPhoto(file, `designs/${Date.now()}_${file.name}`);
+                      setDesignList((prev) => [...prev, downloadURL]);
+                      toast.success('Photo uploaded successfully');
+                    } catch (error) {
+                      console.error('Upload error:', error);
+                      toast.error('Failed to upload photo');
+                    } finally {
+                      setIsUploading(false);
+                      e.target.value = ''; // Reset input
+                    }
+                  }
+                }}
+                className="hidden"
+              />
+              
               <div className="space-y-2">
-                {/* Single Upload Designs Button */}
+                {/* Camera Button - Opens back camera directly on mobile */}
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowUploadModal(true)}
-                  className="w-full h-auto py-4"
+                  onClick={() => document.getElementById('sample-cloth-camera')?.click()}
+                  className="w-full h-auto py-4 flex items-center justify-center gap-3 border-2 border-dashed hover:border-primary hover:bg-primary/5"
                   disabled={isUploading}
                 >
-                  <div className="flex flex-col items-center gap-2">
-                    <ImageIcon size={24} weight="bold" />
-                    <span className="text-sm font-semibold">Upload Designs</span>
-                    <span className="text-xs text-muted-foreground">Camera or Gallery</span>
+                  <Camera size={24} weight="bold" className="text-primary" />
+                  <div className="text-left">
+                    <span className="text-sm font-semibold block">Take Photo</span>
+                    <span className="text-xs text-muted-foreground">Capture sample cloth image</span>
                   </div>
                 </Button>
 
@@ -1386,7 +1413,7 @@ export function ServiceOrderForm({
                       >
                         <img
                           src={imageUrl}
-                          alt={`Design ${index + 1}`}
+                          alt={`Sample ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                         <button
@@ -1595,9 +1622,9 @@ export function ServiceOrderForm({
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={handleSkipAdvancePayment}
-                  className="border-white/30 text-white hover:bg-white/10"
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Skip Payment
                 </Button>
@@ -1789,7 +1816,8 @@ export function ServiceOrderForm({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* File Input */}
+              {/* Hidden File Inputs */}
+              {/* Gallery Input - for selecting existing images */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1798,21 +1826,43 @@ export function ServiceOrderForm({
                 onChange={handleFileSelect}
                 className="hidden"
               />
+              {/* Camera Input - for direct camera capture on mobile */}
+              <input
+                id="camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
 
-              {/* Select Files Button */}
+              {/* Select Files Buttons */}
               {selectedFiles.length === 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-32"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <ImageIcon size={32} weight="duotone" />
-                    <span className="text-sm font-semibold">Select Images from Gallery</span>
-                    <span className="text-xs text-muted-foreground">Multiple selection allowed</span>
-                  </div>
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Camera Button - Opens back camera directly */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('camera-input')?.click()}
+                    className="h-32 flex flex-col items-center justify-center gap-2 border-2 border-dashed hover:border-primary hover:bg-primary/5"
+                  >
+                    <Camera size={32} weight="duotone" className="text-primary" />
+                    <span className="text-sm font-semibold">Take Photo</span>
+                    <span className="text-xs text-muted-foreground">Back Camera</span>
+                  </Button>
+                  
+                  {/* Gallery Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-32 flex flex-col items-center justify-center gap-2 border-2 border-dashed hover:border-primary hover:bg-primary/5"
+                  >
+                    <ImageIcon size={32} weight="duotone" className="text-primary" />
+                    <span className="text-sm font-semibold">From Gallery</span>
+                    <span className="text-xs text-muted-foreground">Multiple allowed</span>
+                  </Button>
+                </div>
               )}
 
               {/* Selected Files Preview */}

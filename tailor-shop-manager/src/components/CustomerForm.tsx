@@ -393,7 +393,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+        className="max-w-[95vw] sm:max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
@@ -441,7 +441,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[400px]">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 min-h-0">
               {/* Basic Details Tab */}
               <TabsContent value="basic" className="mt-0 space-y-6 h-full">
                 <div className="space-y-6">
@@ -770,7 +770,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
           </Tabs>
 
           {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-6 py-4 border-t" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+          <div className="flex justify-between items-center gap-3 px-4 sm:px-6 py-4 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               {t('cancel')}
             </Button>
@@ -778,9 +778,9 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               {activeTab !== 'basic' && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setActiveTab(activeTab === 'address' ? 'measurements' : 'basic')}
-                  className="border-white/30 text-white hover:bg-white/10"
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Back
                 </Button>
@@ -788,9 +788,9 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               {activeTab !== 'address' && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setActiveTab(activeTab === 'basic' ? 'measurements' : 'address')}
-                  className="border-white/30 text-white hover:bg-white/10"
+                  className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Next
                 </Button>

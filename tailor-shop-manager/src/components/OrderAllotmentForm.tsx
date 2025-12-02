@@ -16,12 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+// Radio buttons replaced with touch-friendly button toggles
 import { OrderAllotment, ServiceOrder, StitchingAllotmentType, Employee, Vendor, DressItem } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { reassignStitchedOrder } from '@/lib/firestore/orderAllotmentService';
+import { User, Buildings, Scissors, CalendarBlank, Check } from '@phosphor-icons/react';
 
 // Per-item assignment state
 interface DressItemAssignment {
@@ -355,145 +356,184 @@ export function OrderAllotmentForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
-            {reassignOrder ? 'Re-assign Stitched Order' : 'Job Allotment'}
-          </DialogTitle>
-          {reassignOrder && (
-            <p className="text-sm text-orange-600">
-              Re-assigning: {reassignOrder.stitchedId || reassignOrder.jobWorkNo}
-            </p>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white border-b px-5 py-4">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              {reassignOrder ? 'Re-assign Order' : 'Job Allotment'}
+            </DialogTitle>
+            {reassignOrder ? (
+              <p className="text-sm text-orange-600 font-medium">
+                Re-assigning: {reassignOrder.stitchedId || reassignOrder.jobWorkNo}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500">Assign work to tailor or job work</p>
+            )}
+          </DialogHeader>
+        </div>
+
+        <div className="px-5 space-y-4 py-4">
+          {/* Service Order Selection - Hide when opened from specific order */}
+          {!initialServiceOrderId && !reassignOrder && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-gray-700">Select Service Order *</Label>
+              <Select value={serviceOrderNo} onValueChange={setServiceOrderNo}>
+                <SelectTrigger className="h-12 text-base" style={{ borderColor: '#6A64F2', borderWidth: '2px' }}>
+                  <SelectValue placeholder="Tap to select order" />
+                </SelectTrigger>
+                <SelectContent>
+                  {eligibleOrders.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center">
+                      No eligible service orders available.
+                      <br />
+                      <span className="text-xs">Orders must have status: Open or Allotment</span>
+                    </div>
+                  ) : (
+                    eligibleOrders.map((order) => (
+                      <SelectItem key={order.id} value={order.id} className="py-3">
+                        <span className="font-mono font-semibold">{order.id}</span>
+                        <span className="mx-2">•</span>
+                        <span>{order.customerName}</span>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           )}
-        </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Job Work Date */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Job Work Date</Label>
-            <Input
-              type="text"
-              value={format(new Date(), 'MMM dd, yyyy')}
-              disabled
-              className="h-11 bg-muted"
-            />
-            <p className="text-xs text-muted-foreground">Auto-set to today's date</p>
-          </div>
-
-          {/* Service Order Selection */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Service Order *</Label>
-            <Select value={serviceOrderNo} onValueChange={setServiceOrderNo}>
-              <SelectTrigger className="h-11" style={{ borderColor: '#6A64F2' }}>
-                <SelectValue placeholder="Select service order" />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleOrders.length === 0 ? (
-                  <div className="p-3 text-sm text-muted-foreground text-center">
-                    No eligible service orders available.
-                    <br />
-                    <span className="text-xs">Orders must have status: Open or Allotment</span>
+          {/* Order Information Card - Compact & Clean */}
+          {selectedOrder && (
+            <div className="rounded-xl overflow-hidden border-2 shadow-sm" style={{ borderColor: '#6A64F2' }}>
+              {/* Header */}
+              <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: '#6A64F2' }}>
+                <span className="text-white font-semibold text-sm">Order Details</span>
+                <span className="text-white/90 text-xs font-mono bg-white/20 px-2 py-0.5 rounded">
+                  {selectedOrder.id}
+                </span>
+              </div>
+              
+              {/* Content */}
+              <div className="p-4 space-y-3" style={{ backgroundColor: '#FAFAFF' }}>
+                {/* Customer & Category Row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                      <span className="text-sm">👤</span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Customer</p>
+                      <p className="font-semibold text-gray-900 text-sm">{selectedOrder.customerName}</p>
+                    </div>
                   </div>
-                ) : (
-                  eligibleOrders.map((order) => (
-                    <SelectItem key={order.id} value={order.id}>
-                      {order.id} - {order.customerName} ({order.orderCategory === 'male' ? 'Men' : order.orderCategory === 'female' ? 'Women' : 'Kids'})
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-
-            {/* Order Details Box */}
-            {selectedOrder && (
-              <div className="p-4 rounded-lg border-2" style={{ backgroundColor: '#f3e8ff', borderColor: '#6A64F2' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">📋</span>
-                  <p className="font-bold text-base" style={{ color: '#6A64F2' }}>Order Information</p>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">Category</p>
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
+                      style={{
+                        backgroundColor: selectedOrder.orderCategory === 'male' ? '#DBEAFE' : 
+                                        selectedOrder.orderCategory === 'female' ? '#FCE7F3' : '#FEF3C7',
+                        color: selectedOrder.orderCategory === 'male' ? '#1E40AF' : 
+                               selectedOrder.orderCategory === 'female' ? '#BE185D' : '#B45309'
+                      }}>
+                      {selectedOrder.orderCategory === 'male' ? 'Men' : selectedOrder.orderCategory === 'female' ? 'Women' : 'Kids'}
+                    </span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-white bg-opacity-60 p-2 rounded">
-                    <p className="text-xs text-gray-600 font-semibold">👤 Customer</p>
-                    <p className="font-medium text-gray-900">{selectedOrder.customerName}</p>
+
+                {/* Divider */}
+                <div className="border-t border-gray-200"></div>
+
+                {/* Quantity, Cost, Delivery Row */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-white rounded-lg py-2 px-1 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-0.5">Quantity</p>
+                    <p className="font-bold text-gray-900 text-sm">{selectedOrder.orderQty} <span className="text-xs font-normal text-gray-500">{selectedOrder.uom}</span></p>
                   </div>
-                  <div className="bg-white bg-opacity-60 p-2 rounded">
-                    <p className="text-xs text-gray-600 font-semibold">📂 Category</p>
-                    <p className="font-medium text-gray-900">{selectedOrder.orderCategory}</p>
+                  <div className="bg-white rounded-lg py-2 px-1 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-0.5">Cost</p>
+                    <p className="font-bold text-green-600 text-sm">₹{selectedOrder.stitchingCost.toFixed(0)}</p>
                   </div>
-                  <div className="bg-white bg-opacity-60 p-2 rounded">
-                    <p className="text-xs text-gray-600 font-semibold">📦 Quantity</p>
-                    <p className="font-medium text-gray-900">{selectedOrder.orderQty} {selectedOrder.uom}</p>
-                  </div>
-                  <div className="bg-white bg-opacity-60 p-2 rounded">
-                    <p className="text-xs text-gray-600 font-semibold">💰 Cost</p>
-                    <p className="font-bold text-green-700">₹{selectedOrder.stitchingCost.toFixed(2)}</p>
-                  </div>
-                  <div className="col-span-2 bg-white bg-opacity-60 p-2 rounded">
-                    <p className="text-xs text-gray-600 font-semibold">📅 Expected Delivery</p>
-                    <p className="font-medium text-gray-900">{format(new Date(selectedOrder.expectedDeliveryDate), 'dd MMM yyyy')}</p>
+                  <div className="bg-white rounded-lg py-2 px-1 border border-gray-100">
+                    <p className="text-xs text-gray-500 mb-0.5">Delivery</p>
+                    <p className="font-bold text-gray-900 text-sm">{format(new Date(selectedOrder.expectedDeliveryDate), 'dd MMM')}</p>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* DRESS ITEMS ASSIGNMENT - shown when order has dress items */}
           {hasDressItems && dressItemAssignments.length > 0 && (
             <div className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium">Dress Items Assignment</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Assign each dress item to a tailor
-                </p>
+              {/* Section Header */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center">
+                  <span className="text-white text-sm">👗</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">Assign Dress Items</p>
+                  <p className="text-xs text-gray-500">
+                    {dressItemAssignments.length} item{dressItemAssignments.length > 1 ? 's' : ''} to assign
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {dressItemAssignments.map((item, index) => {
                   const assigneeList = item.stitchingAllotment === 'employee' ? tailorEmployees : vendors;
 
                   return (
-                    <Card key={item.dressItemId} className="border" style={{ borderColor: '#6A64F2' }}>
-                      <CardHeader className="py-3 px-4" style={{ backgroundColor: '#f3e8ff' }}>
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                    <Card key={item.dressItemId} className="overflow-hidden border-2" style={{ borderColor: item.assignedTo ? '#22C55E' : '#E5E7EB' }}>
+                      {/* Item Header */}
+                      <div className="px-4 py-3 flex items-center justify-between" 
+                        style={{ backgroundColor: item.assignedTo ? '#F0FDF4' : '#F9FAFB' }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
                             {index + 1}
                           </span>
-                          <span className="font-semibold">{item.dressItemName}</span>
-                          <span className="text-muted-foreground font-normal text-xs">
-                            (Qty: {item.quantity}, ₹{item.stitchingCost})
-                          </span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-3 px-4 space-y-4">
-                        {/* Allotment Type */}
+                          <span className="font-semibold text-gray-900 text-sm">{item.dressItemName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Qty: {item.quantity}</span>
+                          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">₹{item.stitchingCost}</span>
+                        </div>
+                      </div>
+
+                      <CardContent className="p-4 space-y-4">
+                        {/* Allotment Type - Touch-friendly buttons */}
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium">Assign to</Label>
-                          <RadioGroup
-                            value={item.stitchingAllotment}
-                            onValueChange={(value) =>
-                              updateDressItemAssignment(item.dressItemId, 'stitchingAllotment', value)
-                            }
-                            className="flex gap-6"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="employee" id={`emp-${item.dressItemId}`} />
-                              <Label htmlFor={`emp-${item.dressItemId}`} className="text-sm font-normal cursor-pointer">
-                                Employee
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="vendor" id={`vendor-${item.dressItemId}`} />
-                              <Label htmlFor={`vendor-${item.dressItemId}`} className="text-sm font-normal cursor-pointer">
-                                Job Work Tailor
-                              </Label>
-                            </div>
-                          </RadioGroup>
+                          <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Assign to</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updateDressItemAssignment(item.dressItemId, 'stitchingAllotment', 'employee')}
+                              className={`py-3 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 border-2 ${
+                                item.stitchingAllotment === 'employee'
+                                  ? 'bg-violet-600 text-white border-violet-600'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:border-violet-300'
+                              }`}
+                            >
+                              <span>👤</span> Employee
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateDressItemAssignment(item.dressItemId, 'stitchingAllotment', 'vendor')}
+                              className={`py-3 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 border-2 ${
+                                item.stitchingAllotment === 'vendor'
+                                  ? 'bg-orange-500 text-white border-orange-500'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:border-orange-300'
+                              }`}
+                            >
+                              <span>🏢</span> Job Work
+                            </button>
+                          </div>
                         </div>
 
                         {/* Assignee Selection */}
                         <div className="space-y-2">
-                          <Label className="text-sm font-medium">
-                            {item.stitchingAllotment === 'employee' ? 'Tailor Name' : 'Job Work Tailor Name'} *
+                          <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                            {item.stitchingAllotment === 'employee' ? 'Select Tailor' : 'Select Job Work Tailor'} *
                           </Label>
                           <Select
                             value={item.assignedTo}
@@ -501,12 +541,12 @@ export function OrderAllotmentForm({
                               updateDressItemAssignment(item.dressItemId, 'assignedTo', value)
                             }
                           >
-                            <SelectTrigger className="h-11" style={{ borderColor: '#6A64F2' }}>
-                              <SelectValue placeholder="Select assignee" />
+                            <SelectTrigger className="h-12 text-sm" style={{ borderColor: '#6A64F2', borderWidth: '2px' }}>
+                              <SelectValue placeholder="Tap to select" />
                             </SelectTrigger>
                             <SelectContent>
                               {assigneeList.length === 0 ? (
-                                <div className="p-3 text-sm text-muted-foreground text-center">
+                                <div className="p-4 text-sm text-muted-foreground text-center">
                                   No {item.stitchingAllotment === 'employee' ? 'tailors' : 'job work tailors'} available
                                 </div>
                               ) : (
@@ -515,8 +555,8 @@ export function OrderAllotmentForm({
                                     ? (assignee as Employee).name
                                     : (assignee as Vendor).tailorName;
                                   return (
-                                    <SelectItem key={assignee.id} value={assignee.id}>
-                                      {assignee.id} - {displayName}
+                                    <SelectItem key={assignee.id} value={assignee.id} className="py-3">
+                                      <span className="font-medium">{displayName}</span>
                                     </SelectItem>
                                   );
                                 })
@@ -525,34 +565,36 @@ export function OrderAllotmentForm({
                           </Select>
                         </div>
 
-                        {/* Costs */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium">Material Cost (₹)</Label>
+                        {/* Costs - Compact grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-gray-600">Material ₹</Label>
                             <Input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="1"
                               value={item.materialCost}
                               onChange={(e) =>
                                 updateDressItemAssignment(item.dressItemId, 'materialCost', parseFloat(e.target.value) || 0)
                               }
-                              className="h-11"
-                              style={{ borderColor: '#6A64F2' }}
+                              onFocus={(e) => e.target.select()}
+                              className="h-11 text-center font-semibold"
+                              style={{ borderColor: '#6A64F2', borderWidth: '2px' }}
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium">Job Work Cost (₹)</Label>
+                          <div className="space-y-1">
+                            <Label className="text-xs font-semibold text-gray-600">Job Cost ₹</Label>
                             <Input
                               type="number"
                               min="0"
-                              step="0.01"
+                              step="1"
                               value={item.jobWorkCost}
                               onChange={(e) =>
                                 updateDressItemAssignment(item.dressItemId, 'jobWorkCost', parseFloat(e.target.value) || 0)
                               }
-                              className="h-11"
-                              style={{ borderColor: '#6A64F2' }}
+                              onFocus={(e) => e.target.select()}
+                              className="h-11 text-center font-semibold"
+                              style={{ borderColor: '#6A64F2', borderWidth: '2px' }}
                             />
                           </div>
                         </div>
@@ -562,171 +604,205 @@ export function OrderAllotmentForm({
                 })}
               </div>
 
-              {/* Total for all dress items */}
-              <div className="p-3 rounded-lg" style={{ backgroundColor: '#dcfce7', border: '1px solid #86efac' }}>
-                <p className="text-sm font-semibold text-green-800">
-                  Total Job Cost: ₹{totalDressItemsCost.toFixed(2)}
-                </p>
-                <p className="text-xs text-green-600 mt-1">
-                  {dressItemAssignments.filter(i => i.assignedTo).length} of {dressItemAssignments.length} items assigned
-                </p>
+              {/* Total Summary - Sticky feel */}
+              <div className="rounded-xl p-4 flex items-center justify-between" style={{ backgroundColor: '#ECFDF5', border: '2px solid #22C55E' }}>
+                <div>
+                  <p className="text-xs text-green-700 font-medium">Total Job Cost</p>
+                  <p className="text-xl font-bold text-green-800">₹{totalDressItemsCost.toFixed(0)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-green-700 font-medium">Items Assigned</p>
+                  <p className="text-lg font-bold text-green-800">
+                    {dressItemAssignments.filter(i => i.assignedTo).length}/{dressItemAssignments.length}
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
           {/* LEGACY SINGLE ASSIGNMENT - shown when order has no dress items */}
           {!hasDressItems && selectedOrder && (
-            <>
-              {/* Stitching Allotment Type - Highlighted */}
-              <div className="p-5 rounded-xl border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold flex-shrink-0">⚙</div>
-                  <Label className="text-base font-bold text-blue-900">Select Stitching Allotment Type *</Label>
+            <div className="space-y-4">
+              {/* Assignment Type - Compact buttons */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Assign To *</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStitchingAllotment('employee')}
+                    className={`relative py-3 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 border-2 ${
+                      stitchingAllotment === 'employee'
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-violet-300'
+                    }`}
+                  >
+                    {stitchingAllotment === 'employee' && (
+                      <Check size={14} weight="bold" className="absolute top-1 right-1" />
+                    )}
+                    <User size={18} weight={stitchingAllotment === 'employee' ? 'fill' : 'regular'} />
+                    <span>Employee</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStitchingAllotment('vendor')}
+                    className={`relative py-3 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 border-2 ${
+                      stitchingAllotment === 'vendor'
+                        ? 'bg-orange-500 text-white border-orange-500'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'
+                    }`}
+                  >
+                    {stitchingAllotment === 'vendor' && (
+                      <Check size={14} weight="bold" className="absolute top-1 right-1" />
+                    )}
+                    <Buildings size={18} weight={stitchingAllotment === 'vendor' ? 'fill' : 'regular'} />
+                    <span>Job Work</span>
+                  </button>
                 </div>
-                <RadioGroup
-                  value={stitchingAllotment}
-                  onValueChange={(value) => setStitchingAllotment(value as StitchingAllotmentType)}
-                  className="flex gap-8 pt-2"
-                >
-                  <div className="flex items-center space-x-3 bg-white px-4 py-3 rounded-lg border-2 border-transparent hover:border-blue-300 cursor-pointer transition"
-                    onClick={() => setStitchingAllotment('employee')}>
-                    <RadioGroupItem value="employee" id="employee" className="w-5 h-5" />
-                    <Label htmlFor="employee" className="font-semibold cursor-pointer text-gray-700 text-sm">
-                      👤 Employee
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 bg-white px-4 py-3 rounded-lg border-2 border-transparent hover:border-orange-300 cursor-pointer transition"
-                    onClick={() => setStitchingAllotment('vendor')}>
-                    <RadioGroupItem value="vendor" id="vendor" className="w-5 h-5" />
-                    <Label htmlFor="vendor" className="font-semibold cursor-pointer text-gray-700 text-sm">
-                      🏢 Job Work Tailor
-                    </Label>
-                  </div>
-                </RadioGroup>
               </div>
 
-              {/* Expected Delivery Date & Tailor Selection - Same Row */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Expected Delivery Date */}
+              {/* Select Tailor & Delivery Date - In one row */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Select Tailor */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <span className="text-blue-600">📅</span>Expected Delivery Date *
+                  <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1">
+                    <Scissors size={12} weight="bold" />
+                    {stitchingAllotment === 'employee' ? 'Tailor' : 'Vendor'} *
+                  </Label>
+                  <Select value={assignedTo} onValueChange={setAssignedTo}>
+                    <SelectTrigger 
+                      className="h-11 text-sm" 
+                      style={{ 
+                        borderColor: assignedTo ? '#22C55E' : '#6A64F2', 
+                        borderWidth: '2px',
+                        backgroundColor: assignedTo ? '#F0FDF4' : 'white'
+                      }}
+                    >
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(stitchingAllotment === 'employee' ? tailorEmployees : vendors).length === 0 ? (
+                        <div className="p-3 text-sm text-muted-foreground text-center">
+                          No {stitchingAllotment === 'employee' ? 'tailors' : 'vendors'} available
+                        </div>
+                      ) : (
+                        (stitchingAllotment === 'employee' ? tailorEmployees : vendors).map((assignee) => {
+                          const displayName = stitchingAllotment === 'employee'
+                            ? (assignee as Employee).name
+                            : (assignee as Vendor).tailorName;
+                          return (
+                            <SelectItem key={assignee.id} value={assignee.id} className="py-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-semibold text-xs">
+                                  {displayName.charAt(0).toUpperCase()}
+                                </span>
+                                <span className="font-medium text-sm">{displayName}</span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Delivery Date */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center gap-1">
+                    <CalendarBlank size={12} weight="bold" />
+                    Delivery *
                   </Label>
                   <Input
                     type="date"
                     value={expectedDeliveryDate}
                     onChange={(e) => setExpectedDeliveryDate(e.target.value)}
                     min={format(new Date(), 'yyyy-MM-dd')}
-                    className="h-11 font-medium"
-                    style={{ borderColor: '#6A64F2' }}
+                    className="h-11 text-sm"
+                    style={{ 
+                      borderColor: expectedDeliveryDate ? '#22C55E' : '#6A64F2', 
+                      borderWidth: '2px',
+                      backgroundColor: expectedDeliveryDate ? '#F0FDF4' : 'white'
+                    }}
                   />
-                  <p className="text-xs text-blue-600 font-medium">Future date required</p>
-                </div>
-
-                {/* Employee/Job Work Tailor Selection */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <span>{stitchingAllotment === 'employee' ? '👤' : '🏢'}</span>
-                    {stitchingAllotment === 'employee' ? 'Tailor Name' : 'Job Work Tailor Name'} *
-                  </Label>
-                  <Select value={assignedTo} onValueChange={setAssignedTo}>
-                    <SelectTrigger className="h-11" style={{ borderColor: '#6A64F2' }}>
-                    <SelectValue
-                      placeholder={`Select ${stitchingAllotment === 'employee' ? 'tailor' : 'job work tailor'}`}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(stitchingAllotment === 'employee' ? tailorEmployees : vendors).length === 0 ? (
-                      <div className="p-3 text-sm text-muted-foreground text-center">
-                        No {stitchingAllotment === 'employee' ? 'tailors' : 'job work tailors'} available
-                      </div>
-                    ) : (
-                      (stitchingAllotment === 'employee' ? tailorEmployees : vendors).map((assignee) => {
-                        const displayName = stitchingAllotment === 'employee'
-                          ? (assignee as Employee).name
-                          : (assignee as Vendor).tailorName;
-                        return (
-                          <SelectItem key={assignee.id} value={assignee.id}>
-                            {assignee.id} - {displayName}
-                          </SelectItem>
-                        );
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
                 </div>
               </div>
 
-              {/* Material Cost and Job Work Cost - Only for Job Work Tailor */}
+              {/* Costs - Only for Job Work Tailor */}
               {stitchingAllotment === 'vendor' && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Material Cost */}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Material Cost (₹)</Label>
+                <div className="space-y-3 pt-2">
+                  <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Cost Details</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Material ₹</Label>
                       <Input
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="1"
                         value={materialCost}
                         onChange={(e) => setMaterialCost(parseFloat(e.target.value) || 0)}
                         onFocus={(e) => e.target.select()}
-                        placeholder="0.00"
-                        className="h-11"
-                        style={{ borderColor: '#6A64F2' }}
+                        placeholder="0"
+                        className="h-11 text-center text-lg font-semibold"
+                        style={{ borderColor: '#6A64F2', borderWidth: '2px' }}
                       />
                     </div>
-
-                    {/* Job Work Cost */}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Job Work Cost (₹)</Label>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Job Work ₹</Label>
                       <Input
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="1"
                         value={jobWorkCost}
                         onChange={(e) => setJobWorkCost(parseFloat(e.target.value) || 0)}
                         onFocus={(e) => e.target.select()}
-                        placeholder="0.00"
-                        className="h-11"
-                        style={{ borderColor: '#6A64F2' }}
+                        placeholder="0"
+                        className="h-11 text-center text-lg font-semibold"
+                        style={{ borderColor: '#6A64F2', borderWidth: '2px' }}
                       />
                     </div>
                   </div>
 
                   {/* Total Cost Display */}
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#dcfce7', border: '1px solid #86efac' }}>
-                    <p className="text-sm font-semibold text-green-800">
-                      Total Cost: ₹{totalJobCost.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-green-600 mt-1">
-                      Material (₹{materialCost.toFixed(2)}) + Job Work (₹{jobWorkCost.toFixed(2)})
-                    </p>
+                  <div className="rounded-lg p-3 flex items-center justify-between" style={{ backgroundColor: '#ECFDF5', border: '2px solid #22C55E' }}>
+                    <div>
+                      <p className="text-xs text-green-700 font-medium">Total Cost</p>
+                      <p className="text-xl font-bold text-green-800">₹{totalJobCost.toFixed(0)}</p>
+                    </div>
+                    <div className="text-right text-xs text-green-600">
+                      <p>Material: ₹{materialCost.toFixed(0)}</p>
+                      <p>Job Work: ₹{jobWorkCost.toFixed(0)}</p>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
-            </>
+            </div>
           )}
 
 
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleSubmit}>
-              {reassignOrder
-                ? 'Re-assign Order'
-                : hasDressItems
-                  ? `Create ${dressItemAssignments.filter(i => i.assignedTo).length} Allotment(s)`
-                  : 'Create Allotment'}
-            </Button>
-          </div>
+        </div>
+
+        {/* Sticky Action Buttons */}
+        <div className="sticky bottom-0 bg-white border-t px-5 py-4 flex gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1 h-12 text-base font-semibold"
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="button" 
+            onClick={handleSubmit}
+            className="flex-1 h-12 text-base font-semibold"
+            style={{ backgroundColor: '#6A64F2' }}
+          >
+            {reassignOrder
+              ? 'Re-assign'
+              : hasDressItems
+                ? `Allot ${dressItemAssignments.filter(i => i.assignedTo).length} Item${dressItemAssignments.filter(i => i.assignedTo).length !== 1 ? 's' : ''}`
+                : 'Create Allotment'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

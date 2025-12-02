@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { LanguageProvider } from '@/hooks/use-language';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { Login } from '@/components/Login';
@@ -21,8 +21,10 @@ import { DeliveryChallan } from '@/components/DeliveryChallan';
 import { GoodsReceipt } from '@/components/GoodsReceipt';
 import { Payment } from '@/components/Payment';
 import { NotificationsPage } from '@/components/NotificationsPage';
+import { NetworkStatus } from '@/components/NetworkStatus';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoader } from '@/components/Loader';
+import { useHardwareBackButton, usePreventDefaultTouchBehaviors } from '@/hooks/use-mobile-app';
 
 type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
 type EmployeeView = 'dashboard' | 'profile' | 'notifications';
@@ -36,6 +38,44 @@ function AppContent() {
   const [employeeView, setEmployeeView] = useState<EmployeeView>('dashboard');
   const [vendorView, setVendorView] = useState<VendorView>('dashboard');
   const [selectedOrderForDC, setSelectedOrderForDC] = useState<string | undefined>(); // Pre-selected order for Delivery Challan
+
+  // Mobile app features
+  usePreventDefaultTouchBehaviors();
+
+  // Handle hardware back button (Android)
+  const handleHardwareBack = useCallback(() => {
+    // Return true if we handled the back press, false to allow default behavior
+    
+    // For admin users
+    if (user?.role === 'owner') {
+      if (adminView !== 'dashboard') {
+        setAdminView('dashboard');
+        setSelectedOrderForDC(undefined);
+        return true;
+      }
+    }
+    
+    // For employee users
+    if (employee) {
+      if (employeeView !== 'dashboard') {
+        setEmployeeView('dashboard');
+        return true;
+      }
+    }
+    
+    // For vendor users
+    if (vendor) {
+      if (vendorView !== 'dashboard') {
+        setVendorView('dashboard');
+        return true;
+      }
+    }
+    
+    // Not handled - allow default back behavior (exit app or go to previous page)
+    return false;
+  }, [user, employee, vendor, adminView, employeeView, vendorView]);
+
+  useHardwareBackButton(handleHardwareBack);
 
   // Show loader during initial app loading
   if (isLoading) {
@@ -131,7 +171,10 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-6">
+    <div className="min-h-screen bg-background pb-20 md:pb-6 native-scroll">
+      {/* Network status banner */}
+      <NetworkStatus />
+      
       <Header
         onDashboardClick={user?.role === 'owner' ? handleDashboardClick : undefined}
         onCustomersClick={user?.role === 'owner' ? handleCustomersClick : undefined}

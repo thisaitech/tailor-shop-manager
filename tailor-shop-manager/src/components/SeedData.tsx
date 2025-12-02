@@ -1,63 +1,71 @@
-                                                                                                  import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStorage } from '@/hooks/use-storage';
 import { User } from '@/lib/types';
 
+// Default admin users for the app
+const DEFAULT_USERS: User[] = [
+  {
+    id: 'OWNER_SANDRA',
+    username: '7373333273',
+    password: 'sandra123',
+    role: 'owner',
+    name: 'Sandra Tailor Shop',
+    phone: '7373333273',
+    isActive: true,
+    hasSetupPassword: true,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'OWNER_THISAI',
+    username: '9486229273',
+    password: 'password',
+    role: 'owner',
+    name: 'Thisai Technologies Tailor',
+    phone: '9486229273',
+    isActive: true,
+    hasSetupPassword: true,
+    createdAt: Date.now(),
+  },
+];
+
 export function SeedData() {
   const [users, setUsers] = useStorage<User[]>('auth_users', []);
+  const hasSeeded = useRef(false);
 
   useEffect(() => {
-    console.log('=== SEED DATA - MULTI COMPANY SETUP ===');
-    console.log('Current users in storage:', users);
-    console.log('Users count:', users?.length || 0);
-    
-    // Create two company owner accounts
-    const company1: User = {
-      id: 'OWNER_SANDRA',
-      username: '7373333273',
-      password: 'sandra123',
-      role: 'owner',
-      name: 'Sandra Tailor Shop',
-      phone: '7373333273',
-      isActive: true,
-      hasSetupPassword: true,
-      createdAt: Date.now(),
-    };
+    // Only seed once per app session
+    if (hasSeeded.current) {
+      return;
+    }
 
-    const company2: User = {
-      id: 'OWNER_THISAI',
-      username: '9486229273',
-      password: 'password',
-      role: 'owner',
-      name: 'Thisai Technologies Tailor',
-      phone: '9486229273',
-      isActive: true,
-      hasSetupPassword: true,
-      createdAt: Date.now(),
-    };
+    console.log('[SeedData] Checking if seeding is needed...');
+    console.log('[SeedData] Current users count:', users?.length || 0);
 
-    console.log('Creating company owners:');
-    console.log('1. Sandra - Phone: 7373333273, Password: sandra123');
-    console.log('2. Thisai - Phone: 9486229273, Password: password');
-
-    // Keep other users but replace company owners
-    const otherUsers = (users || []).filter(
-      u => u.username !== '7373333273' && u.username !== '9486229273'
+    // Check if default users already exist
+    const hasDefaultUsers = DEFAULT_USERS.every(defaultUser => 
+      (users || []).some(u => u.username === defaultUser.username)
     );
-    const newUsers = [company1, company2, ...otherUsers];
-    
-    setUsers(newUsers);
-    
-    // Verify after setting
-    setTimeout(() => {
-      const stored = JSON.parse(localStorage.getItem('auth_users') || '[]');
-      console.log('VERIFICATION - Stored users after seed:', stored);
-      console.log('VERIFICATION - Sandra password:', stored.find((u: User) => u.username === '7373333273')?.password);
-      console.log('VERIFICATION - Thisai password:', stored.find((u: User) => u.username === '9486229273')?.password);
-    }, 100);
-    
-    console.log('Company setup complete!');
-    console.log('Default password for tailors/customers: password123');
-  }, []);
+
+    if (hasDefaultUsers && (users || []).length > 0) {
+      console.log('[SeedData] Default users already exist, skipping seed');
+      hasSeeded.current = true;
+      return;
+    }
+
+    console.log('[SeedData] Seeding default admin users...');
+
+    // Merge default users with existing users (avoid duplicates)
+    const existingUsernames = new Set((users || []).map(u => u.username));
+    const newDefaultUsers = DEFAULT_USERS.filter(u => !existingUsernames.has(u.username));
+    const mergedUsers = [...(users || []), ...newDefaultUsers];
+
+    setUsers(mergedUsers);
+    hasSeeded.current = true;
+
+    console.log('[SeedData] ✅ Seed complete! Available logins:');
+    console.log('  1. Sandra - Phone: 7373333273, Password: sandra123');
+    console.log('  2. Thisai - Phone: 9486229273, Password: password');
+  }, [users, setUsers]);
 
   return null;
 }

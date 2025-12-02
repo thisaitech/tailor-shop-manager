@@ -35,6 +35,20 @@ interface OrderViewProps {
   onBack: () => void;
 }
 
+// Timeline stage interface
+interface TimelineStage {
+  id: string;
+  stage: string;
+  status: string;
+  timestamp: number;
+  assignedTo?: string;
+  assignedBy?: string;
+  duration?: string;
+  notes?: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
 export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack }: OrderViewProps) {
   const { t } = useLanguage();
   const [orderHistory, setOrderHistory] = useState<OrderHistoryEntry[]>([]);
@@ -55,6 +69,196 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
     };
     fetchHistory();
   }, [serviceOrder.id]);
+
+  // Build timeline from ServiceOrder data
+  const buildTimeline = (): TimelineStage[] => {
+    const stages: TimelineStage[] = [];
+    
+    // 1. Order Created
+    if (serviceOrder.createdAt) {
+      stages.push({
+        id: 'created',
+        stage: 'Order Created',
+        status: 'open',
+        timestamp: serviceOrder.createdAt,
+        assignedBy: serviceOrder.adminId || 'Admin',
+        icon: <Package size={16} className="text-purple-600" weight="fill" />,
+        color: 'bg-purple-100 border-purple-400',
+      });
+    }
+
+    // 2. Order Assigned
+    if (serviceOrder.assignedDate) {
+      const duration = serviceOrder.createdAt 
+        ? calculateDuration(serviceOrder.createdAt, serviceOrder.assignedDate)
+        : undefined;
+      stages.push({
+        id: 'assigned',
+        stage: 'Order Assigned',
+        status: 'awaiting',
+        timestamp: serviceOrder.assignedDate,
+        assignedTo: serviceOrder.assignedToName || 'Unknown',
+        assignedBy: serviceOrder.adminId || 'Admin',
+        duration,
+        notes: `Assigned to ${serviceOrder.assignmentType === 'vendor' ? 'Vendor' : 'Employee'}`,
+        icon: <User size={16} className="text-amber-600" weight="fill" />,
+        color: 'bg-amber-100 border-amber-400',
+      });
+    }
+
+    // 3. Order Accepted
+    if (serviceOrder.acceptedDate) {
+      const duration = serviceOrder.assignedDate 
+        ? calculateDuration(serviceOrder.assignedDate, serviceOrder.acceptedDate)
+        : undefined;
+      stages.push({
+        id: 'accepted',
+        stage: 'Order Accepted',
+        status: serviceOrder.assignmentType === 'vendor' ? 'waitingForDC' : 'inprogress',
+        timestamp: serviceOrder.acceptedDate,
+        assignedTo: serviceOrder.assignedToName,
+        duration,
+        icon: <CheckCircle size={16} className="text-green-600" weight="fill" />,
+        color: 'bg-green-100 border-green-400',
+      });
+    }
+
+    // 4. Order Rejected (if applicable)
+    if (serviceOrder.rejectedDate) {
+      const duration = serviceOrder.assignedDate 
+        ? calculateDuration(serviceOrder.assignedDate, serviceOrder.rejectedDate)
+        : undefined;
+      stages.push({
+        id: 'rejected',
+        stage: 'Order Rejected',
+        status: 'rejected',
+        timestamp: serviceOrder.rejectedDate,
+        assignedTo: serviceOrder.assignedToName,
+        duration,
+        notes: serviceOrder.rejectionReason,
+        icon: <XCircle size={16} className="text-red-600" weight="fill" />,
+        color: 'bg-red-100 border-red-400',
+      });
+    }
+
+    // 5. Delivery Challan Created (for vendors)
+    if (serviceOrder.dcDate && serviceOrder.dcNumber) {
+      const duration = serviceOrder.acceptedDate 
+        ? calculateDuration(serviceOrder.acceptedDate, serviceOrder.dcDate)
+        : undefined;
+      stages.push({
+        id: 'dc_created',
+        stage: 'Delivery Challan Created',
+        status: 'inprogress',
+        timestamp: serviceOrder.dcDate,
+        assignedBy: serviceOrder.adminId || 'Admin',
+        duration,
+        notes: `DC No: ${serviceOrder.dcNumber}`,
+        icon: <FileText size={16} className="text-teal-600" weight="fill" />,
+        color: 'bg-teal-100 border-teal-400',
+      });
+    }
+
+    // 6. Work Completed
+    if (serviceOrder.completedDate) {
+      const prevDate = serviceOrder.dcDate || serviceOrder.acceptedDate;
+      const duration = prevDate 
+        ? calculateDuration(prevDate, serviceOrder.completedDate)
+        : undefined;
+      stages.push({
+        id: 'completed',
+        stage: serviceOrder.assignmentType === 'vendor' ? 'Job Work Completed' : 'Work Completed',
+        status: serviceOrder.assignmentType === 'vendor' ? 'job-completed' : 'ready',
+        timestamp: serviceOrder.completedDate,
+        assignedTo: serviceOrder.assignedToName,
+        duration,
+        icon: <CheckCircle size={16} className="text-indigo-600" weight="fill" />,
+        color: 'bg-indigo-100 border-indigo-400',
+      });
+    }
+
+    // 7. Goods Received (for vendors)
+    if (serviceOrder.goodsReceivedDate && serviceOrder.goodsReceiptNo) {
+      const duration = serviceOrder.completedDate 
+        ? calculateDuration(serviceOrder.completedDate, serviceOrder.goodsReceivedDate)
+        : undefined;
+      stages.push({
+        id: 'goods_received',
+        stage: 'Goods Received',
+        status: 'received-note',
+        timestamp: serviceOrder.goodsReceivedDate,
+        assignedBy: serviceOrder.adminId || 'Admin',
+        duration,
+        notes: `GRN No: ${serviceOrder.goodsReceiptNo}`,
+        icon: <Truck size={16} className="text-cyan-600" weight="fill" />,
+        color: 'bg-cyan-100 border-cyan-400',
+      });
+    }
+
+    // 8. Reassigned (if applicable)
+    if (serviceOrder.isReassigned && serviceOrder.reassignedDate) {
+      stages.push({
+        id: 'reassigned',
+        stage: 'Order Reassigned',
+        status: 'awaiting',
+        timestamp: serviceOrder.reassignedDate,
+        assignedTo: serviceOrder.assignedToName,
+        assignedBy: serviceOrder.adminId || 'Admin',
+        notes: serviceOrder.previousAssignedToName 
+          ? `Previously: ${serviceOrder.previousAssignedToName}` 
+          : undefined,
+        icon: <ArrowsClockwise size={16} className="text-orange-600" weight="fill" />,
+        color: 'bg-orange-100 border-orange-400',
+      });
+    }
+
+    // 9. Delivered
+    if (serviceOrder.deliveredDate) {
+      const prevDate = serviceOrder.goodsReceivedDate || serviceOrder.completedDate;
+      const duration = prevDate 
+        ? calculateDuration(prevDate, serviceOrder.deliveredDate)
+        : undefined;
+      stages.push({
+        id: 'delivered',
+        stage: 'Order Delivered',
+        status: 'delivered',
+        timestamp: serviceOrder.deliveredDate,
+        assignedBy: serviceOrder.adminId || 'Admin',
+        duration,
+        icon: <CheckCircle size={16} className="text-emerald-600" weight="fill" />,
+        color: 'bg-emerald-100 border-emerald-400',
+      });
+    }
+
+    // Sort by timestamp
+    return stages.sort((a, b) => a.timestamp - b.timestamp);
+  };
+
+  // Calculate duration between two timestamps
+  const calculateDuration = (start: number, end: number): string => {
+    const diffMs = end - start;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+    } else if (diffHours > 0) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+    } else if (diffMins > 0) {
+      return `${diffMins} min${diffMins > 1 ? 's' : ''}`;
+    }
+    return 'Just now';
+  };
+
+  // Calculate total duration from order creation to current stage
+  const calculateTotalDuration = (): string => {
+    const start = serviceOrder.createdAt;
+    const end = serviceOrder.deliveredDate || Date.now();
+    return calculateDuration(start, end);
+  };
+
+  const timeline = buildTimeline();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -691,101 +895,124 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
         </div>
       </Card>
 
-      {/* Order History Card */}
+      {/* Order History / Timeline Card */}
       <Card
-        className="p-3 sm:p-4"
-        style={{ backgroundColor: '#f8fafc', borderColor: '#94a3b8' }}
+        className="p-4 sm:p-5 border-2 rounded-xl"
+        style={{ backgroundColor: '#f8f5ff', borderColor: '#a78bfa' }}
       >
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <ClockCounterClockwise size={16} weight="duotone" className="text-slate-600" />
-          Order History
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: '#6A64F2' }}>
+            <ClockCounterClockwise size={20} weight="duotone" />
+            Order Timeline
+          </h3>
+          {timeline.length > 0 && (
+            <Badge className="bg-purple-100 text-purple-700 text-xs">
+              Total: {calculateTotalDuration()}
+            </Badge>
+          )}
+        </div>
 
-        {loadingHistory ? (
-          <div className="flex items-center justify-center py-6">
-            <Spinner size={24} className="animate-spin text-slate-500" />
-            <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
-          </div>
-        ) : orderHistory.length === 0 ? (
+        {timeline.length === 0 ? (
           <div className="text-center py-6 text-sm text-muted-foreground">
-            No history available for this order
+            No timeline data available
           </div>
         ) : (
           <div className="relative">
-            {/* Timeline line */}
-            <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-slate-200" />
+            {/* Vertical Timeline Line */}
+            <div 
+              className="absolute left-[19px] top-6 bottom-6 w-0.5" 
+              style={{ backgroundColor: '#c4b5fd' }}
+            />
 
-            <div className="space-y-3">
-              {orderHistory.map((entry, index) => {
-                // Extract metadata fields if available
-                const meta = entry.metadata || {};
-                return (
-                  <div key={entry.id || index} className="relative flex gap-3 pl-1">
-                    {/* Timeline dot */}
-                    <div className="relative z-10 flex-shrink-0 w-5 h-5 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center">
-                      {getHistoryActionIcon(entry.action)}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">
-                            {getHistoryActionLabel(entry.action)}
-                          </p>
-                          {meta.notes && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{meta.notes}</p>
-                          )}
-                          {meta.newStatus && meta.previousStatus && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Status: <span className="capitalize">{meta.previousStatus}</span> → <span className="capitalize font-medium">{meta.newStatus}</span>
-                            </p>
-                          )}
-                          {meta.newAssignedToName && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Assigned to: <span className="font-medium">{meta.newAssignedToName}</span>
-                              {meta.assignmentType && <span className="capitalize"> ({meta.assignmentType})</span>}
-                            </p>
-                          )}
-                          {meta.dcNumber && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              DC Number: <span className="font-medium">{meta.dcNumber}</span>
-                            </p>
-                          )}
-                          {meta.goodsReceiptNo && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              GRN: <span className="font-medium">{meta.goodsReceiptNo}</span>
-                            </p>
-                          )}
-                          {meta.paymentAmount !== undefined && meta.paymentAmount > 0 && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Payment: <span className="font-medium text-green-600">₹{meta.paymentAmount}</span>
-                            </p>
-                          )}
-                          {/* Show current status */}
-                          <Badge className={`mt-1 text-[10px] ${getStatusColor(entry.status)}`}>
-                            {entry.status.toUpperCase()}
-                          </Badge>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-[10px] text-muted-foreground">
-                            {format(new Date(entry.timestamp), 'MMM dd, yyyy')}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {format(new Date(entry.timestamp), 'hh:mm a')}
-                          </p>
-                        </div>
-                      </div>
-                      {entry.performedBy?.userName && (
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          by {entry.performedBy.userName}
-                        </p>
-                      )}
+            <div className="space-y-4">
+              {timeline.map((stage, index) => (
+                <div key={stage.id} className="relative flex gap-4">
+                  {/* Timeline Node */}
+                  <div className="relative z-10 flex-shrink-0">
+                    <div 
+                      className={`w-10 h-10 rounded-full border-2 flex items-center justify-center bg-white ${stage.color}`}
+                    >
+                      {stage.icon}
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Content Card */}
+                  <div 
+                    className="flex-1 p-3 rounded-xl border"
+                    style={{ backgroundColor: 'white', borderColor: '#e9d5ff' }}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{stage.stage}</p>
+                        <Badge className={`mt-1 text-[10px] ${getStatusColor(stage.status)}`}>
+                          {getStatusLabel(stage.status)}
+                        </Badge>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs font-medium text-gray-700">
+                          {format(new Date(stage.timestamp), 'MMM dd, yyyy')}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {format(new Date(stage.timestamp), 'hh:mm a')}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stage Details */}
+                    <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                      {stage.assignedTo && (
+                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-blue-50">
+                          <User size={14} className="text-blue-600" weight="fill" />
+                          <div>
+                            <p className="text-[10px] text-blue-600 font-medium">Assigned To</p>
+                            <p className="font-semibold text-gray-800">{stage.assignedTo}</p>
+                          </div>
+                        </div>
+                      )}
+                      {stage.assignedBy && (
+                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-purple-50">
+                          <User size={14} className="text-purple-600" weight="fill" />
+                          <div>
+                            <p className="text-[10px] text-purple-600 font-medium">Assigned By</p>
+                            <p className="font-semibold text-gray-800">{stage.assignedBy}</p>
+                          </div>
+                        </div>
+                      )}
+                      {stage.duration && (
+                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-50">
+                          <Calendar size={14} className="text-amber-600" weight="fill" />
+                          <div>
+                            <p className="text-[10px] text-amber-600 font-medium">Duration</p>
+                            <p className="font-semibold text-gray-800">{stage.duration}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notes */}
+                    {stage.notes && (
+                      <div className="mt-2 p-2 rounded-lg bg-gray-50">
+                        <p className="text-xs text-gray-600">
+                          <span className="font-medium">Note:</span> {stage.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Current Status Indicator */}
+            {serviceOrder.orderStatus !== 'delivered' && (
+              <div className="mt-4 p-3 rounded-xl border-2 border-dashed" style={{ borderColor: '#c4b5fd', backgroundColor: '#faf5ff' }}>
+                <div className="flex items-center gap-2">
+                  <Spinner size={16} className="animate-spin text-purple-500" />
+                  <p className="text-sm font-medium text-purple-700">
+                    Current Status: <span className="capitalize">{serviceOrder.orderStatus.replace(/-/g, ' ')}</span>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>

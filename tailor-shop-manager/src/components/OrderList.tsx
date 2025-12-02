@@ -30,6 +30,7 @@ import { sendWhatsAppMessage } from '@/lib/utils';
 type DisplayStatus = 'open' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'rejected' | 'ready' | 'job-completed' | 'received-note' | 'delivered';
 type ServiceOrderFilter = 'all' | 'open' | 'awaiting' | 'inprogress' | 'ready' | 'delivered' | 'overdue';
 type DateFilter = 'all' | 'exact' | 'range';
+type DateFieldType = 'orderDate' | 'deliveryDate'; // Which date field to filter on
 
 const ITEMS_PER_PAGE = 6;
 
@@ -83,6 +84,7 @@ export function OrderList({
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
   const [serviceOrderFilter, setServiceOrderFilter] = useState<ServiceOrderFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [dateFieldType, setDateFieldType] = useState<DateFieldType>('orderDate'); // Order Date or Delivery Date
   const [exactDate, setExactDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -185,9 +187,15 @@ export function OrderList({
       }
     }
 
-    // Date filter
+    // Date filter - choose between order date and delivery date
     const dateRange = getDateRange(dateFilter);
-    const matchesDate = !dateRange || (o.createdAt && isWithinInterval(new Date(o.createdAt), dateRange));
+    let matchesDate = true;
+    if (dateRange) {
+      const dateToCheck = dateFieldType === 'orderDate' 
+        ? (o.serviceOrderDate || o.createdAt) 
+        : o.expectedDeliveryDate;
+      matchesDate = dateToCheck ? isWithinInterval(new Date(dateToCheck), dateRange) : false;
+    }
 
     return matchesSearch && matchesStatus && matchesDate;
   });
@@ -226,8 +234,13 @@ export function OrderList({
     { value: 'range', label: 'Date Range' },
   ];
 
+  const dateFieldOptions: { value: DateFieldType; label: string }[] = [
+    { value: 'orderDate', label: 'Order Date' },
+    { value: 'deliveryDate', label: 'Delivery Date' },
+  ];
+
   const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Status Filter */}
       <div>
         <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Status</label>
@@ -252,9 +265,32 @@ export function OrderList({
         </div>
       </div>
 
+      {/* Date Field Type Selector */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date Type</label>
+        <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
+          {dateFieldOptions.map((option) => (
+            <Button
+              key={option.value}
+              variant={dateFieldType === option.value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setDateFieldType(option.value);
+                setCurrentPage(1);
+              }}
+              className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Date Filter */}
       <div>
-        <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date</label>
+        <label className="text-xs font-medium text-muted-foreground mb-2 block">
+          {dateFieldType === 'orderDate' ? 'Order Date' : 'Delivery Date'} Filter
+        </label>
         {/* Date Filter Type Selection */}
         <div className={`flex gap-1.5 mb-3 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
           {dateFilterOptions.map((option) => (
@@ -285,7 +321,7 @@ export function OrderList({
             />
             {exactDate && (
               <p className="text-xs text-muted-foreground">
-                Showing {filteredServiceOrders.length} order(s) on {format(new Date(exactDate), 'MMM dd, yyyy')}
+                Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} on {format(new Date(exactDate), 'MMM dd, yyyy')}
               </p>
             )}
 
@@ -347,7 +383,7 @@ export function OrderList({
 
             {startDate && endDate && (
               <p className="text-xs text-muted-foreground">
-                Showing {filteredServiceOrders.length} order(s) from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
+                Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
               </p>
             )}
 
@@ -853,6 +889,15 @@ export function OrderList({
           </DialogHeader>
           <div className="py-4">
             <FilterButtons inModal />
+          </div>
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setShowFilterModal(false)}
+              className="w-full h-10 font-semibold"
+            >
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

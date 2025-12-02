@@ -410,10 +410,10 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             {recentCustomers.map((customer, index) => (
               <div
                 key={customer.id}
-                className={`rounded-lg border hover:shadow-lg transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                className={`rounded-xl border-2 hover:shadow-lg transition-all cursor-pointer flex-shrink-0 w-full overflow-hidden shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
                 style={{
-                  background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
-                  borderColor: 'rgba(167, 139, 250, 0.3)'
+                  background: '#ffffff',
+                  borderColor: 'rgba(139, 92, 246, 0.25)'
                 }}
                 onClick={() => {
                   console.log('[CustomerList] Card clicked:', customer.id, customer.name);
@@ -421,50 +421,60 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
                   onSelectCustomer?.(customer);
                 }}
               >
-                {/* Customer details */}
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <p className="text-[10px] sm:text-xs font-bold text-purple-700 mb-1">{customer.id}</p>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate mb-2">{customer.name}</p>
-                  <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 flex-wrap mb-2">
-                    <span className="truncate font-bold text-purple-700">{customer.phone}</span>
-                    {customer.place && (
-                      <>
-                        <span>•</span>
-                        <span className="capitalize truncate">{customer.place}</span>
-                      </>
-                    )}
-                  </div>
-                  <Badge variant="outline" className="text-[8px] sm:text-[10px] px-1.5 py-0.5 font-semibold w-fit bg-purple-100 text-purple-700 border-purple-200">
-                    {t(customer.gender).toUpperCase()}
+                {/* Header with ID and Gender Badge */}
+                <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)' }}>
+                  <span className="text-[10px] sm:text-xs font-bold text-white/90 font-mono">{customer.id}</span>
+                  <Badge className="text-[8px] sm:text-[10px] px-1.5 py-0 font-bold bg-white/20 text-white border-0 uppercase">
+                    {t(customer.gender)}
                   </Badge>
                 </div>
 
-                {/* Bottom row: Actions and Date */}
-                <div className="flex items-center justify-between pt-2 border-t border-purple-200">
+                {/* Main Content */}
+                <div className="p-3 space-y-2">
+                  {/* Customer Name */}
+                  <p className="text-sm sm:text-base font-bold text-gray-900 truncate leading-tight">{customer.name}</p>
+                  
+                  {/* Phone */}
+                  <div className="flex items-center gap-1.5">
+                    <Phone size={12} weight="fill" className="text-violet-600 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold text-violet-700 truncate">{customer.phone}</span>
+                  </div>
+                  
+                  {/* Place */}
+                  <p className="text-[10px] sm:text-xs text-gray-500 truncate">
+                    {customer.place || 'Not Specified'}
+                  </p>
+                </div>
+
+                {/* Footer with Actions and Date */}
+                <div className="px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between border-t gap-1" style={{ borderColor: 'rgba(139, 92, 246, 0.15)', background: '#FAFAFF' }}>
                   {/* Action buttons */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0 sm:gap-0.5 flex-shrink-0">
                     <a
                       href={`tel:${customer.phone}`}
-                      className="text-primary hover:text-primary/80 transition-colors p-1 touch-manipulation"
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full bg-violet-100 text-violet-600 hover:bg-violet-200 transition-colors touch-manipulation"
                       onClick={(e) => e.stopPropagation()}
                       title={t('call')}
                     >
-                      <Phone size={14} weight="fill" />
+                      <Phone size={12} className="sm:hidden" weight="fill" />
+                      <Phone size={14} className="hidden sm:block" weight="fill" />
                     </a>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         sendWhatsAppMessage(customer.phone, `Hello ${customer.name},`);
                       }}
-                      className="text-green-600 hover:text-green-700 transition-colors p-1 touch-manipulation"
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors touch-manipulation"
                       title={t('whatsapp')}
                     >
-                      <WhatsappLogo size={14} weight="fill" />
+                      <WhatsappLogo size={12} className="sm:hidden" weight="fill" />
+                      <WhatsappLogo size={14} className="hidden sm:block" weight="fill" />
                     </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0 touch-manipulation">
-                          <DotsThree size={16} weight="bold" />
+                        <Button variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-full hover:bg-gray-100 touch-manipulation">
+                          <DotsThree size={14} className="sm:hidden" weight="bold" />
+                          <DotsThree size={16} className="hidden sm:block" weight="bold" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -485,9 +495,9 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
 
                   {/* Created date */}
                   {customer.createdAt && (
-                    <div className="text-right">
-                      <p className="text-[8px] sm:text-[10px] text-gray-500 leading-tight">Joined</p>
-                      <p className="text-[10px] sm:text-xs font-semibold text-gray-800">
+                    <div className="text-right flex-shrink-0 min-w-0">
+                      <p className="text-[8px] sm:text-[10px] text-gray-400 leading-tight">Joined</p>
+                      <p className="text-[9px] sm:text-xs font-bold text-gray-700 whitespace-nowrap">
                         {format(new Date(customer.createdAt), 'MMM dd')}
                       </p>
                     </div>

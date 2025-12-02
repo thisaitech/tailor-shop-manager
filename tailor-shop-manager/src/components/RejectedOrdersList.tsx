@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,20 +12,84 @@ import {
 import { XCircle, ArrowLeft, ArrowCounterClockwise, MagnifyingGlass, Funnel, DotsThree, Eye } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
-import { OrderAllotment } from '@/lib/types';
+import { OrderAllotment, ServiceOrder } from '@/lib/types';
+
+// Lazy load the dialog
+const ServiceOrderDetailsDialog = lazy(() =>
+  import('@/components/ServiceOrderDetailsDialog').then(m => ({ default: m.ServiceOrderDetailsDialog }))
+);
 
 type DateFilter = 'all' | 'exact' | 'range';
 const ITEMS_PER_PAGE = 6;
 
-interface RejectedOrdersListProps {
-  orders: OrderAllotment[];
-  onBack: () => void;
-  onReassign: (order: OrderAllotment) => void;
+// Display item type that combines ServiceOrder and optional OrderAllotment data
+interface RejectedOrderItem {
+  id: string;
+  serviceOrderNo: string;
+  customerName: string;
+  customerId: string;
+  jobWorkNo?: string;
+  assignedName?: string;
+  assignedDate?: number;
+  rejectedDate?: number;
+  rejectionReason?: string;
+  dressItemName?: string;
+  allotment?: OrderAllotment; // The original allotment if it exists
+  serviceOrder: ServiceOrder; // The original service order
 }
 
-export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrdersListProps) {
-  // Filter rejected orders: status='rejected' AND not reassigned
-  const rejectedOrders = orders.filter(o => o.status === 'rejected' && !o.reassigned);
+interface RejectedOrdersListProps {
+  orders: OrderAllotment[];
+  serviceOrders: ServiceOrder[];
+  onBack: () => void;
+  onReassign: (order: OrderAllotment) => void;
+  onReassignServiceOrder?: (serviceOrderId: string) => void; // For orders without allotment
+}
+
+export function RejectedOrdersList({ orders, serviceOrders, onBack, onReassign, onReassignServiceOrder }: RejectedOrdersListProps) {
+  // State for viewing order details
+  const [selectedOrder, setSelectedOrder] = useState<RejectedOrderItem | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  
+  // Filter rejected service orders (consistent with Dashboard count)
+  const rejectedServiceOrders = (serviceOrders || []).filter(so => so.orderStatus === 'rejected');
+  
+  // Build display items from rejected ServiceOrders
+  const rejectedOrders: RejectedOrderItem[] = rejectedServiceOrders.map(so => {
+    // Find matching allotment if it exists (not reassigned)
+    const allotment = orders.find(a => a.serviceOrderNo === so.id && !a.reassigned);
+    
+    return {
+      id: so.id,
+      serviceOrderNo: so.id,
+      customerName: so.customerName,
+      customerId: so.customerId,
+      jobWorkNo: allotment?.jobWorkNo || allotment?.id,
+      assignedName: so.assignedToName || allotment?.assignedName,
+      assignedDate: so.assignedDate || allotment?.assignedDate,
+      rejectedDate: so.rejectedDate,
+      rejectionReason: so.rejectionReason,
+      dressItemName: allotment?.dressItemName || so.dressItems?.[0]?.dressName,
+      allotment: allotment,
+      serviceOrder: so,
+    };
+  });
+  
+  // Handle view details
+  const handleViewDetails = (order: RejectedOrderItem) => {
+    setSelectedOrder(order);
+    setShowDetailsDialog(true);
+  };
+  
+  // Handle reassign
+  const handleReassign = (order: RejectedOrderItem) => {
+    if (order.allotment) {
+      onReassign(order.allotment);
+    } else if (onReassignServiceOrder) {
+      // If no allotment exists, use the service order ID to open job allotment form
+      onReassignServiceOrder(order.serviceOrderNo);
+    }
+  };
 
   // Search, filter, and pagination states
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,13 +125,14 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
       (order.dressItemName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
 
     const dateRange = getDateRange(dateFilter);
-    const matchesDate = !dateRange || (order.assignedDate && isWithinInterval(new Date(order.assignedDate), dateRange));
+    const orderDate = order.rejectedDate || order.assignedDate;
+    const matchesDate = !dateRange || (orderDate && isWithinInterval(new Date(orderDate), dateRange));
 
     return matchesSearch && matchesDate;
   });
 
-  // Sort by assigned date (newest first)
-  const sortedOrders = filteredOrders.sort((a, b) => (b.assignedDate || 0) - (a.assignedDate || 0));
+  // Sort by rejected date (newest first), fallback to assigned date
+  const sortedOrders = filteredOrders.sort((a, b) => (b.rejectedDate || b.assignedDate || 0) - (a.rejectedDate || a.assignedDate || 0));
 
   // Pagination logic
   const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
@@ -303,6 +368,7 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                   borderColor: '#ef4444',
                   boxShadow: '0 4px 12px -2px rgba(239, 68, 68, 0.2), 0 2px 6px -2px rgba(239, 68, 68, 0.15)',
                 }}
+                onClick={() => handleViewDetails(order)}
               >
                 {/* Left side: Avatar/Icon */}
                 <div className="flex-shrink-0 flex items-center">
@@ -337,13 +403,18 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                     </p>
                   )}
                   <p className="text-[9px] sm:text-[10px] text-gray-500">
-                    Was: {order.assignedName}
-                    {order.assignedDate && ` • ${format(order.assignedDate, 'dd MMM yyyy')}`}
+                    {order.assignedName ? `Was: ${order.assignedName}` : 'Not assigned'}
+                    {order.rejectedDate && ` • Rejected: ${format(order.rejectedDate, 'dd MMM yyyy')}`}
                   </p>
+                  {order.rejectionReason && (
+                    <p className="text-[9px] sm:text-[10px] text-red-500 mt-0.5 truncate">
+                      Reason: {order.rejectionReason}
+                    </p>
+                  )}
                 </div>
 
                 {/* Right side: Actions */}
-                <div className="flex-shrink-0 flex flex-col items-end justify-between">
+                <div className="flex-shrink-0 flex flex-col items-end justify-between gap-2">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 touch-manipulation">
@@ -351,24 +422,36 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onReassign(order)} className="font-medium">
-                        <ArrowCounterClockwise size={18} className="mr-2" weight="bold" />
-                        Re-assign
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="font-medium">
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(order);
+                        }} 
+                        className="font-medium"
+                      >
                         <Eye size={18} className="mr-2" weight="bold" />
                         View Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReassign(order);
+                        }} 
+                        className="font-medium"
+                      >
+                        <ArrowCounterClockwise size={18} className="mr-2" weight="bold" />
+                        Re-assign
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
 
-                  {/* Re-assign button */}
+                  {/* Re-assign button - Always visible */}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onReassign(order);
+                      handleReassign(order);
                     }}
                     className="text-[10px] sm:text-xs h-7 px-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
                   >
@@ -381,6 +464,21 @@ export function RejectedOrdersList({ orders, onBack, onReassign }: RejectedOrder
           </div>
           <Pagination />
         </div>
+      )}
+
+      {/* Order Details Dialog - Lazy Loaded */}
+      {selectedOrder && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="bg-white p-4 rounded-lg">Loading...</div></div>}>
+          <ServiceOrderDetailsDialog
+            serviceOrder={selectedOrder.serviceOrder}
+            orderAllotment={selectedOrder.allotment}
+            open={showDetailsDialog}
+            onClose={() => {
+              setShowDetailsDialog(false);
+              setSelectedOrder(null);
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );
