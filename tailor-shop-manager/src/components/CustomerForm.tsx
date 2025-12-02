@@ -68,6 +68,8 @@ const STATE_CITIES: Record<string, string[]> = {
 };
 
 const INDIAN_STATES = Object.keys(STATE_CITIES).sort();
+const DEFAULT_STATE = 'Tamil Nadu';
+const DEFAULT_CITY = 'Tirunelveli';
 
 // Measurement field definitions
 const MEASUREMENT_FIELDS = {
@@ -154,8 +156,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   // Address details
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
-  const [state, setState] = useState('');
-  const [place, setPlace] = useState('');
+  const [state, setState] = useState(DEFAULT_STATE);
+  const [place, setPlace] = useState(DEFAULT_CITY);
   const [pincode, setPincode] = useState('');
 
   // Measurements
@@ -249,8 +251,9 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       setGender(customer.gender);
       setAddress1(customer.address1 || '');
       setAddress2(customer.address2 || '');
-      setState(customer.state || '');
-      setPlace(customer.place);
+      const resolvedState = customer.state || DEFAULT_STATE;
+      setState(resolvedState);
+      setPlace(customer.place || (resolvedState === DEFAULT_STATE ? DEFAULT_CITY : ''));
       setPincode(customer.pincode || '');
       setMeasurements(customer.measurements || {});
       setPhoneError('');
@@ -268,8 +271,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     setPhoneError('');
     setAddress1('');
     setAddress2('');
-    setState('');
-    setPlace('');
+    setState(DEFAULT_STATE);
+    setPlace(DEFAULT_CITY);
     setPincode('');
     setMeasurements({});
     setActiveCategory('shirt');
@@ -698,19 +701,32 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                     />
                   </div>
 
-                  {/* Street / Area / Landmark */}
-                  <div className="space-y-2">
-                    <Label htmlFor="address2" className="text-sm font-medium">
-                      Street / Area / Landmark
-                    </Label>
-                    <Input
-                      id="address2"
-                      value={address2}
-                      onChange={(e) => setAddress2(e.target.value)}
-                      maxLength={40}
-                      placeholder="e.g., Main Road, Near Bus Stand"
-                      className="h-11"
-                    />
+                  {/* Street / Area / Landmark + Pincode */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="address2" className="text-sm font-medium">
+                        Street / Area / Landmark
+                      </Label>
+                      <Input
+                        id="address2"
+                        value={address2}
+                        onChange={(e) => setAddress2(e.target.value)}
+                        maxLength={40}
+                        placeholder="e.g., Main Road, Near Bus Stand"
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pincode" className="text-sm font-medium">Pincode</Label>
+                      <Input
+                        id="pincode"
+                        value={pincode}
+                        onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+                        maxLength={6}
+                        placeholder="e.g., 600001"
+                        className="h-11"
+                      />
+                    </div>
                   </div>
 
                   {/* State and City in same row */}
@@ -747,18 +763,6 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                     </div>
                   </div>
 
-                  {/* Pincode */}
-                  <div className="space-y-2 max-w-[200px]">
-                    <Label htmlFor="pincode" className="text-sm font-medium">Pincode</Label>
-                    <Input
-                      id="pincode"
-                      value={pincode}
-                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                      maxLength={6}
-                      placeholder="e.g., 600001"
-                      className="h-11"
-                    />
-                  </div>
                 </div>
 
               </TabsContent>

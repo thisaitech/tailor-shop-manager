@@ -63,9 +63,9 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
+      <DialogContent className="relative max-w-3xl max-h-[90vh] overflow-y-auto pt-4 pr-12">
+        <DialogHeader className="flex flex-col gap-2">
+          <div className="flex items-start justify-between pr-8">
             <DialogTitle className="flex items-center gap-2">
               <Package size={24} className="text-primary" />
               Order Details
@@ -74,7 +74,7 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
               <X size={20} />
             </Button>
           </div>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Complete details for order {allotment.serviceOrderNo}
           </DialogDescription>
         </DialogHeader>
@@ -90,13 +90,22 @@ export function OrderDetailsDialog({ allotment, open, onClose }: OrderDetailsDia
         ) : (
           <div className="space-y-6">
             {/* Order Information */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Order Information</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Order Number</p>
-                  <p className="font-medium">{serviceOrder.id}</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-lg font-semibold">Order Information</h3>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center justify-center rounded-md border px-2 py-0.5 font-medium w-fit whitespace-nowrap font-mono text-sm bg-secondary text-secondary-foreground">
+                    {serviceOrder?.id || allotment.serviceOrderNo}
+                  </span>
+                  <Button size="sm" variant="outline">
+                    Print
+                  </Button>
+                  <Button size="sm">
+                    Download Invoice
+                  </Button>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Order Status</p>
                   <div className="mt-1">{getStatusBadge(serviceOrder.orderStatus)}</div>

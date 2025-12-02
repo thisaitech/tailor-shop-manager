@@ -355,34 +355,39 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
       {/* Measurements Card */}
       {hasMeasurements && (
         <Card
-          className="p-3 sm:p-4"
-          style={{ backgroundColor: '#f3e8ff', borderColor: '#6A64F2' }}
+          className="p-4 sm:p-5 border-2 rounded-xl"
+          style={{ backgroundColor: '#f8f5ff', borderColor: '#a78bfa' }}
         >
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Ruler size={16} weight="duotone" style={{ color: '#6A64F2' }} />
+          <h3 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: '#6A64F2' }}>
+            <Ruler size={20} weight="duotone" style={{ color: '#6A64F2' }} />
             Measurements
           </h3>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="space-y-4">
             {measurementSections.map(({ key, label }) => {
               const measurements = serviceOrder.measurements?.[key as keyof typeof serviceOrder.measurements];
               if (!measurements || typeof measurements !== 'object' || Object.keys(measurements).length === 0) return null;
 
               return (
-                <div
-                  key={key}
-                  className="p-2 rounded-lg border"
-                  style={{ backgroundColor: 'white', borderColor: 'rgba(106, 100, 242, 0.3)' }}
-                >
-                  <h4 className="text-xs font-semibold text-foreground mb-1.5">{label}</h4>
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
+                <div key={key}>
+                  {/* Category Title */}
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">{label}</h4>
+                  
+                  {/* Measurement Cards Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {Object.entries(measurements).map(([field, value]) => (
                       value !== undefined && value !== null && value !== '' && (
-                        <div key={field} className="flex justify-between">
-                          <span className="text-muted-foreground capitalize truncate">
-                            {field.replace(/([A-Z])/g, ' $1').trim()}:
-                          </span>
-                          <span className="font-semibold">{String(value)}"</span>
+                        <div
+                          key={field}
+                          className="p-3 rounded-xl"
+                          style={{ backgroundColor: '#ede9fe' }}
+                        >
+                          <p className="text-xs text-purple-600 font-medium capitalize mb-1">
+                            {field.replace(/([A-Z])/g, ' $1').trim()}
+                          </p>
+                          <p className="text-xl font-bold text-gray-800">
+                            {String(value)}<span className="text-base">"</span>
+                          </p>
                         </div>
                       )
                     ))}

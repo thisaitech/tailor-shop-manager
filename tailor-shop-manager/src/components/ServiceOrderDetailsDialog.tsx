@@ -464,18 +464,18 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
           {/* Measurements */}
           {serviceOrder.measurements && Object.keys(serviceOrder.measurements).length > 0 && (
             <div
-              className="p-4 rounded-xl border-2"
+              className="p-4 sm:p-5 rounded-xl border-2"
               style={{
-                background: '#FAF8FF',
-                borderColor: '#6A64F2',
-                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
+                background: '#f8f5ff',
+                borderColor: '#a78bfa',
+                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.15)'
               }}
             >
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#6A64F2' }}>
+              <h3 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: '#6A64F2' }}>
                 <Ruler size={20} weight="duotone" />
                 Measurements
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {Object.entries(serviceOrder.measurements).map(([category, categoryMeasurements]) => {
                   // Check if categoryMeasurements is an object with properties
                   if (categoryMeasurements && typeof categoryMeasurements === 'object') {
@@ -484,21 +484,26 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                     
                     return (
                       <div key={category}>
-                        <h4 className="text-sm font-semibold text-gray-700 capitalize mb-2 border-b pb-1" style={{ borderColor: 'rgba(106, 100, 242, 0.3)' }}>
+                        {/* Category Title */}
+                        <h4 className="text-sm font-semibold text-gray-700 capitalize mb-3">
                           {category}
                         </h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {/* Measurement Cards Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           {measurementEntries.map(([measureName, measureValue]) => (
                             measureValue !== undefined && measureValue !== null && measureValue !== '' && (
                               <div
                                 key={measureName}
-                                className="p-2 rounded-lg"
-                                style={{ background: '#EADDFD' }}
+                                className="p-3 rounded-xl"
+                                style={{ background: '#ede9fe' }}
                               >
-                                <span className="text-xs text-gray-500 capitalize block">{measureName.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                <span className="font-semibold text-gray-900">
-                                  {typeof measureValue === 'number' ? `${measureValue}"` : measureValue}
-                                </span>
+                                <p className="text-xs text-purple-600 font-medium capitalize mb-1">
+                                  {measureName.replace(/([A-Z])/g, ' $1').trim()}
+                                </p>
+                                <p className="text-xl font-bold text-gray-800">
+                                  {typeof measureValue === 'number' ? measureValue : measureValue}
+                                  <span className="text-base">"</span>
+                                </p>
                               </div>
                             )
                           ))}
@@ -508,9 +513,11 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
                   }
                   // If it's a simple value (not nested object)
                   return categoryMeasurements && (
-                    <div key={category} className="p-2 rounded-lg" style={{ background: '#EADDFD' }}>
-                      <span className="text-xs text-gray-500 capitalize block">{category}</span>
-                      <span className="font-semibold text-gray-900">{String(categoryMeasurements)}</span>
+                    <div key={category} className="p-3 rounded-xl" style={{ background: '#ede9fe' }}>
+                      <p className="text-xs text-purple-600 font-medium capitalize mb-1">{category}</p>
+                      <p className="text-xl font-bold text-gray-800">
+                        {String(categoryMeasurements)}<span className="text-base">"</span>
+                      </p>
                     </div>
                   );
                 })}
