@@ -46,9 +46,10 @@ import { savePdfMobile, openPdfForPrint } from '@/lib/mobilePdfUtils';
 
 interface PaymentProps {
   onBack: () => void;
+  initialOrderId?: string; // Pre-select an order when navigating from Ready to Deliver
 }
 
-export function Payment({ onBack }: PaymentProps) {
+export function Payment({ onBack, initialOrderId }: PaymentProps) {
   const { user } = useAuth();
   const [payments, setPayments] = useState<PaymentType[]>([]);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
@@ -88,6 +89,41 @@ export function Payment({ onBack }: PaymentProps) {
   useEffect(() => {
     loadData();
   }, [user]);
+
+  // Auto-open dialog with initial order when navigating from Ready to Deliver
+  useEffect(() => {
+    if (initialOrderId && !loading && serviceOrders.length > 0) {
+      // Find the order in service orders
+      const order = serviceOrders.find(o => o.id === initialOrderId);
+      if (order) {
+        // Check if it's in available orders
+        const isAvailable = availableOrders.some(o => o.id === initialOrderId);
+        
+        if (!isAvailable) {
+          // Add to available orders if not already there
+          setAvailableOrders(prev => [order, ...prev.filter(o => o.id !== initialOrderId)]);
+        }
+        
+        // Open dialog and pre-fill order details directly
+        setShowDialog(true);
+        setSelectedOrderId(initialOrderId);
+        setSelectedOrder(order);
+        setOrderCategory(order.orderCategory);
+        setOrderQty(order.orderQty);
+        setStitchingCost(order.stitchingCost);
+        
+        // Calculate advance paid for this order
+        const advances = advancePayments.filter(ap => ap.serviceOrderNo === initialOrderId);
+        const advance = advances.reduce((sum, ap) => sum + (ap.amount || 0), 0);
+        setAdvanceAmount(advance);
+        
+        // Calculate balance
+        const balance = order.stitchingCost - advance;
+        setBalanceAmount(balance > 0 ? balance : 0);
+        setAmountPaid(balance > 0 ? balance : 0);
+      }
+    }
+  }, [initialOrderId, loading, serviceOrders.length, advancePayments.length]);
 
   /**
    * Check if a service order has 'Delivered' status based on its allotment

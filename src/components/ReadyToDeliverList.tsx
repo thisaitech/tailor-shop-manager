@@ -29,9 +29,10 @@ interface ReadyToDeliverListProps {
   orderAllotments: OrderAllotment[];
   onBack: () => void;
   onOrderDelivered?: () => void; // Callback to refresh data after marking as delivered
+  onNavigateToPayment?: (orderId: string) => void; // Callback to navigate to Payment with pre-filled order
 }
 
-export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onOrderDelivered }: ReadyToDeliverListProps) {
+export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onOrderDelivered, onNavigateToPayment }: ReadyToDeliverListProps) {
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [deliveringOrderId, setDeliveringOrderId] = useState<string | null>(null);
@@ -47,9 +48,15 @@ export function ReadyToDeliverList({ serviceOrders, orderAllotments, onBack, onO
     setShowDetailsDialog(true);
   };
 
-  // Show confirmation dialog before marking as delivered
+  // Navigate to Payment page with pre-filled order details
   const handleDeliveredClick = (order: ServiceOrder) => {
-    setOrderToDeliver(order);
+    if (onNavigateToPayment) {
+      // Navigate to Payment page with the order pre-selected
+      onNavigateToPayment(order.id);
+    } else {
+      // Fallback to confirmation dialog if no navigation callback
+      setOrderToDeliver(order);
+    }
   };
 
   // Handle marking order as delivered using the new unified flow

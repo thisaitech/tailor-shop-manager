@@ -47,6 +47,7 @@ function AppContent() {
   const [employeeView, setEmployeeView] = useState<EmployeeView>('dashboard');
   const [vendorView, setVendorView] = useState<VendorView>('dashboard');
   const [selectedOrderForDC, setSelectedOrderForDC] = useState<string | undefined>(); // Pre-selected order for Delivery Challan
+  const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<string | undefined>(); // Pre-selected order for Payment
 
   // Mobile app features
   usePreventDefaultTouchBehaviors();
@@ -60,6 +61,7 @@ function AppContent() {
       if (adminView !== 'dashboard') {
         setAdminView('dashboard');
         setSelectedOrderForDC(undefined);
+        setSelectedOrderForPayment(undefined);
         return true;
       }
     }
@@ -209,6 +211,10 @@ function AppContent() {
               setSelectedOrderForDC(orderId);
               setAdminView('delivery-challan');
             }}
+            onNavigateToPayment={(orderId) => {
+              setSelectedOrderForPayment(orderId);
+              setAdminView('payment');
+            }}
           />
         )}
         {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
@@ -216,7 +222,13 @@ function AppContent() {
         {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}
         {user?.role === 'owner' && adminView === 'designs' && <DesignManagement onBack={handleBackToDashboard} />}
         {user?.role === 'owner' && adminView === 'payment' && (
-          <Payment onBack={handleBackToDashboard} />
+          <Payment 
+            onBack={() => {
+              setSelectedOrderForPayment(undefined); // Clear the selected order on back
+              handleBackToDashboard();
+            }} 
+            initialOrderId={selectedOrderForPayment}
+          />
         )}
         {user?.role === 'owner' && adminView === 'delivery-challan' && (
           <DeliveryChallan 

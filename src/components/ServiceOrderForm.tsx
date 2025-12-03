@@ -301,9 +301,46 @@ export function ServiceOrderForm({
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Native camera - not currently implemented
-  const takeNativePhoto = null;
-  const isNative = false;
+  // Native camera using Capacitor
+  const isNative = !!(
+    typeof window !== 'undefined' &&
+    (window as any).Capacitor &&
+    (window as any).Capacitor.isNativePlatform &&
+    (window as any).Capacitor.isNativePlatform()
+  );
+  
+  // Take photo using Capacitor Camera plugin
+  const takeNativePhoto = async (): Promise<string | null> => {
+    try {
+      // Dynamically import Capacitor Camera
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      
+      const image = await Camera.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        direction: 'REAR' as any, // Use back camera
+        correctOrientation: true,
+        width: 1920,
+        height: 1080,
+      });
+      
+      if (image.dataUrl) {
+        console.log('[Camera] Photo captured successfully');
+        return image.dataUrl;
+      }
+      return null;
+    } catch (error: any) {
+      console.error('[Camera] Error capturing photo:', error);
+      // User cancelled or permission denied
+      if (error?.message?.includes('cancelled') || error?.message?.includes('User cancelled')) {
+        console.log('[Camera] User cancelled photo capture');
+        return null;
+      }
+      throw error;
+    }
+  };
   
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false);

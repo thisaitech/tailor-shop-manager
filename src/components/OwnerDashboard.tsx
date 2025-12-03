@@ -65,9 +65,10 @@ interface OwnerDashboardProps {
   initialTab?: string;
   onEmployeeClick?: () => void;
   onNavigateToDeliveryChallan?: (orderId?: string) => void; // Navigate to DC page with optional pre-selected order
+  onNavigateToPayment?: (orderId: string) => void; // Navigate to Payment page with pre-selected order
 }
 
-export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNavigateToDeliveryChallan }: OwnerDashboardProps) {
+export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNavigateToDeliveryChallan, onNavigateToPayment }: OwnerDashboardProps) {
   const { t } = useLanguage();
   const { user, employee } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -638,6 +639,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
                 const allotmentsData = await getOrderAllotmentsByCompany(companyId);
                 setOrderAllotments(allotmentsData);
               }}
+              onNavigateToPayment={onNavigateToPayment}
             />
           ) : orderFilter === 'receivedNote' ? (
             <ReceivedNoteList
