@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- External storage -->
+    <external-path name="external" path="." />
     <external-path name="my_images" path="." />
+    
+    <!-- App cache directory (for PDF sharing) -->
+    <cache-path name="cache" path="." />
     <cache-path name="my_cache_images" path="." />
+    
+    <!-- App files directory -->
+    <files-path name="files" path="." />
+    
+    <!-- Internal app data -->
+    <root-path name="root" path="." />
+    
+    <!-- External files directory -->
+    <external-files-path name="external_files" path="." />
+    
+    <!-- External cache -->
+    <external-cache-path name="external_cache" path="." />
 </paths>

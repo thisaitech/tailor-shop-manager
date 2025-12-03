@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- PWA & Mobile App Meta Tags -->
-    <meta name="theme-color" content="#5B21B6" />
+    <meta name="theme-color" content="#7c3aed" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -20,6 +20,9 @@
     
     <!-- Prevent text selection and context menu for app-like feel -->
     <meta name="msapplication-tap-highlight" content="no" />
+    
+    <!-- Content Security Policy for Capacitor -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data: blob:; connect-src 'self' https: wss: ws:; font-src 'self' https: data:; media-src 'self' https: data: blob:;">
     
     <!-- Manifest & Icons -->
     <link rel="manifest" href="/manifest.json" />
@@ -38,10 +41,24 @@
     
     <!-- Mobile App Styles -->
     <style>
+        /* Root CSS Variables for native app */
+        :root {
+            --safe-area-inset-top: env(safe-area-inset-top, 0px);
+            --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-area-inset-left: env(safe-area-inset-left, 0px);
+            --safe-area-inset-right: env(safe-area-inset-right, 0px);
+            --app-height: 100vh;
+            --status-bar-height: 24px;
+        }
+        
         /* Prevent pull-to-refresh on mobile */
         html, body {
             overscroll-behavior-y: contain;
             -webkit-overflow-scrolling: touch;
+            touch-action: pan-x pan-y;
+            height: 100%;
+            height: var(--app-height, 100vh);
+            overflow: hidden;
         }
         
         /* Prevent text selection for app-like feel */
@@ -51,22 +68,47 @@
             -ms-user-select: none;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
         }
         
         /* Allow text selection only in inputs and textareas */
-        input, textarea, [contenteditable="true"] {
+        input, textarea, [contenteditable="true"], .selectable {
             -webkit-user-select: text;
             -moz-user-select: text;
             -ms-user-select: text;
             user-select: text;
+            -webkit-touch-callout: default;
         }
         
         /* Safe area padding for notched devices */
         body {
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-            padding-left: env(safe-area-inset-left);
-            padding-right: env(safe-area-inset-right);
+            padding-top: var(--safe-area-inset-top);
+            padding-bottom: var(--safe-area-inset-bottom);
+            padding-left: var(--safe-area-inset-left);
+            padding-right: var(--safe-area-inset-right);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+        
+        /* Root container for app */
+        #root {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Native scrolling for the app */
+        .native-scroll {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Capacitor app specific styles */
+        .capacitor-app body {
+            padding-top: var(--status-bar-height);
         }
         
         /* Splash screen */
@@ -93,20 +135,51 @@
         #splash-screen img {
             width: 120px;
             height: 120px;
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             animation: pulse 1.5s ease-in-out infinite;
         }
         
         #splash-screen p {
             color: white;
             font-family: 'Inter', sans-serif;
-            font-size: 18px;
-            font-weight: 600;
-            margin-top: 20px;
+            font-size: 20px;
+            font-weight: 700;
+            margin-top: 24px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
+        
+        #splash-screen .loading-dots {
+            display: flex;
+            gap: 6px;
+            margin-top: 16px;
+        }
+        
+        #splash-screen .loading-dots span {
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: bounce 1.4s ease-in-out infinite both;
+        }
+        
+        #splash-screen .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        #splash-screen .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+        #splash-screen .loading-dots span:nth-child(3) { animation-delay: 0s; }
         
         @keyframes pulse {
             0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        
+        /* Disable context menu for native feel */
+        body {
+            -webkit-touch-callout: none;
         }
     </style>
 </head>
@@ -116,6 +189,11 @@
     <div id="splash-screen">
         <img src="/icon-192.png" alt="Thisai Tailor" />
         <p>Thisai Tailor</p>
+        <div class="loading-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
     </div>
     
     <div id="root"></div>
@@ -123,6 +201,33 @@
     
     <!-- Hide splash screen after app loads -->
     <script>
+        // Detect Capacitor native app
+        window.isCapacitorNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        
+        // Set app height for mobile keyboards
+        function setAppHeight() {
+            document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+        }
+        
+        // Initial set
+        setAppHeight();
+        
+        // Update on resize (but not during keyboard)
+        let initialHeight = window.innerHeight;
+        window.addEventListener('resize', function() {
+            // Only update if significant change (orientation) not keyboard
+            if (Math.abs(window.innerHeight - initialHeight) > 150) {
+                setAppHeight();
+                initialHeight = window.innerHeight;
+            }
+        });
+        
+        // Update on orientation change
+        window.addEventListener('orientationchange', function() {
+            setTimeout(setAppHeight, 100);
+        });
+        
+        // Hide splash screen
         window.addEventListener('load', function() {
             setTimeout(function() {
                 var splash = document.getElementById('splash-screen');
@@ -132,7 +237,19 @@
                         splash.remove();
                     }, 300);
                 }
-            }, 500);
+            }, 800);
+        });
+        
+        // Prevent zoom on double tap for iOS
+        document.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        // Prevent pinch zoom
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
         });
     </script>
 </body>

@@ -9,15 +9,34 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+// Check if running in Capacitor native app
+const isCapacitorNative = () => {
+  return !!(
+    typeof window !== 'undefined' &&
+    (window as any).Capacitor &&
+    (window as any).Capacitor.isNativePlatform &&
+    (window as any).Capacitor.isNativePlatform()
+  );
+};
+
 export function InstallPrompt() {
   const { t } = useLanguage();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
-    return localStorage.getItem('install-prompt-dismissed') === 'true';
+    try {
+      return localStorage.getItem('install-prompt-dismissed') === 'true';
+    } catch {
+      return true; // Default to dismissed if localStorage fails
+    }
   });
 
   useEffect(() => {
+    // Don't show install prompt in native Capacitor apps
+    if (isCapacitorNative()) {
+      return;
+    }
+
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -50,9 +69,15 @@ export function InstallPrompt() {
   const handleDismiss = () => {
     setShowPrompt(false);
     setDismissed(true);
-    localStorage.setItem('install-prompt-dismissed', 'true');
+    try {
+      localStorage.setItem('install-prompt-dismissed', 'true');
+    } catch {
+      // Ignore localStorage errors
+    }
   };
 
+  // Never show in native Capacitor apps
+  if (isCapacitorNative()) return null;
   if (!showPrompt) return null;
 
   return (

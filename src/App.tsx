@@ -1,31 +1,39 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { LanguageProvider } from '@/hooks/use-language';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { Login } from '@/components/Login';
 import { Header } from '@/components/Header';
-import { OwnerDashboard } from '@/components/OwnerDashboard';
-import { TailorDashboard } from '@/components/TailorDashboard';
-import { TailorDashboardFirestore } from '@/components/TailorDashboardFirestore';
-import { CustomerDashboard } from '@/components/CustomerDashboard';
-import { JobWorkTailorDashboard } from '@/components/JobWorkTailorDashboard';
-import { InstallPrompt } from '@/components/InstallPrompt';
-import { SeedData } from '@/components/SeedData';
-import { CompanyProfileFirestore as CompanyProfile } from '@/components/CompanyProfileFirestore';
-import { EmployeeManagementFirestore as EmployeeManagement } from '@/components/EmployeeManagementFirestore';
-import { VendorManagementFirestore as VendorManagement } from '@/components/VendorManagementFirestore';
-import { EmployeeProfile } from '@/components/EmployeeProfile';
-import { EmployeeDashboard } from '@/components/EmployeeDashboard';
-import { TailorProfile } from '@/components/TailorProfile';
-import { DesignManagement } from '@/components/DesignManagement';
-import { DeliveryChallan } from '@/components/DeliveryChallan';
-import { GoodsReceipt } from '@/components/GoodsReceipt';
-import { Payment } from '@/components/Payment';
-import { NotificationsPage } from '@/components/NotificationsPage';
 import { NetworkStatus } from '@/components/NetworkStatus';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoader } from '@/components/Loader';
 import { useHardwareBackButton, usePreventDefaultTouchBehaviors } from '@/hooks/use-mobile-app';
-import { DevKeyboard } from '@/components/DevKeyboard';
+
+// Lazy load heavy components for better initial load performance
+const OwnerDashboard = lazy(() => import('@/components/OwnerDashboard').then(m => ({ default: m.OwnerDashboard })));
+const TailorDashboard = lazy(() => import('@/components/TailorDashboard').then(m => ({ default: m.TailorDashboard })));
+const TailorDashboardFirestore = lazy(() => import('@/components/TailorDashboardFirestore').then(m => ({ default: m.TailorDashboardFirestore })));
+const CustomerDashboard = lazy(() => import('@/components/CustomerDashboard').then(m => ({ default: m.CustomerDashboard })));
+const JobWorkTailorDashboard = lazy(() => import('@/components/JobWorkTailorDashboard').then(m => ({ default: m.JobWorkTailorDashboard })));
+const InstallPrompt = lazy(() => import('@/components/InstallPrompt').then(m => ({ default: m.InstallPrompt })));
+const SeedData = lazy(() => import('@/components/SeedData').then(m => ({ default: m.SeedData })));
+const CompanyProfile = lazy(() => import('@/components/CompanyProfileFirestore').then(m => ({ default: m.CompanyProfileFirestore })));
+const EmployeeManagement = lazy(() => import('@/components/EmployeeManagementFirestore').then(m => ({ default: m.EmployeeManagementFirestore })));
+const VendorManagement = lazy(() => import('@/components/VendorManagementFirestore').then(m => ({ default: m.VendorManagementFirestore })));
+const EmployeeProfile = lazy(() => import('@/components/EmployeeProfile').then(m => ({ default: m.EmployeeProfile })));
+const EmployeeDashboard = lazy(() => import('@/components/EmployeeDashboard').then(m => ({ default: m.EmployeeDashboard })));
+const TailorProfile = lazy(() => import('@/components/TailorProfile').then(m => ({ default: m.TailorProfile })));
+const DesignManagement = lazy(() => import('@/components/DesignManagement').then(m => ({ default: m.DesignManagement })));
+const DeliveryChallan = lazy(() => import('@/components/DeliveryChallan').then(m => ({ default: m.DeliveryChallan })));
+const GoodsReceipt = lazy(() => import('@/components/GoodsReceipt').then(m => ({ default: m.GoodsReceipt })));
+const Payment = lazy(() => import('@/components/Payment').then(m => ({ default: m.Payment })));
+const NotificationsPage = lazy(() => import('@/components/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+
+// DevKeyboard is ONLY for development testing on desktop browsers
+// It is completely excluded from production/mobile builds
+const isDev = import.meta.env.DEV && !((window as any).Capacitor);
+const DevKeyboard = isDev 
+  ? lazy(() => import('@/components/DevKeyboard').then(m => ({ default: m.DevKeyboard })))
+  : () => null;
 
 type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
 type EmployeeView = 'dashboard' | 'profile' | 'notifications';
@@ -190,48 +198,52 @@ function AppContent() {
         onVendorProfileClick={vendor ? handleVendorProfileClick : undefined}
         onNotificationsClick={handleNotificationsClick}
       />
-      {user?.role === 'owner' && adminView === 'dashboard' && (
-        <OwnerDashboard 
-          key={dashboardKey} 
-          initialTab={dashboardTab}
-          onNavigateToDeliveryChallan={(orderId) => {
-            setSelectedOrderForDC(orderId);
-            setAdminView('delivery-challan');
-          }}
-        />
-      )}
-      {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
-      {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}
-      {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}
-      {user?.role === 'owner' && adminView === 'designs' && <DesignManagement onBack={handleBackToDashboard} />}
-      {user?.role === 'owner' && adminView === 'payment' && (
-        <Payment onBack={handleBackToDashboard} />
-      )}
-      {user?.role === 'owner' && adminView === 'delivery-challan' && (
-        <DeliveryChallan 
-          onBack={() => {
-            setSelectedOrderForDC(undefined); // Clear the selected order on back
-            handleBackToDashboard();
-          }} 
-          initialOrderId={selectedOrderForDC}
-        />
-      )}
-      {user?.role === 'owner' && adminView === 'goods-receipt' && (
-        <GoodsReceipt onBack={handleBackToDashboard} />
-      )}
-      {user?.role === 'owner' && adminView === 'notifications' && (
-        <NotificationsPage onBack={handleNotificationsBack} />
-      )}
-      {user?.role === 'tailor' && <TailorDashboard />}
-      {user?.role === 'customer' && <CustomerDashboard />}
-      {employee && employeeView === 'dashboard' && employee.role === 'tailor' && <TailorDashboardFirestore />}
-      {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <EmployeeDashboard />}
-      {employee && employeeView === 'profile' && <EmployeeProfile onBack={handleEmployeeBackToDashboard} />}
-      {employee && employeeView === 'notifications' && <NotificationsPage onBack={handleNotificationsBack} />}
-      {vendor && vendorView === 'dashboard' && <JobWorkTailorDashboard />}
-      {vendor && vendorView === 'profile' && <TailorProfile vendorId={vendor.tailorCode} onBack={handleVendorBackToDashboard} />}
-      {vendor && vendorView === 'notifications' && <NotificationsPage onBack={handleNotificationsBack} />}
-      <InstallPrompt />
+      
+      {/* Wrap lazy-loaded components with Suspense for better loading UX */}
+      <Suspense fallback={<AppLoader />}>
+        {user?.role === 'owner' && adminView === 'dashboard' && (
+          <OwnerDashboard 
+            key={dashboardKey} 
+            initialTab={dashboardTab}
+            onNavigateToDeliveryChallan={(orderId) => {
+              setSelectedOrderForDC(orderId);
+              setAdminView('delivery-challan');
+            }}
+          />
+        )}
+        {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
+        {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}
+        {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}
+        {user?.role === 'owner' && adminView === 'designs' && <DesignManagement onBack={handleBackToDashboard} />}
+        {user?.role === 'owner' && adminView === 'payment' && (
+          <Payment onBack={handleBackToDashboard} />
+        )}
+        {user?.role === 'owner' && adminView === 'delivery-challan' && (
+          <DeliveryChallan 
+            onBack={() => {
+              setSelectedOrderForDC(undefined); // Clear the selected order on back
+              handleBackToDashboard();
+            }} 
+            initialOrderId={selectedOrderForDC}
+          />
+        )}
+        {user?.role === 'owner' && adminView === 'goods-receipt' && (
+          <GoodsReceipt onBack={handleBackToDashboard} />
+        )}
+        {user?.role === 'owner' && adminView === 'notifications' && (
+          <NotificationsPage onBack={handleNotificationsBack} />
+        )}
+        {user?.role === 'tailor' && <TailorDashboard />}
+        {user?.role === 'customer' && <CustomerDashboard />}
+        {employee && employeeView === 'dashboard' && employee.role === 'tailor' && <TailorDashboardFirestore />}
+        {employee && employeeView === 'dashboard' && employee.role !== 'tailor' && <EmployeeDashboard />}
+        {employee && employeeView === 'profile' && <EmployeeProfile onBack={handleEmployeeBackToDashboard} />}
+        {employee && employeeView === 'notifications' && <NotificationsPage onBack={handleNotificationsBack} />}
+        {vendor && vendorView === 'dashboard' && <JobWorkTailorDashboard />}
+        {vendor && vendorView === 'profile' && <TailorProfile vendorId={vendor.tailorCode} onBack={handleVendorBackToDashboard} />}
+        {vendor && vendorView === 'notifications' && <NotificationsPage onBack={handleNotificationsBack} />}
+        <InstallPrompt />
+      </Suspense>
     </div>
   );
 }
@@ -240,12 +252,18 @@ function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <SeedData />
+        <Suspense fallback={null}>
+          <SeedData />
+        </Suspense>
         <AppContent />
         <Toaster />
         {/* 🔧 DEV ONLY: Fake mobile keyboard for testing keyboard responsiveness */}
-        {/* To disable: Set DEV_KEYBOARD_ENABLED = false in DevKeyboard.tsx */}
-        <DevKeyboard />
+        {/* Automatically excluded on Capacitor/mobile builds */}
+        {isDev && (
+          <Suspense fallback={null}>
+            <DevKeyboard />
+          </Suspense>
+        )}
       </AuthProvider>
     </LanguageProvider>
   );

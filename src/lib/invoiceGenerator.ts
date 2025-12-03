@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { format } from 'date-fns';
+import { savePdfMobile, openPdfForPrint } from './mobilePdfUtils';
 
 export interface InvoiceData {
   // Company Info
@@ -381,28 +382,21 @@ export function generateInvoicePDF(data: InvoiceData): jsPDF {
 }
 
 /**
- * Download the invoice as PDF
+ * Download the invoice as PDF (mobile-compatible)
  */
-export function downloadInvoice(data: InvoiceData): void {
+export async function downloadInvoice(data: InvoiceData): Promise<void> {
   const doc = generateInvoicePDF(data);
   const filename = `Invoice_${data.invoiceNo}_${data.customerName.replace(/\s+/g, '_')}.pdf`;
-  doc.save(filename);
+  await savePdfMobile(doc, filename);
 }
 
 /**
- * Open the invoice in a new tab for printing
+ * Open the invoice in a new tab for printing (mobile-compatible)
  */
-export function printInvoice(data: InvoiceData): void {
+export async function printInvoice(data: InvoiceData): Promise<void> {
   const doc = generateInvoicePDF(data);
-  const pdfBlob = doc.output('blob');
-  const pdfUrl = URL.createObjectURL(pdfBlob);
-
-  const printWindow = window.open(pdfUrl, '_blank');
-  if (printWindow) {
-    printWindow.onload = () => {
-      printWindow.print();
-    };
-  }
+  const filename = `Invoice_${data.invoiceNo}_${data.customerName.replace(/\s+/g, '_')}.pdf`;
+  await openPdfForPrint(doc, filename);
 }
 
 /**

@@ -32,12 +32,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentVendor, setCurrentVendor] = useStorage<Vendor | null>('current_vendor', null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simulate initial loading state for app initialization
+  // Check if user data is ready from storage (no artificial delay)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000); // Show loader for 1 second on app load
-    return () => clearTimeout(timer);
+    // Storage hook loads synchronously from localStorage, so we can set loading to false immediately
+    // The useStorage hook will have already loaded the data by the time this effect runs
+    setIsLoading(false);
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {

@@ -102,9 +102,6 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
     let unsubscribeOrders: (() => void) | null = null;
 
     const loadData = async () => {
-      const startTime = Date.now();
-      const MIN_LOADING_TIME = 500; // Minimum loading time in ms to show loader
-
       try {
         setLoading(true);
 
@@ -127,12 +124,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
         console.log('[OwnerDashboard] Loading data for company:', realCompanyId);
         console.log('[OwnerDashboard] Company profile ID:', company.id);
 
-        // Load customers from Firestore
-        const customersData = await getCustomersByCompany(realCompanyId);
-        setCustomers(customersData);
-        console.log('[OwnerDashboard] Loaded customers:', customersData.length);
-
-        // Subscribe to real-time service orders updates
+        // Subscribe to real-time service orders updates (non-blocking)
         unsubscribeOrders = subscribeToServiceOrders(
           realCompanyId,
           (ordersData) => {
@@ -144,26 +136,24 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
           }
         );
 
-        // Load order allotments from Firestore
-        const allotmentsData = await getOrderAllotmentsByCompany(realCompanyId);
+        // Load all data in PARALLEL for faster loading (instead of sequential)
+        const [customersData, allotmentsData, employeesData, vendorsData] = await Promise.all([
+          getCustomersByCompany(realCompanyId),
+          getOrderAllotmentsByCompany(realCompanyId),
+          getEmployeesByCompany(user.id),
+          getVendorsByCompany(user.id),
+        ]);
+
+        // Set all state at once after parallel fetch completes
+        setCustomers(customersData);
         setOrderAllotments(allotmentsData);
-        console.log('[OwnerDashboard] Loaded order allotments:', allotmentsData.length);
-
-        // Load employees from Firestore (use user.id for employees/vendors)
-        const employeesData = await getEmployeesByCompany(user.id);
         setEmployees(employeesData);
-        console.log('[OwnerDashboard] Loaded employees:', employeesData.length);
-
-        // Load vendors from Firestore
-        const vendorsData = await getVendorsByCompany(user.id);
         setVendors(vendorsData);
-        console.log('[OwnerDashboard] Loaded vendors:', vendorsData.length);
 
-        // Ensure minimum loading time for better UX
-        const elapsedTime = Date.now() - startTime;
-        if (elapsedTime < MIN_LOADING_TIME) {
-          await new Promise(resolve => setTimeout(resolve, MIN_LOADING_TIME - elapsedTime));
-        }
+        console.log('[OwnerDashboard] Loaded in parallel - customers:', customersData.length,
+          'allotments:', allotmentsData.length,
+          'employees:', employeesData.length,
+          'vendors:', vendorsData.length);
 
         setLoading(false);
       } catch (error) {

@@ -3,13 +3,21 @@ import { useState, useEffect } from 'react';
 // ⚠️ SET TO false TO DISABLE THE FAKE KEYBOARD
 const DEV_KEYBOARD_ENABLED = false;
 
+// Check if running in Capacitor/mobile - NEVER enable dev keyboard on mobile
+const isCapacitorApp = typeof window !== 'undefined' && !!(window as any).Capacitor;
+const isMobileDevice = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// SAFETY: Dev keyboard is COMPLETELY disabled on mobile/Capacitor
+const SHOULD_ENABLE = DEV_KEYBOARD_ENABLED && !isCapacitorApp && !isMobileDevice;
+
 export function DevKeyboard() {
   const [isVisible, setIsVisible] = useState(false);
   const [isShift, setIsShift] = useState(false);
   const [activeInput, setActiveInput] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (!DEV_KEYBOARD_ENABLED) return;
+    // Triple safety check - never run on mobile/Capacitor
+    if (!SHOULD_ENABLE) return;
 
     const KEYBOARD_HEIGHT = 280; // Height of the dev keyboard
 
@@ -109,7 +117,8 @@ export function DevKeyboard() {
     });
   };
 
-  if (!DEV_KEYBOARD_ENABLED || !isVisible) return null;
+  // Never render on mobile/Capacitor, even if somehow this component is mounted
+  if (!SHOULD_ENABLE || !isVisible) return null;
 
   const rows = [
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],

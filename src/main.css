@@ -191,20 +191,64 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Body adjustments when keyboard is open - keyboard overlays content */
+/* Body adjustments when keyboard is open */
 body.keyboard-open {
-  /* Don't change layout - keyboard overlays on top */
+  /* Prevent layout jump - keyboard overlays content */
 }
 
-/* Dev keyboard extra space - adds padding so bottom inputs can scroll above keyboard */
-body.dev-keyboard-open .overflow-y-auto,
-body.dev-keyboard-open .overflow-auto,
-body.dev-keyboard-open [data-radix-scroll-area-viewport] {
-  padding-bottom: 300px !important;
+/* For Capacitor/native apps - proper keyboard handling */
+html.capacitor-app,
+html.native-app {
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  /* Store initial height - set by JS in main.tsx */
+  --app-height: 100dvh;
 }
 
-body.dev-keyboard-open form {
-  padding-bottom: 300px !important;
+html.capacitor-app body,
+html.native-app body {
+  /* Use min-height instead of fixed positioning to allow keyboard resize */
+  min-height: 100%;
+  min-height: var(--app-height, 100dvh);
+  /* Allow body to resize when keyboard opens */
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* When keyboard is open, allow content to scroll */
+html.capacitor-app body.keyboard-open,
+html.native-app body.keyboard-open {
+  /* Body stays full height, content scrolls within */
+  overflow-y: auto;
+}
+
+/* Root container handles scrolling */
+html.capacitor-app #root,
+html.native-app #root {
+  min-height: 100%;
+  min-height: var(--app-height, 100dvh);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Dev keyboard extra space - DESKTOP BROWSER DEVELOPMENT ONLY */
+/* These styles are ONLY active when using the DevKeyboard component for testing */
+/* DevKeyboard is automatically disabled on Capacitor/mobile apps */
+@media (hover: hover) and (pointer: fine) {
+  body.dev-keyboard-open .overflow-y-auto,
+  body.dev-keyboard-open .overflow-auto,
+  body.dev-keyboard-open [data-radix-scroll-area-viewport] {
+    padding-bottom: 300px !important;
+  }
+
+  body.dev-keyboard-open form {
+    padding-bottom: 300px !important;
+  }
 }
 
 /* Ensure focused inputs are visible above keyboard */

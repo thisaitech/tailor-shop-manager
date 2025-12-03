@@ -42,6 +42,7 @@ import { getOrderAllotmentsByCompany } from '@/lib/firestore/orderAllotmentServi
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { ServiceOrder, AdvancePayment, OrderAllotment } from '@/lib/types';
 import jsPDF from 'jspdf';
+import { savePdfMobile, openPdfForPrint } from '@/lib/mobilePdfUtils';
 
 interface PaymentProps {
   onBack: () => void;
@@ -408,7 +409,8 @@ export function Payment({ onBack }: PaymentProps) {
     try {
       const company = await getCompanyProfile(user!.id);
       const doc = generateServiceInvoicePDF(payment, company);
-      doc.save(`Service_Invoice_${payment.paymentNo}_${payment.customerName.replace(/\s+/g, '_')}.pdf`);
+      const filename = `Service_Invoice_${payment.paymentNo}_${payment.customerName.replace(/\s+/g, '_')}.pdf`;
+      await savePdfMobile(doc, filename);
       toast.success('Invoice downloaded successfully');
     } catch (error) {
       console.error('Error downloading invoice:', error);
@@ -420,15 +422,8 @@ export function Payment({ onBack }: PaymentProps) {
     try {
       const company = await getCompanyProfile(user!.id);
       const doc = generateServiceInvoicePDF(payment, company);
-      const pdfBlob = doc.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-
-      const printWindow = window.open(pdfUrl, '_blank');
-      if (printWindow) {
-        printWindow.onload = () => {
-          printWindow.print();
-        };
-      }
+      const filename = `Service_Invoice_${payment.paymentNo}_${payment.customerName.replace(/\s+/g, '_')}.pdf`;
+      await openPdfForPrint(doc, filename);
       toast.success('Opening invoice for printing');
     } catch (error) {
       console.error('Error printing invoice:', error);

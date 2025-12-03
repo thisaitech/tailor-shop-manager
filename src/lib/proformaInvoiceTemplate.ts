@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { format } from 'date-fns';
+import { savePdfMobile, openPdfForPrint, isCapacitorNative } from './mobilePdfUtils';
 
 // Professional Proforma Invoice Data Interface
 export interface ProformaInvoiceData {
@@ -697,26 +698,34 @@ export function generateProformaInvoicePdf(data: ProformaInvoiceData): jsPDF {
 }
 
 /**
- * Download Proforma Invoice as PDF
+ * Download Proforma Invoice as PDF (mobile-compatible)
  */
-export function downloadProformaInvoicePdf(data: ProformaInvoiceData): void {
+export async function downloadProformaInvoicePdf(data: ProformaInvoiceData): Promise<void> {
   const doc = generateProformaInvoicePdf(data);
   const filename = `Proforma_Invoice_${data.proformaInvoiceNo}_${data.customerName.replace(/\s+/g, '_')}.pdf`;
-  doc.save(filename);
+  await savePdfMobile(doc, filename);
 }
 
 /**
- * Print Proforma Invoice
+ * Print Proforma Invoice (mobile-compatible)
  */
-export function printProformaInvoice(data: ProformaInvoiceData): void {
-  const html = generateProformaInvoiceHtml(data);
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
+export async function printProformaInvoice(data: ProformaInvoiceData): Promise<void> {
+  if (isCapacitorNative()) {
+    // On mobile, share the PDF instead of opening print dialog
+    const doc = generateProformaInvoicePdf(data);
+    const filename = `Proforma_Invoice_${data.proformaInvoiceNo}_${data.customerName.replace(/\s+/g, '_')}.pdf`;
+    await openPdfForPrint(doc, filename);
+  } else {
+    // On web, use HTML print for better quality
+    const html = generateProformaInvoiceHtml(data);
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
   }
 }
 

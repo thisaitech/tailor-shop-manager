@@ -40,8 +40,29 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  .safe-area-inset-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-inset-all {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   .text-wrap-balance {
     text-wrap: balance;
+  }
+
+  /* Native app height using CSS var set by JS */
+  .app-height {
+    height: var(--app-height, 100vh);
+  }
+
+  /* Prevent overscroll on native apps */
+  .no-overscroll {
+    overscroll-behavior: none;
   }
 
   .line-clamp-1 {
@@ -275,4 +296,126 @@
   --radius-xl: calc(var(--radius) * 2);
   --radius-2xl: calc(var(--radius) * 3);
   --radius-full: 9999px;
+}
+
+/* ============================
+   Mobile App Specific Styles
+   ============================ */
+
+/* Offline/Online banner */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  text-align: center;
+  animation: slideDown 0.3s ease-out;
+}
+
+/* Capacitor app adjustments */
+.capacitor-app .offline-banner {
+  padding-top: calc(8px + env(safe-area-inset-top));
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Native app specific styling */
+.native-app body {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Platform-specific adjustments */
+.platform-android .native-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Status bar spacing for native apps */
+.capacitor-app .header,
+.capacitor-app header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Bottom navigation safe area */
+.capacitor-app .bottom-nav,
+.capacitor-app .fixed.bottom-0 {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Input focus states for mobile */
+.capacitor-app input:focus,
+.capacitor-app textarea:focus,
+.capacitor-app select:focus {
+  font-size: 16px; /* Prevent iOS zoom on focus */
+}
+
+/* Smooth scrolling for scroll containers */
+.native-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbars but keep functionality on mobile */
+.native-app .hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.native-app .hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch feedback */
+.native-app button,
+.native-app [role="button"],
+.native-app .clickable {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.native-app button:active,
+.native-app [role="button"]:active,
+.native-app .clickable:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* Disable text selection on interactive elements */
+.native-app button,
+.native-app [role="button"],
+.native-app a,
+.native-app label {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Ensure dialogs work well on mobile */
+.capacitor-app [role="dialog"] {
+  max-height: calc(var(--app-height, 100vh) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+/* Loading states for mobile */
+.native-app .skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
