@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Thisai Tailor</string>
-    <string name="title_activity_main">Thisai Tailor</string>
+    <string name="app_name">Tailor Shop Manager</string>
+    <string name="title_activity_main">Tailor Shop Manager</string>
     <string name="package_name">com.tailorshop.manager</string>
-    <string name="custom_url_scheme">tailorshop</string>
+    <string name="custom_url_scheme">com.tailorshop.manager</string>
 </resources>
