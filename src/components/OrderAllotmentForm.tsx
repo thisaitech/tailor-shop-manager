@@ -93,8 +93,13 @@ export function OrderAllotmentForm({
   // Get unallotted dress items only
   const unallottedDressItems = selectedOrder?.dressItems?.filter(item => !item.isAllotted) || [];
 
-  // Get list of employees (filtered to tailors only) or vendors based on stitching allotment type
-  const tailorEmployees = employees.filter((emp) => emp.role === 'tailor');
+  // Get list of employees (filtered to active tailors only) or vendors based on stitching allotment type
+  const tailorEmployees = employees.filter((emp) => emp.role === 'tailor' && emp.isActive !== false);
+  
+  // Debug: Log employee filtering to help diagnose missing employees
+  console.log('[OrderAllotmentForm] Total employees received:', employees.length);
+  console.log('[OrderAllotmentForm] Employees by role:', employees.map(e => ({ id: e.id, name: e.name, role: e.role, isActive: e.isActive })));
+  console.log('[OrderAllotmentForm] Active tailors:', tailorEmployees.length, tailorEmployees.map(e => e.name));
 
   // Calculate total job cost (legacy)
   const totalJobCost = materialCost + jobWorkCost;

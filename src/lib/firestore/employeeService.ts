@@ -220,24 +220,29 @@ export async function addEmployee(
 
     console.log('[Employee Service] Employee added successfully:', employeeId);
 
-    // Send email to tailor if role is 'tailor' and email is provided
-    if (employeeData.role === 'tailor' && employeeData.email) {
-      console.log('[Employee Service] Sending credentials email to tailor...');
-      const emailSent = await sendTailorCredentialsEmail({
-        to: employeeData.email,
-        employeeName: employeeData.name,
-        loginId: employeeData.contactNumber,
-        temporaryPassword: password,
-        companyName: companyName,
-      });
+    // Send credentials email to all employees if email is provided
+    if (employeeData.email) {
+      console.log('[Employee Service] Sending credentials email to employee...');
+      try {
+        const emailSent = await sendTailorCredentialsEmail({
+          to: employeeData.email,
+          employeeName: employeeData.name,
+          loginId: employeeData.contactNumber,
+          temporaryPassword: password,
+          companyName: companyName,
+        });
 
-      if (emailSent) {
-        console.log('[Employee Service] ✅ Credentials email sent successfully to:', employeeData.email);
-      } else {
-        console.warn('[Employee Service] ⚠️ Failed to send credentials email to:', employeeData.email);
+        if (emailSent) {
+          console.log('[Employee Service] ✅ Credentials email sent successfully to:', employeeData.email);
+        } else {
+          console.warn('[Employee Service] ⚠️ Failed to send credentials email to:', employeeData.email);
+        }
+      } catch (emailError) {
+        console.error('[Employee Service] ❌ Error sending credentials email:', emailError);
+        // Don't throw error - employee is created successfully
       }
-    } else if (employeeData.role === 'tailor' && !employeeData.email) {
-      console.warn('[Employee Service] ⚠️ Tailor created but no email provided. Credentials not sent.');
+    } else {
+      console.warn('[Employee Service] ⚠️ Employee created but no email provided. Credentials not sent.');
     }
 
     return employee;
