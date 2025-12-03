@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // ⚠️ SET TO false TO DISABLE THE FAKE KEYBOARD
-const DEV_KEYBOARD_ENABLED = true;
+const DEV_KEYBOARD_ENABLED = false;
 
 export function DevKeyboard() {
   const [isVisible, setIsVisible] = useState(false);

@@ -725,21 +725,24 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
           className="max-w-[100vw] w-full h-[100dvh] sm:max-w-2xl sm:h-[95vh] flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg"
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
-          hideCloseButton
         >
-          <DialogHeader className="px-4 py-3 border-b flex-shrink-0 relative" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-            <DialogTitle className="flex items-center gap-3 text-white text-base pr-8">
-              <span>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</span>
+          <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <DialogTitle className="flex items-center gap-2.5 text-white text-base pr-10">
+              {/* Back/Close Button */}
+              <button
+                type="button"
+                onClick={() => setShowDialog(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
+              >
+                <ArrowLeft size={18} weight="bold" />
+              </button>
+              <span className="leading-tight">{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</span>
               {editingVendor && (
-                <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded">
+                <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded leading-tight">
                   {editingVendor.tailorCode || editingVendor.id}
                 </span>
               )}
             </DialogTitle>
-            <DialogClose className="absolute top-1/2 right-3 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md bg-white/20 hover:bg-white/30 text-white transition-colors">
-              <X size={14} weight="bold" />
-              <span className="sr-only">Close</span>
-            </DialogClose>
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
@@ -999,9 +1002,9 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
             </div>
           </Tabs>
 
-          {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-4 sm:px-6 py-4 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-            <Button type="button" variant="ghost" onClick={() => setShowDialog(false)} className="text-white hover:text-white/80 hover:bg-white/10">
+          {/* Footer with action buttons - Fixed at bottom, keyboard overlays it */}
+          <div className="fixed bottom-0 left-0 right-0 sm:relative sm:bottom-auto flex justify-between items-center gap-3 px-4 sm:px-6 py-3 border-t z-50" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowDialog(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               Cancel
             </Button>
             <div className="flex items-center gap-2">
@@ -1009,6 +1012,7 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
                 <Button
                   type="button"
                   variant="ghost"
+                  size="sm"
                   onClick={() => setActiveTab('basic')}
                   className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
@@ -1019,17 +1023,20 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
                 <Button
                   type="button"
                   variant="ghost"
+                  size="sm"
                   onClick={() => setActiveTab('address')}
                   className="border border-white/30 text-white hover:text-white hover:bg-white/10 bg-transparent"
                 >
                   Next
                 </Button>
               )}
-              <Button onClick={handleSave} className="min-w-[120px] bg-white text-purple-700 hover:bg-white/90">
+              <Button size="sm" onClick={handleSave} className="min-w-[100px] bg-white text-purple-700 hover:bg-white/90">
                 {editingVendor ? 'Update' : 'Create'}
               </Button>
             </div>
           </div>
+          {/* Spacer for fixed footer on mobile */}
+          <div className="h-14 sm:hidden flex-shrink-0" />
         </DialogContent>
       </Dialog>
 
