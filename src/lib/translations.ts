@@ -6,7 +6,7 @@ export const translations = {
     dashboard: 'Dashboard',
     customers: 'Customers',
     orders: 'Orders',
-    track: 'Jobwork Tailors',
+    track: 'Jobwork',
     inventory: 'Inventory',
     tailors: 'Tailors',
     employees: 'Employees',

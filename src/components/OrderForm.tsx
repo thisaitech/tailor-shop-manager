@@ -120,7 +120,7 @@ export function OrderForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-2xl !h-[100dvh] sm:!h-auto sm:!max-h-[90vh] !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 sm:!top-[50%] sm:!left-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!bottom-auto sm:!right-auto flex flex-col rounded-none sm:rounded-lg keyboard-aware-container">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{t('createOrder')}</DialogTitle>
         </DialogHeader>

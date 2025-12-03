@@ -191,13 +191,20 @@
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Body adjustments when keyboard is open */
+/* Body adjustments when keyboard is open - keyboard overlays content */
 body.keyboard-open {
-  /* Prevent body scroll when keyboard is open */
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-  height: 100%;
+  /* Don't change layout - keyboard overlays on top */
+}
+
+/* Dev keyboard extra space - adds padding so bottom inputs can scroll above keyboard */
+body.dev-keyboard-open .overflow-y-auto,
+body.dev-keyboard-open .overflow-auto,
+body.dev-keyboard-open [data-radix-scroll-area-viewport] {
+  padding-bottom: 300px !important;
+}
+
+body.dev-keyboard-open form {
+  padding-bottom: 300px !important;
 }
 
 /* Ensure focused inputs are visible above keyboard */
@@ -214,11 +221,10 @@ body.keyboard-open {
     scroll-margin-bottom: calc(var(--keyboard-height, 0px) + 20px);
   }
 
-  /* Dialog/Modal adjustments when keyboard is open */
-  .keyboard-open [role="dialog"],
-  .keyboard-open [data-radix-dialog-content] {
-    max-height: calc(100vh - var(--keyboard-height, 0px) - 40px);
-    overflow-y: auto;
+  /* Full-page dialogs on mobile - keyboard overlays on top */
+  .keyboard-aware-container {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
   }
 
   /* Form container adjustments */
@@ -309,10 +315,33 @@ body.keyboard-open {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  scroll-behavior: smooth;
 }
 
 .keyboard-open .keyboard-aware-scroll {
-  max-height: calc(100vh - var(--keyboard-height, 0px) - 60px);
+  max-height: calc(100vh - var(--keyboard-height, 0px) - 120px);
+  padding-bottom: 20px;
+}
+
+/* Dialog keyboard adjustments */
+.keyboard-open [data-slot="dialog-content"] {
+  max-height: calc(100dvh - var(--keyboard-height, 0px)) !important;
+  height: calc(100dvh - var(--keyboard-height, 0px)) !important;
+  transition: height 0.2s ease-out, max-height 0.2s ease-out;
+}
+
+/* Form within dialog when keyboard is open */
+.keyboard-open [data-slot="dialog-content"] form {
+  max-height: calc(100dvh - var(--keyboard-height, 0px) - 60px);
+  overflow: hidden;
+}
+
+/* Ensure content scrolls properly when keyboard is visible */
+.keyboard-open [data-slot="dialog-content"] .keyboard-aware-scroll {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding-bottom: 80px;
 }
 
 /* ===== Mobile App (APK) Specific Styles ===== */

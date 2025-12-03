@@ -2,48 +2,17 @@ export type Gender = 'male' | 'female';
 
 export type OrderStatus = 'pending' | 'in-progress' | 'ready' | 'delivered';
 
-// Pant options type
-export type PantOptions = 'withFlit' | 'withoutFlit' | 'packet' | 'backPacket';
-
-// Special notes with audio support
-export interface SpecialNote {
-  text?: string;
-  audioUrl?: string;
-  createdAt?: number;
-}
-
 export interface Measurements {
   // Shirt measurements (inches)
   shirt?: {
+    chest?: number;
+    waist?: number;
     length?: number;
     shoulder?: number;
-    sleeveType?: 'half' | 'full';
-    sleeveLength?: number;
-    sleeveLoose?: number;
-    body?: number;
-    waist?: number; // Voiure
-    neck?: number;
-    bodyLooseFront?: number;
-    bodyLooseBack?: number;
-    pocket?: number;
-    bottomCut?: number;
-    // Legacy fields for backward compatibility
-    chest?: number;
   };
   // Pant measurements (inches)
   pant?: {
-    kneeLength?: number;
-    length?: number;
     waist?: number;
-    seat?: number;
-    fly?: number; // Zip
-    fork?: number;
-    thighLoose?: number;
-    kneeLoose?: number;
-    bottom?: number;
-    options?: PantOptions[]; // Multi-select: withFlit, withoutFlit, packet, backPacket
-    specialNote?: SpecialNote; // Text + Audio note for packet/options
-    // Legacy fields for backward compatibility
     inseam?: number;
     outseam?: number;
     rise?: number;
@@ -59,6 +28,21 @@ export interface Measurements {
     length?: number;
     shoulder?: number;
   };
+  // Chudithar Top measurements (inches)
+  chuditharTop?: {
+    shoulder?: number;
+    bust?: number;
+    waist?: number;
+    hip?: number;
+    length?: number;
+  };
+  // Chudithar Pant measurements (inches)
+  chuditharPant?: {
+    waist?: number;
+    hip?: number;
+    inseam?: number;
+    fullLength?: number;
+  };
   // Blouse measurements (inches)
   blouse?: {
     shoulder?: number;
@@ -68,39 +52,6 @@ export interface Measurements {
     armhole?: number;
     halfSleeve?: number;
     fullSleeve?: number;
-    length?: number;
-    waist?: number;
-  };
-  // Churidar measurements (inches)
-  churidar?: {
-    shoulder?: number;
-    bust?: number;
-    waist?: number;
-    hip?: number;
-    length?: number;
-    sleeveLength?: number;
-  };
-  // Half Trousers measurements (Kids)
-  halfTrousers?: {
-    waist?: number;
-    length?: number;
-    thighLoose?: number;
-    bottom?: number;
-  };
-  // Chudithar Top measurements (inches) - Legacy
-  chuditharTop?: {
-    shoulder?: number;
-    bust?: number;
-    waist?: number;
-    hip?: number;
-    length?: number;
-  };
-  // Chudithar Pant measurements (inches) - Legacy
-  chuditharPant?: {
-    waist?: number;
-    hip?: number;
-    inseam?: number;
-    fullLength?: number;
   };
   // Trouser measurements (inches)
   trouser?: {

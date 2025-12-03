@@ -36,7 +36,7 @@ import { format } from 'date-fns';
 import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank, Microphone, Stop, Play, Trash, ArrowLeft } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { uploadPhoto } from '@/lib/storage';
-import { useNativeCamera, dataUrlToFile, isNativePlatform } from '@/hooks/use-mobile-app';
+import { dataUrlToFile } from '@/lib/storage';
 import { generateProformaInvoiceId } from '@/lib/firestore/advancePaymentService';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -301,8 +301,9 @@ export function ServiceOrderForm({
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Native camera hook for mobile
-  const { takePhoto: takeNativePhoto, isNative } = useNativeCamera();
+  // Native camera - not currently implemented
+  const takeNativePhoto = null;
+  const isNative = false;
   
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -1197,23 +1198,23 @@ export function ServiceOrderForm({
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[100vh] sm:h-[95vh] flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg"
+        className="max-w-2xl !h-[100dvh] sm:!h-[95vh] !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 sm:!top-[50%] sm:!left-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!bottom-auto sm:!right-auto flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg keyboard-aware-container"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-          <DialogTitle className="flex items-center gap-2 text-white text-base">
+          <DialogTitle className="flex items-center gap-2.5 text-white text-base">
             {/* Back/Close Button */}
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors mr-1"
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
             >
               <ArrowLeft size={18} weight="bold" />
             </button>
-            <span>{order ? 'Edit Service Order' : currentStep === 1 ? 'New Service Order' : 'Advance Payment'}</span>
-            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded">
+            <span className="leading-tight">{order ? 'Edit Service Order' : currentStep === 1 ? 'New Service Order' : 'Advance Payment'}</span>
+            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded leading-tight">
               {order?.id || nextServiceOrderId || 'Loading...'}
             </span>
           </DialogTitle>
@@ -1293,7 +1294,7 @@ export function ServiceOrderForm({
         {/* Step 1: Order Form */}
         {currentStep === 1 && (
         <form onSubmit={handleStep1Submit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background">
 
             {/* Customer Selection with Search */}
             <div className="space-y-3">
@@ -1538,12 +1539,15 @@ export function ServiceOrderForm({
 
             {/* Measurements Section - Mandatory, based on category */}
             {orderCategory && (
-              <div className="space-y-4 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 rounded-xl p-5 border border-purple-200 dark:border-purple-800">
+              <div 
+                className="space-y-4 rounded-xl p-5 border border-purple-200"
+                style={{ background: 'linear-gradient(to bottom right, rgb(250, 245, 255), rgb(238, 242, 255))' }}
+              >
                 {/* Header with UOM Toggle */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-sm font-semibold text-purple-700 dark:text-purple-300">Select Garment Type *</Label>
-                    <p className="text-xs text-muted-foreground mt-0.5">Measurements are mandatory for order</p>
+                    <Label className="text-sm font-semibold text-purple-700">Select Garment Type *</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">Measurements are mandatory for order</p>
                   </div>
                   <div className="flex rounded-md border-2 border-purple-500 overflow-hidden">
                     <button
@@ -1603,8 +1607,8 @@ export function ServiceOrderForm({
                           isActive
                             ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
                             : isSelected
-                            ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/50 dark:text-purple-200 dark:border-purple-700'
-                            : 'bg-white dark:bg-gray-800 text-muted-foreground border-transparent hover:border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                            ? 'bg-purple-100 text-purple-700 border-purple-300'
+                            : 'bg-white text-gray-500 border-transparent hover:border-purple-200 hover:bg-purple-50'
                         )}
                       >
                         {isSelected && (
@@ -1626,7 +1630,7 @@ export function ServiceOrderForm({
 
                 {/* Measurement Fields - Show for active garment type */}
                 {activeDressType && MEASUREMENT_CATEGORIES[activeDressType] && (
-                  <div className="space-y-4 pt-3 border-t border-purple-200 dark:border-purple-700">
+                  <div className="space-y-4 pt-3 border-t border-purple-200">
                     {/* Garment Title */}
                     <div className="flex items-center gap-2">
                       {(() => {
@@ -1635,7 +1639,7 @@ export function ServiceOrderForm({
                         return (
                           <>
                             <Icon size={20} weight="duotone" className="text-purple-600" />
-                            <h4 className="font-semibold text-sm text-purple-700 dark:text-purple-300">
+                            <h4 className="font-semibold text-sm text-purple-700">
                               {config.label} Measurements
                             </h4>
                           </>
@@ -1668,7 +1672,7 @@ export function ServiceOrderForm({
                                   });
                                 }}
                               >
-                                <SelectTrigger className="h-11 bg-white dark:bg-gray-800">
+                                <SelectTrigger className="h-11 bg-white">
                                   <SelectValue placeholder="Select..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1713,7 +1717,7 @@ export function ServiceOrderForm({
                                         'px-3 py-2 rounded-lg text-sm font-medium transition-all border',
                                         isSelected
                                           ? 'bg-purple-600 text-white border-purple-600'
-                                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                                          : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400'
                                       )}
                                     >
                                       {PANT_OPTIONS_LABELS[option] || option}
@@ -1744,7 +1748,7 @@ export function ServiceOrderForm({
                                   });
                                 }}
                                 placeholder="Enter..."
-                                className="h-11 text-base bg-white dark:bg-gray-800"
+                                className="h-11 text-base bg-white"
                               />
                             </div>
                           );
@@ -1772,7 +1776,7 @@ export function ServiceOrderForm({
                                   });
                                 }}
                                 placeholder="0"
-                                className="h-11 text-base pr-10 bg-white dark:bg-gray-800 border-purple-200 dark:border-purple-700 focus:border-purple-500 focus:ring-purple-500"
+                                className="h-11 text-base pr-10 bg-white border-purple-200 focus:border-purple-500 focus:ring-purple-500"
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                                 {displayUom === 'Inches' ? 'in' : 'cm'}
@@ -1785,10 +1789,10 @@ export function ServiceOrderForm({
 
                     {/* Special Note Section - Appears when packet/backPacket is selected */}
                     {activeDressType === 'pant' && needsSpecialNote && (
-                      <div className="space-y-3 pt-3 border-t border-purple-200 dark:border-purple-700">
+                      <div className="space-y-3 pt-3 border-t border-purple-200">
                         <div className="flex items-center gap-2">
                           <Microphone size={18} className="text-purple-600" />
-                          <label className="text-sm font-semibold text-purple-700 dark:text-purple-300">
+                          <label className="text-sm font-semibold text-purple-700">
                             Special Instructions (Packet Details)
                           </label>
                         </div>
@@ -1799,11 +1803,11 @@ export function ServiceOrderForm({
                           onChange={(e) => setSpecialNoteText(e.target.value)}
                           placeholder="Enter special instructions for pocket/packet..."
                           rows={2}
-                          className="bg-white dark:bg-gray-800"
+                          className="bg-white"
                         />
 
                         {/* Audio Recorder */}
-                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border">
+                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
                           {!audioUrl ? (
                             <>
                               <Button
@@ -1866,11 +1870,11 @@ export function ServiceOrderForm({
 
                 {/* Selected Garments Summary */}
                 {selectedGarmentTypes.length > 0 && (
-                  <div className="space-y-2 pt-3 border-t border-purple-200 dark:border-purple-700">
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Selected Garments ({selectedGarmentTypes.length})
+                  <div className="space-y-1.5 pt-2 border-t border-purple-200">
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                      Selected ({selectedGarmentTypes.length})
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {selectedGarmentTypes.map((garmentKey) => {
                         const config = MEASUREMENT_CATEGORIES[garmentKey as MeasurementCategoryKey];
                         if (!config) return null;
@@ -1884,15 +1888,15 @@ export function ServiceOrderForm({
                             key={garmentKey}
                             onClick={() => setActiveDressType(garmentKey as MeasurementCategoryKey)}
                             className={cn(
-                              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all',
+                              'flex items-center gap-0.5 px-2 py-px rounded-full text-[10px] font-medium cursor-pointer transition-all',
                               activeDressType === garmentKey
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800/50'
+                                ? 'bg-purple-600 text-white shadow-sm'
+                                : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                             )}
                           >
                             <span>{config.label}</span>
                             {filledFieldsCount > 0 && (
-                              <span className="w-5 h-5 flex items-center justify-center bg-green-500 text-white rounded-full text-[10px]">
+                              <span className="w-3.5 h-3.5 flex items-center justify-center bg-green-500 text-white rounded-full text-[8px] font-bold">
                                 {filledFieldsCount}
                               </span>
                             )}
@@ -1908,9 +1912,9 @@ export function ServiceOrderForm({
                                   setActiveDressType(null);
                                 }
                               }}
-                              className="ml-1 hover:text-red-300"
+                              className="ml-0.5 hover:text-red-300"
                             >
-                              <X size={12} />
+                              <X size={10} />
                             </button>
                           </div>
                         );

@@ -40,44 +40,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Sync users from localStorage on mount and when storage changes
-  // This fixes the synchronization issue between SeedData and AuthProvider
-  useEffect(() => {
-    const syncUsersFromStorage = () => {
-      try {
-        const storedUsers = localStorage.getItem('auth_users');
-        if (storedUsers) {
-          const parsedUsers = JSON.parse(storedUsers);
-          if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
-            // Only update if localStorage has users and current state doesn't
-            if ((users || []).length === 0 || parsedUsers.length > (users || []).length) {
-              console.log('[Auth] Syncing users from localStorage:', parsedUsers.length, 'users');
-              setUsers(parsedUsers);
-            }
-          }
-        }
-      } catch (e) {
-        console.error('[Auth] Error syncing users from localStorage:', e);
-      }
-    };
-
-    // Initial sync after a short delay to ensure SeedData has run
-    const initialSyncTimer = setTimeout(syncUsersFromStorage, 500);
-
-    // Listen for storage changes (from other tabs or components)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'auth_users') {
-        syncUsersFromStorage();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      clearTimeout(initialSyncTimer);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
     console.log('Username:', username);
@@ -140,27 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // If not an employee, check localStorage users (owner, tailor, customer)
-    // IMPORTANT: Read directly from localStorage to ensure we have the latest data
-    // This fixes the state synchronization issue between SeedData and AuthProvider
-    let currentUsers = users || [];
-    try {
-      const storedUsers = localStorage.getItem('auth_users');
-      if (storedUsers) {
-        const parsedUsers = JSON.parse(storedUsers);
-        if (Array.isArray(parsedUsers)) {
-          currentUsers = parsedUsers;
-          // Sync the state if localStorage has more users
-          if (parsedUsers.length > (users || []).length) {
-            setUsers(parsedUsers);
-          }
-        }
-      }
-    } catch (e) {
-      console.error('[Auth] Error reading users from localStorage:', e);
-    }
-
-    console.log('Total users in storage:', currentUsers.length);
-    console.log('All users:', currentUsers.map(u => ({
+    console.log('Total users in storage:', (users || []).length);
+    console.log('All users:', (users || []).map(u => ({
       id: u.id,
       username: u.username,
       password: u.password,
@@ -168,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: u.name
     })));
 
-    const user = currentUsers.find(u => {
+    const user = (users || []).find(u => {
       console.log(`Checking user ${u.username}: username match=${u.username === username}, password match=${u.password === password}`);
       return u.username === username && u.password === password;
     });

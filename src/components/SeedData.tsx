@@ -62,21 +62,6 @@ export function SeedData() {
     setUsers(mergedUsers);
     hasSeeded.current = true;
 
-    // Also write directly to localStorage to ensure immediate availability
-    // This helps with the state synchronization issue between components
-    try {
-      localStorage.setItem('auth_users', JSON.stringify(mergedUsers));
-      console.log('[SeedData] ✅ Users saved directly to localStorage');
-      
-      // Dispatch a custom storage event to notify other components
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'auth_users',
-        newValue: JSON.stringify(mergedUsers),
-      }));
-    } catch (e) {
-      console.error('[SeedData] Error saving to localStorage:', e);
-    }
-
     console.log('[SeedData] ✅ Seed complete! Available logins:');
     console.log('  1. Sandra - Phone: 7373333273, Password: sandra123');
     console.log('  2. Thisai - Phone: 9486229273, Password: password');

@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+// Removed Tabs components - using custom tab buttons for better keyboard handling
 import { Customer, Gender, Measurements } from '@/lib/types';
 import { toast } from 'sonner';
 import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle, ArrowLeft } from '@phosphor-icons/react';
@@ -393,65 +393,86 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-2xl h-[100vh] sm:h-[95vh] flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg"
+        className="max-w-2xl w-full !h-[100dvh] sm:!h-[95vh] !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 sm:!top-[50%] sm:!left-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!bottom-auto sm:!right-auto flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg keyboard-aware-container"
+        style={{ maxHeight: 'calc(100dvh - var(--keyboard-height, 0px))' }}
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
+        {/* Header - Fixed at top */}
         <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-          <DialogTitle className="flex items-center gap-2 text-white text-base">
+          <DialogTitle className="flex items-center gap-2.5 text-white text-base">
             {/* Back/Close Button */}
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors mr-1"
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
             >
               <ArrowLeft size={18} weight="bold" />
             </button>
-            <span>{customer ? t('editCustomer') : t('createCustomer')}</span>
-            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded">
+            <span className="leading-tight">{customer ? t('editCustomer') : t('createCustomer')}</span>
+            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded leading-tight">
               {customer?.id || nextCustomerId || 'Loading...'}
             </span>
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-            <div className="px-3 py-2 border-b bg-muted/30 flex-shrink-0">
-              <TabsList className="grid grid-cols-3 w-full h-9 p-0.5 bg-muted rounded-lg">
-                <TabsTrigger
-                  value="basic"
-                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
-                >
-                  <User size={16} weight="bold" />
-                  <span>Basic</span>
-                  {isBasicComplete && <Check size={14} className="text-green-600" weight="bold" />}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="measurements"
-                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
-                >
-                  <Ruler size={16} weight="bold" />
-                  <span>Measure</span>
-                  {hasMeasurements && (
-                    <span className="text-[9px] bg-primary text-primary-foreground px-1 py-0.5 rounded-full font-bold min-w-[16px]">
-                      {getTotalMeasurements()}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="address"
-                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
-                >
-                  <MapPin size={16} weight="bold" />
-                  <span>Address</span>
-                  {hasAddress && <Check size={14} className="text-green-600" weight="bold" />}
-                </TabsTrigger>
-              </TabsList>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* Tab Navigation - Compact when keyboard open */}
+          <div className="px-3 py-2 border-b bg-muted/30 flex-shrink-0">
+            <div className="grid grid-cols-3 w-full h-auto p-1 gap-1 bg-muted rounded-xl" style={{ backgroundColor: 'rgb(243, 240, 255)' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('basic')}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-lg transition-all duration-200",
+                  activeTab === 'basic'
+                    ? "bg-white shadow-md text-purple-700"
+                    : "text-gray-600 hover:bg-white/50"
+                )}
+              >
+                <User size={16} weight="bold" />
+                <span className="hidden xs:inline">Basic</span>
+                {isBasicComplete && <Check size={14} className="text-green-600" weight="bold" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('measurements')}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-lg transition-all duration-200",
+                  activeTab === 'measurements'
+                    ? "bg-white shadow-md text-purple-700"
+                    : "text-gray-600 hover:bg-white/50"
+                )}
+              >
+                <Ruler size={16} weight="bold" />
+                <span className="hidden xs:inline">Measure</span>
+                {hasMeasurements && (
+                  <span className="text-[9px] bg-purple-600 text-white px-1.5 py-0.5 rounded-full font-bold min-w-[18px]">
+                    {getTotalMeasurements()}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('address')}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-lg transition-all duration-200",
+                  activeTab === 'address'
+                    ? "bg-white shadow-md text-purple-700"
+                    : "text-gray-600 hover:bg-white/50"
+                )}
+              >
+                <MapPin size={16} weight="bold" />
+                <span className="hidden xs:inline">Address</span>
+                {hasAddress && <Check size={14} className="text-green-600" weight="bold" />}
+              </button>
             </div>
+          </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 min-h-0">
+          {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 pb-4 keyboard-aware-scroll">
               {/* Basic Details Tab */}
-              <TabsContent value="basic" className="mt-0 space-y-6 h-full">
+              {activeTab === 'basic' && (
                 <div className="space-y-6">
                   {/* Customer Name */}
                   <div className="space-y-2">
@@ -570,10 +591,10 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                     </div>
                   </div>
                 </div>
-              </TabsContent>
+              )}
 
               {/* Measurements Tab */}
-              <TabsContent value="measurements" className="mt-0 h-full">
+              {activeTab === 'measurements' && (
                 <div className="space-y-5">
                   {/* Header with Unit selector on right */}
                   <div className="flex items-center justify-between">
@@ -689,10 +710,10 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                     </div>
                   )}
                 </div>
-              </TabsContent>
+              )}
 
               {/* Address Tab */}
-              <TabsContent value="address" className="mt-0 h-full">
+              {activeTab === 'address' && (
                 <div className="space-y-5">
                   {/* Shop/Flat Number */}
                   <div className="space-y-2">
@@ -773,9 +794,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
                 </div>
 
-              </TabsContent>
+              )}
             </div>
-          </Tabs>
 
           {/* Footer with action buttons */}
           <div className="flex justify-between items-center gap-3 px-4 py-2 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>

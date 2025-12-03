@@ -1,8 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Camera, CameraResultType, CameraSource, Photo } from '@capacitor/camera';
-import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
-import { LocalNotifications } from '@capacitor/local-notifications';
+import { useEffect, useCallback, useState } from 'react';
 
 /**
  * Hook to handle Android hardware back button
@@ -274,40 +270,32 @@ export function useHasNotch(): boolean {
 
 /**
  * Prevent default touch behaviors that can interfere with app
- * IMPORTANT: This hook is very careful NOT to break normal touch/click interactions
+ * FIXED: No longer blocks touch/click events
  */
 export function usePreventDefaultTouchBehaviors() {
   useEffect(() => {
-    // Track touch start position for pull-to-refresh prevention
     let touchStartY = 0;
     let isPulling = false;
 
+    // Track touch start - PASSIVE (doesn't block clicks)
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) {
         touchStartY = e.touches[0].clientY;
         const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-        // Only track if we're at the very top
         isPulling = scrollTop <= 0;
       }
     };
 
+    // Only prevent on touchmove for pull-to-refresh
     const handleTouchMove = (e: TouchEvent) => {
       if (!isPulling || e.touches.length !== 1) return;
       
       const touchY = e.touches[0].clientY;
       const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
       
-      // Only prevent if:
-      // 1. We started at the top
-      // 2. We're still at the top
-      // 3. User is pulling DOWN (not scrolling through content)
-      // 4. The target is not inside a scrollable container
       if (scrollTop <= 0 && touchY > touchStartY + 10) {
         const target = e.target as HTMLElement;
-        const scrollableParent = target.closest('[data-allow-pull-refresh], [data-scrollable], .overflow-auto, .overflow-y-auto, .overflow-y-scroll');
-        
-        if (!scrollableParent) {
-          // Prevent the pull-to-refresh browser behavior
+        if (!target.closest('.overflow-auto, .overflow-y-auto, .overflow-y-scroll')) {
           e.preventDefault();
         }
       }
@@ -317,23 +305,15 @@ export function usePreventDefaultTouchBehaviors() {
       isPulling = false;
     };
 
-    // Use CSS to prevent double-tap zoom instead of JavaScript
-    // This doesn't interfere with click events
+    // Add CSS for double-tap zoom prevention (doesn't block clicks)
     const style = document.createElement('style');
-    style.id = 'prevent-double-tap-zoom';
-    style.textContent = `
-      * {
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-      }
-    `;
-    
-    if (!document.getElementById('prevent-double-tap-zoom')) {
+    style.id = 'touch-fix';
+    style.textContent = `* { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }`;
+    if (!document.getElementById('touch-fix')) {
       document.head.appendChild(style);
     }
 
-    // Only add touchmove listener with passive: false (for pull-to-refresh prevention)
-    // touchstart and touchend can be passive (won't block clicks)
+    // PASSIVE listeners for start/end (won't block clicks)
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: true });
@@ -342,367 +322,8 @@ export function usePreventDefaultTouchBehaviors() {
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
-      
-      const existingStyle = document.getElementById('prevent-double-tap-zoom');
-      if (existingStyle) {
-        existingStyle.remove();
-      }
+      document.getElementById('touch-fix')?.remove();
     };
   }, []);
-}
-
-// ============================================
-// NATIVE CAMERA HOOK
-// ============================================
-
-/**
- * Check if running on native platform (Android/iOS)
- */
-export function isNativePlatform(): boolean {
-  return Capacitor.isNativePlatform();
-}
-
-/**
- * Hook to use native camera on mobile devices
- * Falls back to HTML input on web
- */
-export function useNativeCamera() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  /**
-   * Take a photo using the native camera (back camera by default)
-   */
-  const takePhoto = useCallback(async (): Promise<string | null> => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      if (isNativePlatform()) {
-        // Use Capacitor Camera on native platforms
-        const photo: Photo = await Camera.getPhoto({
-          quality: 90,
-          allowEditing: false,
-          resultType: CameraResultType.DataUrl,
-          source: CameraSource.Camera,
-          direction: 'rear', // Use back camera
-          correctOrientation: true,
-          width: 1200,
-          height: 1600,
-        });
-
-        setIsLoading(false);
-        return photo.dataUrl || null;
-      } else {
-        // Fallback for web - this will be handled by the component
-        setIsLoading(false);
-        return null;
-      }
-    } catch (err: any) {
-      console.error('[useNativeCamera] Error:', err);
-      setError(err.message || 'Failed to take photo');
-      setIsLoading(false);
-      return null;
-    }
-  }, []);
-
-  /**
-   * Pick photo from gallery
-   */
-  const pickFromGallery = useCallback(async (): Promise<string | null> => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      if (isNativePlatform()) {
-        const photo: Photo = await Camera.getPhoto({
-          quality: 90,
-          allowEditing: false,
-          resultType: CameraResultType.DataUrl,
-          source: CameraSource.Photos,
-          correctOrientation: true,
-          width: 1200,
-          height: 1600,
-        });
-
-        setIsLoading(false);
-        return photo.dataUrl || null;
-      } else {
-        setIsLoading(false);
-        return null;
-      }
-    } catch (err: any) {
-      console.error('[useNativeCamera] Error:', err);
-      setError(err.message || 'Failed to pick photo');
-      setIsLoading(false);
-      return null;
-    }
-  }, []);
-
-  /**
-   * Check and request camera permission
-   */
-  const checkPermission = useCallback(async (): Promise<boolean> => {
-    if (!isNativePlatform()) return true;
-
-    try {
-      const permission = await Camera.checkPermissions();
-      if (permission.camera === 'granted') return true;
-
-      const requestResult = await Camera.requestPermissions({ permissions: ['camera'] });
-      return requestResult.camera === 'granted';
-    } catch (err) {
-      console.error('[useNativeCamera] Permission error:', err);
-      return false;
-    }
-  }, []);
-
-  return {
-    takePhoto,
-    pickFromGallery,
-    checkPermission,
-    isLoading,
-    error,
-    isNative: isNativePlatform(),
-  };
-}
-
-// ============================================
-// PUSH NOTIFICATIONS HOOK
-// ============================================
-
-export interface NotificationData {
-  title: string;
-  body: string;
-  data?: Record<string, any>;
-}
-
-/**
- * Hook to handle push notifications
- */
-export function usePushNotifications(
-  onNotificationReceived?: (notification: PushNotificationSchema) => void,
-  onNotificationTapped?: (notification: ActionPerformed) => void
-) {
-  const [token, setToken] = useState<string | null>(null);
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const listenersSetup = useRef(false);
-
-  // Initialize push notifications
-  const initialize = useCallback(async () => {
-    if (!isNativePlatform()) {
-      console.log('[PushNotifications] Not on native platform, skipping');
-      return;
-    }
-
-    try {
-      // Request permission
-      const permResult = await PushNotifications.requestPermissions();
-      
-      if (permResult.receive !== 'granted') {
-        setError('Push notification permission denied');
-        return;
-      }
-
-      // Register for push notifications
-      await PushNotifications.register();
-      setIsRegistered(true);
-
-      // Setup listeners only once
-      if (!listenersSetup.current) {
-        listenersSetup.current = true;
-
-        // Token received
-        PushNotifications.addListener('registration', (tokenData: Token) => {
-          console.log('[PushNotifications] Token:', tokenData.value);
-          setToken(tokenData.value);
-        });
-
-        // Registration error
-        PushNotifications.addListener('registrationError', (error: any) => {
-          console.error('[PushNotifications] Registration error:', error);
-          setError(error.message || 'Registration failed');
-        });
-
-        // Notification received while app is open
-        PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
-          console.log('[PushNotifications] Received:', notification);
-          onNotificationReceived?.(notification);
-        });
-
-        // Notification tapped
-        PushNotifications.addListener('pushNotificationActionPerformed', (action: ActionPerformed) => {
-          console.log('[PushNotifications] Action performed:', action);
-          onNotificationTapped?.(action);
-        });
-      }
-    } catch (err: any) {
-      console.error('[PushNotifications] Error:', err);
-      setError(err.message || 'Failed to initialize push notifications');
-    }
-  }, [onNotificationReceived, onNotificationTapped]);
-
-  useEffect(() => {
-    initialize();
-  }, [initialize]);
-
-  return {
-    token,
-    isRegistered,
-    error,
-    initialize,
-  };
-}
-
-// ============================================
-// LOCAL NOTIFICATIONS HOOK
-// ============================================
-
-/**
- * Hook to send local notifications (for order status updates)
- */
-export function useLocalNotifications() {
-  const [permissionGranted, setPermissionGranted] = useState(false);
-
-  // Request permission on mount
-  useEffect(() => {
-    const requestPermission = async () => {
-      if (!isNativePlatform()) {
-        // For web, check Notification API
-        if ('Notification' in window) {
-          const permission = await Notification.requestPermission();
-          setPermissionGranted(permission === 'granted');
-        }
-        return;
-      }
-
-      try {
-        const result = await LocalNotifications.requestPermissions();
-        setPermissionGranted(result.display === 'granted');
-      } catch (err) {
-        console.error('[LocalNotifications] Permission error:', err);
-      }
-    };
-
-    requestPermission();
-  }, []);
-
-  /**
-   * Send a local notification
-   */
-  const sendNotification = useCallback(async (
-    title: string,
-    body: string,
-    data?: Record<string, any>,
-    id?: number
-  ) => {
-    const notificationId = id || Date.now();
-
-    if (!isNativePlatform()) {
-      // Use Web Notification API
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, {
-          body,
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          data,
-        });
-      }
-      return;
-    }
-
-    try {
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            id: notificationId,
-            title,
-            body,
-            extra: data,
-            schedule: { at: new Date(Date.now() + 100) }, // Immediate
-            sound: 'beep.wav',
-            smallIcon: 'ic_stat_icon_config_sample',
-            iconColor: '#7c3aed',
-          },
-        ],
-      });
-      console.log('[LocalNotifications] Sent:', title);
-    } catch (err) {
-      console.error('[LocalNotifications] Error:', err);
-    }
-  }, []);
-
-  /**
-   * Send order status notification
-   */
-  const sendOrderStatusNotification = useCallback(async (
-    orderNumber: string,
-    status: string,
-    customerName?: string
-  ) => {
-    const statusMessages: Record<string, { title: string; body: string }> = {
-      'open': {
-        title: '📋 New Order Created',
-        body: `Order ${orderNumber} has been created${customerName ? ` for ${customerName}` : ''}.`,
-      },
-      'awaiting': {
-        title: '⏳ Order Assigned',
-        body: `Order ${orderNumber} has been assigned and is awaiting acceptance.`,
-      },
-      'inprogress': {
-        title: '🧵 Work In Progress',
-        body: `Order ${orderNumber} is now being worked on.`,
-      },
-      'ready': {
-        title: '✅ Order Ready',
-        body: `Order ${orderNumber} is ready for delivery!`,
-      },
-      'job-completed': {
-        title: '🎉 Job Completed',
-        body: `Order ${orderNumber} has been completed by the tailor.`,
-      },
-      'delivered': {
-        title: '📦 Order Delivered',
-        body: `Order ${orderNumber} has been delivered successfully.`,
-      },
-      'rejected': {
-        title: '❌ Order Rejected',
-        body: `Order ${orderNumber} has been rejected. Please reassign.`,
-      },
-    };
-
-    const message = statusMessages[status] || {
-      title: '📋 Order Update',
-      body: `Order ${orderNumber} status changed to ${status}.`,
-    };
-
-    await sendNotification(message.title, message.body, {
-      orderNumber,
-      status,
-      customerName,
-    });
-  }, [sendNotification]);
-
-  return {
-    permissionGranted,
-    sendNotification,
-    sendOrderStatusNotification,
-  };
-}
-
-/**
- * Convert data URL to File object
- */
-export function dataUrlToFile(dataUrl: string, filename: string): File {
-  const arr = dataUrl.split(',');
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new File([u8arr], filename, { type: mime });
 }
 

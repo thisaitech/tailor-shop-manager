@@ -894,15 +894,15 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       {/* Add/Edit Employee Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent
-          className="max-w-[95vw] sm:max-w-2xl h-[85vh] flex flex-col p-0 overflow-hidden"
+          className="max-w-[100vw] w-full h-[100dvh] sm:max-w-2xl sm:h-[95vh] flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg"
           onInteractOutside={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => e.preventDefault()}
         >
-          <DialogHeader className="px-6 pt-6 pb-4 border-b" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-            <DialogTitle className="flex items-center gap-3 text-white">
+          <DialogHeader className="px-4 py-3 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <DialogTitle className="flex items-center gap-3 text-white text-base">
               <span>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</span>
               {editingEmployee && (
-                <span className="text-sm font-normal text-white/80 bg-white/20 px-2 py-1 rounded">
+                <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded">
                   {editingEmployee.employeeCode || editingEmployee.id}
                 </span>
               )}
@@ -910,32 +910,32 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
-            <div className="px-4 pt-3 pb-2 border-b bg-muted/30 flex-shrink-0">
-              <TabsList className="grid grid-cols-2 w-full h-11 p-1 bg-muted rounded-lg">
+            <div className="px-3 py-2 border-b bg-muted/30 flex-shrink-0">
+              <TabsList className="grid grid-cols-2 w-full h-9 p-0.5 bg-muted rounded-lg">
                 <TabsTrigger
                   value="basic"
-                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <User size={20} weight="bold" />
+                  <User size={16} weight="bold" />
                   <span>Basic</span>
                   {formData.name && formData.gender && formData.contactNumber.length === 10 && formData.role && (
-                    <Check size={16} className="text-green-600" weight="bold" />
+                    <Check size={14} className="text-green-600" weight="bold" />
                   )}
                 </TabsTrigger>
                 <TabsTrigger
                   value="address"
-                  className="flex items-center justify-center gap-1.5 h-9 text-sm font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
+                  className="flex items-center justify-center gap-1 h-8 text-xs font-semibold data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md"
                 >
-                  <MapPin size={20} weight="bold" />
+                  <MapPin size={16} weight="bold" />
                   <span>Address</span>
                   {formData.address1 && formData.address2 && formData.state && formData.city && (
-                    <Check size={16} className="text-green-600" weight="bold" />
+                    <Check size={14} className="text-green-600" weight="bold" />
                   )}
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 min-h-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 min-h-0">
               {/* Basic Details Tab */}
               <TabsContent value="basic" className="mt-0 space-y-6 h-full">
                 <div className="space-y-6">

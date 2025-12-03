@@ -25,6 +25,7 @@ import { NetworkStatus } from '@/components/NetworkStatus';
 import { Toaster } from '@/components/ui/sonner';
 import { AppLoader } from '@/components/Loader';
 import { useHardwareBackButton, usePreventDefaultTouchBehaviors } from '@/hooks/use-mobile-app';
+import { DevKeyboard } from '@/components/DevKeyboard';
 
 type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
 type EmployeeView = 'dashboard' | 'profile' | 'notifications';
@@ -242,6 +243,9 @@ function App() {
         <SeedData />
         <AppContent />
         <Toaster />
+        {/* 🔧 DEV ONLY: Fake mobile keyboard for testing keyboard responsiveness */}
+        {/* To disable: Set DEV_KEYBOARD_ENABLED = false in DevKeyboard.tsx */}
+        <DevKeyboard />
       </AuthProvider>
     </LanguageProvider>
   );

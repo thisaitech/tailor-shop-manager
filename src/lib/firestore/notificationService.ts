@@ -12,72 +12,9 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Notification as AppNotification, NotificationType } from '@/lib/types';
-import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
+import { Notification, NotificationType } from '@/lib/types';
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
-
-/**
- * Send a local device notification (popup notification on the device)
- */
-async function sendLocalDeviceNotification(
-  title: string,
-  body: string,
-  data?: Record<string, any>
-): Promise<void> {
-  const notificationId = Date.now();
-
-  if (Capacitor.isNativePlatform()) {
-    // Native platform - use Capacitor Local Notifications
-    try {
-      const permResult = await LocalNotifications.checkPermissions();
-      if (permResult.display !== 'granted') {
-        await LocalNotifications.requestPermissions();
-      }
-
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            id: notificationId,
-            title,
-            body,
-            extra: data,
-            schedule: { at: new Date(Date.now() + 100) },
-            sound: 'default',
-            smallIcon: 'ic_stat_icon_config_sample',
-            iconColor: '#7c3aed',
-          },
-        ],
-      });
-      console.log('[LocalNotification] Sent:', title);
-    } catch (error) {
-      console.error('[LocalNotification] Error:', error);
-    }
-  } else {
-    // Web platform - use Web Notification API
-    if ('Notification' in window) {
-      try {
-        if (Notification.permission === 'default') {
-          await Notification.requestPermission();
-        }
-        
-        if (Notification.permission === 'granted') {
-          new Notification(title, {
-            body,
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            data,
-            tag: `notification-${notificationId}`,
-          });
-          console.log('[WebNotification] Sent:', title);
-        }
-      } catch (error) {
-        console.error('[WebNotification] Error:', error);
-      }
-    }
-  }
-}
 
 /**
  * Generate notification ID
@@ -88,17 +25,15 @@ function generateNotificationId(): string {
 
 /**
  * Create a new notification
- * Also sends a local device notification for immediate user feedback
  */
 export async function createNotification(
-  notification: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>,
-  sendDeviceNotification: boolean = true
-): Promise<AppNotification> {
+  notification: Omit<Notification, 'id' | 'createdAt' | 'isRead'>
+): Promise<Notification> {
   try {
     const notificationId = generateNotificationId();
     const now = Date.now();
 
-    const newNotification: AppNotification = {
+    const newNotification: Notification = {
       id: notificationId,
       ...notification,
       isRead: false,
@@ -109,21 +44,6 @@ export async function createNotification(
     await setDoc(notificationRef, newNotification);
 
     console.log(`[Notification] Created notification ${notificationId} for ${notification.recipientId}`);
-
-    // Also send a local device notification for immediate feedback
-    if (sendDeviceNotification) {
-      await sendLocalDeviceNotification(
-        notification.title,
-        notification.message,
-        {
-          notificationId,
-          type: notification.type,
-          orderId: notification.orderId,
-          orderNumber: notification.orderNumber,
-        }
-      );
-    }
-
     return newNotification;
   } catch (error) {
     console.error('[Notification] Error creating notification:', error);
@@ -141,7 +61,7 @@ export async function createOrderAssignmentNotification(
   recipientType: 'employee' | 'vendor',
   senderName: string,
   companyId?: string
-): Promise<AppNotification> {
+): Promise<Notification> {
   return createNotification({
     type: 'order_assigned',
     title: 'New Order Assigned',
@@ -164,7 +84,7 @@ export async function createOrderAcceptedNotification(
   adminId: string,
   acceptedByName: string,
   companyId?: string
-): Promise<AppNotification> {
+): Promise<Notification> {
   return createNotification({
     type: 'order_accepted',
     title: 'Order Accepted',
@@ -188,7 +108,7 @@ export async function createOrderRejectedNotification(
   rejectedByName: string,
   reason: string,
   companyId?: string
-): Promise<AppNotification> {
+): Promise<Notification> {
   return createNotification({
     type: 'order_rejected',
     title: 'Order Rejected',
@@ -212,7 +132,7 @@ export async function createOrderCompletedNotification(
   adminId: string,
   completedByName: string,
   companyId?: string
-): Promise<AppNotification> {
+): Promise<Notification> {
   return createNotification({
     type: 'order_completed',
     title: 'Order Completed',
@@ -236,7 +156,7 @@ export async function createOrderReassignedNotification(
   recipientType: 'employee' | 'vendor',
   senderName: string,
   companyId?: string
-): Promise<AppNotification> {
+): Promise<Notification> {
   return createNotification({
     type: 'order_reassigned',
     title: 'Order Reassigned',
@@ -257,7 +177,7 @@ export async function createOrderReassignedNotification(
 export async function getNotificationsByUser(
   userId: string,
   limitCount: number = 50
-): Promise<AppNotification[]> {
+): Promise<Notification[]> {
   try {
     const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
     // Query only by recipientId, then sort in memory
@@ -268,7 +188,7 @@ export async function getNotificationsByUser(
     const snapshot = await getDocs(q);
 
     return snapshot.docs
-      .map((doc) => doc.data() as AppNotification)
+      .map((doc) => doc.data() as Notification)
       .sort((a, b) => b.createdAt - a.createdAt) // Sort descending by createdAt
       .slice(0, limitCount); // Apply limit
   } catch (error) {
@@ -303,7 +223,7 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
  */
 export function subscribeToNotifications(
   userId: string,
-  callback: (notifications: AppNotification[]) => void
+  callback: (notifications: Notification[]) => void
 ): Unsubscribe {
   const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
   // Query only by recipientId, then sort in memory to avoid composite index requirement
@@ -314,7 +234,7 @@ export function subscribeToNotifications(
 
   return onSnapshot(q, (snapshot) => {
     const notifications = snapshot.docs
-      .map((doc) => doc.data() as AppNotification)
+      .map((doc) => doc.data() as Notification)
       .sort((a, b) => b.createdAt - a.createdAt) // Sort descending by createdAt
       .slice(0, 50); // Limit to 50
     callback(notifications);
@@ -396,7 +316,7 @@ export async function markAllNotificationsAsRead(userId: string): Promise<void> 
 /**
  * Get a single notification
  */
-export async function getNotification(notificationId: string): Promise<AppNotification | null> {
+export async function getNotification(notificationId: string): Promise<Notification | null> {
   try {
     const notificationRef = doc(db, NOTIFICATIONS_COLLECTION, notificationId);
     const docSnap = await getDoc(notificationRef);
@@ -409,84 +329,5 @@ export async function getNotification(notificationId: string): Promise<AppNotifi
     console.error('[Notification] Error fetching notification:', error);
     return null;
   }
-}
-
-/**
- * Send order status change notification (local device notification only)
- * Use this for quick status updates without storing in Firestore
- */
-export async function sendOrderStatusNotification(
-  orderNumber: string,
-  status: string,
-  customerName?: string
-): Promise<void> {
-  const statusMessages: Record<string, { title: string; body: string }> = {
-    'open': {
-      title: '📋 New Order Created',
-      body: `Order ${orderNumber} has been created${customerName ? ` for ${customerName}` : ''}.`,
-    },
-    'awaiting': {
-      title: '⏳ Order Assigned',
-      body: `Order ${orderNumber} has been assigned and is awaiting acceptance.`,
-    },
-    'waitingForDC': {
-      title: '📝 Waiting for Delivery Challan',
-      body: `Order ${orderNumber} is waiting for delivery challan creation.`,
-    },
-    'inprogress': {
-      title: '🧵 Work In Progress',
-      body: `Order ${orderNumber} is now being worked on.`,
-    },
-    'ready': {
-      title: '✅ Order Ready',
-      body: `Order ${orderNumber} is ready for delivery!`,
-    },
-    'job-completed': {
-      title: '🎉 Job Completed',
-      body: `Order ${orderNumber} has been completed by the tailor.`,
-    },
-    'received-note': {
-      title: '📦 Goods Received',
-      body: `Goods for order ${orderNumber} have been received at the shop.`,
-    },
-    'delivered': {
-      title: '🚀 Order Delivered',
-      body: `Order ${orderNumber} has been delivered successfully.`,
-    },
-    'rejected': {
-      title: '❌ Order Rejected',
-      body: `Order ${orderNumber} has been rejected. Please reassign.`,
-    },
-  };
-
-  const message = statusMessages[status] || {
-    title: '📋 Order Update',
-    body: `Order ${orderNumber} status changed to ${status}.`,
-  };
-
-  await sendLocalDeviceNotification(message.title, message.body, {
-    orderNumber,
-    status,
-    customerName,
-  });
-}
-
-/**
- * Request notification permission (call this early in app lifecycle)
- */
-export async function requestNotificationPermission(): Promise<boolean> {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const result = await LocalNotifications.requestPermissions();
-      return result.display === 'granted';
-    } catch (error) {
-      console.error('[Notification] Permission error:', error);
-      return false;
-    }
-  } else if ('Notification' in window) {
-    const permission = await Notification.requestPermission();
-    return permission === 'granted';
-  }
-  return false;
 }
 

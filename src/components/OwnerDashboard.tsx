@@ -533,38 +533,38 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
     <main className="container mx-auto px-4 py-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsListAnimated
-          className="grid w-full grid-cols-4 h-auto p-2 gap-2 rounded-xl"
+          className="grid w-full grid-cols-4 h-auto p-2 gap-2 rounded-xl overflow-hidden"
           style={{ backgroundColor: '#E9E0FB' }}
           activeValue={activeTab}
           tabValues={['dashboard', 'employees', 'customers', 'track']}
         >
           <TabsTrigger
             value="dashboard"
-            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            className="py-3 px-2 text-xs sm:text-sm font-medium leading-tight rounded-lg text-center data-[state=active]:bg-white data-[state=active]:shadow-md"
             style={{ backgroundColor: activeTab === 'dashboard' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('dashboard')}
           </TabsTrigger>
           <TabsTrigger
             value="employees"
-            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            className="py-3 px-2 text-xs sm:text-sm font-medium leading-tight rounded-lg text-center data-[state=active]:bg-white data-[state=active]:shadow-md"
             style={{ backgroundColor: activeTab === 'employees' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('employees')}
           </TabsTrigger>
           <TabsTrigger
             value="customers"
-            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            className="py-3 px-2 text-xs sm:text-sm font-medium leading-tight rounded-lg text-center data-[state=active]:bg-white data-[state=active]:shadow-md"
             style={{ backgroundColor: activeTab === 'customers' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
             {t('customers')}
           </TabsTrigger>
           <TabsTrigger
             value="track"
-            className="py-3 px-2 text-xs sm:text-sm font-medium whitespace-nowrap leading-tight rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md"
+            className="py-3 px-1 text-xs sm:text-sm font-medium leading-tight rounded-lg text-center data-[state=active]:bg-white data-[state=active]:shadow-md"
             style={{ backgroundColor: activeTab === 'track' ? 'white' : '#DDD1F9', color: '#6A64F2' }}
           >
-            Jobwork Tailors
+            Jobwork
           </TabsTrigger>
         </TabsListAnimated>
 
