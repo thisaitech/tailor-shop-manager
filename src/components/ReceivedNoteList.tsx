@@ -30,9 +30,10 @@ import { getCustomerById } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
-import { 
-  WhatsAppConfirmationDialog, 
-  generateOrderReadyMessage 
+import {
+  WhatsAppConfirmationDialog,
+  generateOrderReadyMessageWithDetails,
+  MeasurementData
 } from '@/components/WhatsAppConfirmationDialog';
 
 // Lazy load the dialog
@@ -144,12 +145,55 @@ export function ReceivedNoteList({ serviceOrders, orderAllotments, onBack, onDat
     try {
       // Get customer details for WhatsApp dialog
       const customer = await getCustomerById(order.customerId);
-      
+
       if (customer && (customer.whatsappNumber || customer.phone)) {
-        // Show WhatsApp dialog
+        // Show WhatsApp dialog with full order details
         const customerPhone = customer.whatsappNumber || customer.phone;
-        const message = generateOrderReadyMessage(customer.name, order.id, companyName);
-        
+
+        // Build measurements data for the message
+        const measurementsData: MeasurementData[] = [];
+        if (order.measurements) {
+          // Add measurements for each garment type that has data
+          const garmentTypes = ['shirt', 'pant', 'coat', 'sherwani', 'kurta', 'blouse', 'churidar', 'lehenga', 'kurti', 'trouser', 'gown', 'frock'];
+          garmentTypes.forEach(type => {
+            const measurements = order.measurements?.[type as keyof typeof order.measurements];
+            if (measurements && typeof measurements === 'object' && Object.keys(measurements).length > 0) {
+              measurementsData.push({
+                garmentType: type.charAt(0).toUpperCase() + type.slice(1),
+                measurements: measurements as Record<string, number | string | undefined>
+              });
+            }
+          });
+        }
+
+        // Build garment types from dress items
+        const garmentTypes = order.dressItems
+          ?.map(item => item.dressType)
+          .filter((type, index, arr) => arr.indexOf(type) === index)
+          .map(type => type.charAt(0).toUpperCase() + type.slice(1)) || [];
+
+        // Build dress items for the message
+        const dressItems = order.dressItems?.map(item => ({
+          dressName: item.dressName || item.dressType,
+          quantity: item.quantity
+        })) || [];
+
+        // Generate detailed message with order info
+        const message = generateOrderReadyMessageWithDetails({
+          customerName: customer.name,
+          orderNumber: order.id,
+          orderDate: format(new Date(order.serviceOrderDate), 'dd MMM yyyy'),
+          deliveryDate: format(new Date(order.expectedDeliveryDate), 'dd MMM yyyy'),
+          totalAmount: order.stitchingCost,
+          advanceAmount: order.advanceAmount,
+          balanceAmount: order.balanceAmount,
+          dressItems,
+          garmentTypes,
+          measurements: measurementsData,
+          companyName,
+          orderCategory: order.orderCategory
+        });
+
         setWhatsAppDialog({
           open: true,
           order,

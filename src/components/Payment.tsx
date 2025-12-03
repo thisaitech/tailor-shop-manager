@@ -611,215 +611,323 @@ export function Payment({ onBack, initialOrderId }: PaymentProps) {
     </div>
   );
 
+  // Calculate stats
+  const totalCollected = payments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const totalPending = payments.reduce((sum, p) => sum + p.balanceAmount, 0);
+  const todayPayments = payments.filter(p => {
+    const today = startOfDay(new Date());
+    const paymentDate = startOfDay(new Date(p.deliveredDate));
+    return paymentDate.getTime() === today.getTime();
+  });
+  const todayTotal = todayPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #faf8ff 0%, #f3e8ff 100%)' }}>
         <div className="text-center">
-          <Spinner size={48} className="animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading payments...</p>
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}>
+            <Spinner size={32} className="animate-spin text-white" />
+          </div>
+          <p className="text-muted-foreground font-medium">Loading payments...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Payment</h1>
-            <p className="text-sm text-muted-foreground">{payments.length} total payments</p>
-          </div>
-        </div>
-        <Button onClick={handleOpenDialog} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
-          <Plus size={18} className="mr-1" />
-          New Payment
-        </Button>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="mb-6 space-y-4">
-        {/* Search Bar */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <MagnifyingGlass size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by payment no, customer, or service order..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setShowFilters(!showFilters)}
-            className={showFilters ? 'bg-[#EADDFD] border-[#6A64F2]' : ''}
-          >
-            <Funnel size={18} />
-          </Button>
-        </div>
-
-        {/* Filter Options - Desktop */}
-        {showFilters && (
-          <div className="hidden sm:block p-4 rounded-lg border" style={{ background: '#FAF8FF' }}>
-            <FilterButtons />
-            {dateFilter === 'exact' && (
-              <div className="mt-3">
-                <Label htmlFor="exactDate" className="text-sm">Select Date</Label>
-                <Input
-                  id="exactDate"
-                  type="date"
-                  value={exactDate}
-                  onChange={(e) => setExactDate(e.target.value)}
-                  className="mt-1 max-w-xs"
-                />
-              </div>
-            )}
-            {dateFilter === 'range' && (
-              <div className="mt-3 flex gap-4 flex-wrap">
-                <div>
-                  <Label htmlFor="startDate" className="text-sm">Start Date</Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="endDate" className="text-sm">End Date</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Payments Grid - Rectangle Cards */}
-      {paginatedPayments.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground rounded-lg border" style={{ background: '#FAF8FF' }}>
-          <CurrencyInr size={48} className="mx-auto mb-3 opacity-30" />
-          <p>{hasActiveFilters ? 'No payments match your search' : 'No payments yet'}</p>
-          {!hasActiveFilters && <p className="text-sm mt-1">Click "New Payment" to create one</p>}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginatedPayments.map((payment, index) => (
-            <div
-              key={payment.id}
-              className={`rounded-xl border-2 hover:shadow-lg transition-all p-4 cursor-pointer w-full flex flex-row gap-4 shadow-sm animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
-              style={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
-                borderColor: '#6A64F2',
-                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)',
-              }}
-            >
-              {/* Left: Currency Icon */}
-              <div
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white flex-shrink-0 text-lg font-bold"
-                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+    <div className="min-h-screen pb-20" style={{ background: 'linear-gradient(135deg, #faf8ff 0%, #f3e8ff 100%)' }}>
+      {/* Premium Header */}
+      <div 
+        className="relative overflow-hidden px-4 pt-4 pb-6"
+        style={{ 
+          background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)',
+        }}
+      >
+        {/* Background decoration */}
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
+        <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, white 0%, transparent 70%)', transform: 'translate(-30%, 30%)' }} />
+        
+        {/* Header Content */}
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={onBack}
+                className="text-white hover:bg-white/20 rounded-full"
               >
-                <CurrencyInr size={24} weight="bold" />
-              </div>
-
-              {/* Middle: Details */}
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-semibold text-sm truncate" style={{ color: '#6A64F2' }}>
-                    {payment.paymentNo}
-                  </span>
-                  <Badge
-                    className={`text-[10px] px-1.5 py-0 ${
-                      payment.modeOfPayment === 'cash'
-                        ? 'bg-green-100 text-green-700 border-green-300'
-                        : payment.modeOfPayment === 'qr_pay'
-                        ? 'bg-blue-100 text-blue-700 border-blue-300'
-                        : 'bg-gray-100 text-gray-700 border-gray-300'
-                    }`}
-                    variant="outline"
-                  >
-                    {payment.modeOfPayment === 'cash' ? 'Cash' : payment.modeOfPayment === 'qr_pay' ? 'QR Pay' : 'Nil'}
-                  </Badge>
-                </div>
-                <p className="text-sm font-medium text-gray-900 truncate">{payment.customerName}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  SO: {payment.serviceOrderNo} • {payment.orderCategory}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(payment.deliveredDate), 'dd MMM yyyy')}
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-green-600">₹{payment.amountPaid.toLocaleString()}</span>
-                  {payment.balanceAmount > 0 && (
-                    <span className="text-xs text-red-500">Bal: ₹{payment.balanceAmount.toLocaleString()}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Right: Actions */}
-              <div className="flex flex-col items-end justify-between flex-shrink-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <DotsThree size={20} weight="bold" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleDownloadInvoice(payment)}>
-                      <FilePdf size={16} className="mr-2" />
-                      Download PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePrintInvoice(payment)}>
-                      <Printer size={16} className="mr-2" />
-                      Print Invoice
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ArrowLeft size={22} weight="bold" />
+              </Button>
+              <div>
+                <h1 className="text-xl font-bold text-white">Payments</h1>
+                <p className="text-white/70 text-sm">{payments.length} transactions</p>
               </div>
             </div>
-          ))}
+            <Button 
+              onClick={handleOpenDialog} 
+              className="bg-white text-purple-700 hover:bg-white/90 font-semibold shadow-lg"
+            >
+              <Plus size={18} weight="bold" className="mr-1" />
+              New
+            </Button>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+              <p className="text-white/70 text-[10px] font-medium uppercase tracking-wide">Today</p>
+              <p className="text-white text-lg font-bold mt-0.5">₹{todayTotal.toLocaleString()}</p>
+              <p className="text-white/60 text-[10px]">{todayPayments.length} payments</p>
+            </div>
+            <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+              <p className="text-white/70 text-[10px] font-medium uppercase tracking-wide">Collected</p>
+              <p className="text-emerald-300 text-lg font-bold mt-0.5">₹{totalCollected.toLocaleString()}</p>
+              <p className="text-white/60 text-[10px]">Total received</p>
+            </div>
+            <div className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+              <p className="text-white/70 text-[10px] font-medium uppercase tracking-wide">Pending</p>
+              <p className="text-amber-300 text-lg font-bold mt-0.5">₹{totalPending.toLocaleString()}</p>
+              <p className="text-white/60 text-[10px]">Balance due</p>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* Pagination */}
-      <Pagination />
+      {/* Main Content */}
+      <div className="px-4 -mt-2 relative z-10">
+        {/* Search and Filters Card */}
+        <div className="bg-white rounded-2xl shadow-lg border border-purple-100 p-4 mb-4">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <MagnifyingGlass size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" />
+              <Input
+                placeholder="Search payments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-purple-200 focus:border-purple-400 focus:ring-purple-400 bg-purple-50/50"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`border-purple-200 ${showFilters ? 'bg-purple-100 border-purple-400 text-purple-700' : 'text-purple-500'}`}
+            >
+              <Funnel size={18} weight={showFilters ? 'fill' : 'regular'} />
+            </Button>
+          </div>
 
-      {/* Create Dialog */}
+          {/* Filter Options */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t border-purple-100">
+              <FilterButtons />
+              {dateFilter === 'exact' && (
+                <div className="mt-3">
+                  <Label htmlFor="exactDate" className="text-sm text-purple-700">Select Date</Label>
+                  <Input
+                    id="exactDate"
+                    type="date"
+                    value={exactDate}
+                    onChange={(e) => setExactDate(e.target.value)}
+                    className="mt-1 max-w-xs border-purple-200"
+                  />
+                </div>
+              )}
+              {dateFilter === 'range' && (
+                <div className="mt-3 flex gap-4 flex-wrap">
+                  <div>
+                    <Label htmlFor="startDate" className="text-sm text-purple-700">Start Date</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="mt-1 border-purple-200"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="endDate" className="text-sm text-purple-700">End Date</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="mt-1 border-purple-200"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Results Count */}
+        {hasActiveFilters && filteredPayments.length > 0 && (
+          <p className="text-sm text-purple-600 font-medium mb-3 px-1">
+            Found {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
+          </p>
+        )}
+
+        {/* Payments List */}
+        {paginatedPayments.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg border border-purple-100 p-8 text-center">
+            <div 
+              className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%)' }}
+            >
+              <CurrencyInr size={40} weight="duotone" className="text-purple-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">
+              {hasActiveFilters ? 'No Results Found' : 'No Payments Yet'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {hasActiveFilters 
+                ? 'Try adjusting your search or filters' 
+                : 'Create your first payment to get started'}
+            </p>
+            {!hasActiveFilters && (
+              <Button onClick={handleOpenDialog} className="bg-purple-600 hover:bg-purple-700">
+                <Plus size={18} className="mr-1" />
+                Create Payment
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {paginatedPayments.map((payment, index) => (
+              <div
+                key={payment.id}
+                className={`bg-white rounded-xl shadow-md border border-purple-100 p-4 transition-all hover:shadow-lg hover:border-purple-300 animate-on-load animate-fade-slide-up stagger-${(index % 6) + 1}`}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Icon */}
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ 
+                      background: payment.balanceAmount > 0 
+                        ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' 
+                        : 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                    }}
+                  >
+                    <CurrencyInr size={24} weight="bold" className="text-white" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-purple-700 text-sm">{payment.paymentNo}</span>
+                      <Badge
+                        className={`text-[10px] px-2 py-0.5 font-semibold ${
+                          payment.modeOfPayment === 'cash'
+                            ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                            : payment.modeOfPayment === 'qr_pay'
+                            ? 'bg-blue-100 text-blue-700 border-blue-300'
+                            : 'bg-gray-100 text-gray-600 border-gray-300'
+                        }`}
+                        variant="outline"
+                      >
+                        {payment.modeOfPayment === 'cash' ? '💵 Cash' : payment.modeOfPayment === 'qr_pay' ? '📱 QR Pay' : 'Nil'}
+                      </Badge>
+                    </div>
+                    
+                    <p className="font-semibold text-gray-800 truncate">{payment.customerName}</p>
+                    
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                      <span className="bg-purple-50 px-2 py-0.5 rounded-full text-purple-600 font-medium">
+                        {payment.serviceOrderNo}
+                      </span>
+                      <span>•</span>
+                      <span className="capitalize">{payment.orderCategory}</span>
+                      <span>•</span>
+                      <span>{format(new Date(payment.deliveredDate), 'dd MMM')}</span>
+                    </div>
+
+                    {/* Amount Row */}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase font-medium">Paid</p>
+                          <p className="text-lg font-bold text-emerald-600">₹{payment.amountPaid.toLocaleString()}</p>
+                        </div>
+                        {payment.balanceAmount > 0 && (
+                          <div className="pl-3 border-l border-gray-200">
+                            <p className="text-[10px] text-gray-400 uppercase font-medium">Balance</p>
+                            <p className="text-lg font-bold text-amber-600">₹{payment.balanceAmount.toLocaleString()}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Actions */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-purple-100">
+                            <DotsThree size={22} weight="bold" className="text-purple-600" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => handleDownloadInvoice(payment)} className="gap-2">
+                            <FilePdf size={18} weight="duotone" className="text-red-500" />
+                            Download PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handlePrintInvoice(payment)} className="gap-2">
+                            <Printer size={18} weight="duotone" className="text-blue-500" />
+                            Print Invoice
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        <Pagination />
+      </div>
+
+      {/* Create Dialog - Premium Styled */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle>New Payment</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Service Order No */}
+        <DialogContent className="max-w-md max-h-[90vh] overflow-hidden p-0" aria-describedby={undefined}>
+          {/* Dialog Header with Gradient */}
+          <div 
+            className="px-6 py-4"
+            style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)' }}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-white text-lg font-bold flex items-center gap-2">
+                <CurrencyInr size={24} weight="bold" />
+                New Payment
+              </DialogTitle>
+            </DialogHeader>
+          </div>
+          
+          {/* Dialog Content */}
+          <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+            {/* Service Order Selection */}
             <div className="space-y-2">
-              <Label htmlFor="serviceOrderNo">Service Order No *</Label>
+              <Label htmlFor="serviceOrderNo" className="text-sm font-semibold text-purple-700">
+                Service Order *
+              </Label>
               <Select value={selectedOrderId} onValueChange={handleOrderSelect}>
-                <SelectTrigger id="serviceOrderNo">
-                  <SelectValue placeholder="Select Service Order" />
+                <SelectTrigger id="serviceOrderNo" className="border-purple-200 focus:ring-purple-400">
+                  <SelectValue placeholder="Select a delivered order" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableOrders.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground text-center">
-                      No new orders available
+                    <div className="p-4 text-sm text-center">
+                      <p className="text-muted-foreground">No orders ready for payment</p>
+                      <p className="text-xs text-purple-500 mt-1">Orders must be delivered first</p>
                     </div>
                   ) : (
                     availableOrders.map(order => (
-                      <SelectItem key={order.id} value={order.id}>
-                        {order.id} - {order.customerName}
+                      <SelectItem key={order.id} value={order.id} className="py-3">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{order.id}</span>
+                          <span className="text-xs text-muted-foreground">{order.customerName}</span>
+                        </div>
                       </SelectItem>
                     ))
                   )}
@@ -827,142 +935,138 @@ export function Payment({ onBack, initialOrderId }: PaymentProps) {
               </Select>
             </div>
 
-            {/* Service Order Date - Auto */}
-            <div className="space-y-2">
-              <Label>Service Order Date</Label>
-              <Input
-                value={selectedOrder ? format(selectedOrder.serviceOrderDate, 'dd MMM yyyy') : format(new Date(), 'dd MMM yyyy')}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-
-            {/* Customer Name - Auto from order */}
-            <div className="space-y-2">
-              <Label>Customer Name</Label>
-              <Input
-                value={selectedOrder?.customerName || ''}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-
-            {/* Order Category */}
-            <div className="space-y-2">
-              <Label htmlFor="orderCategory">Order Category *</Label>
-              <Select value={orderCategory} onValueChange={(v) => setOrderCategory(v as OrderCategory)}>
-                <SelectTrigger id="orderCategory">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="male">Men</SelectItem>
-                  <SelectItem value="female">Women</SelectItem>
-                  <SelectItem value="kids">Kids</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Order Qty */}
-            <div className="space-y-2">
-              <Label htmlFor="orderQty">Order Qty</Label>
-              <Input
-                id="orderQty"
-                type="number"
-                value={orderQty}
-                onChange={(e) => setOrderQty(Number(e.target.value))}
-                min={0}
-              />
-            </div>
-
-            {/* UOM - Fixed */}
-            <div className="space-y-2">
-              <Label>UOM</Label>
-              <Input
-                value="Nos"
-                disabled
-                className="bg-muted"
-              />
-            </div>
-
-            {/* Stitching Cost */}
-            <div className="space-y-2">
-              <Label htmlFor="stitchingCost">Stitching Cost (₹)</Label>
-              <Input
-                id="stitchingCost"
-                type="number"
-                value={stitchingCost}
-                onChange={(e) => {
-                  const cost = Number(e.target.value);
-                  setStitchingCost(cost);
-                  const balance = cost - advanceAmount;
-                  setBalanceAmount(balance > 0 ? balance : 0);
-                }}
-                min={0}
-              />
-            </div>
-
-            {/* Delivered Date - Auto */}
-            <div className="space-y-2">
-              <Label>Delivered Date</Label>
-              <Input
-                value={format(new Date(), 'dd MMM yyyy')}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-
-            {/* Mode of Payment */}
-            <div className="space-y-2">
-              <Label htmlFor="modeOfPayment">Mode of Payment *</Label>
-              <Select value={modeOfPayment} onValueChange={(v) => setModeOfPayment(v as PaymentMode)}>
-                <SelectTrigger id="modeOfPayment">
-                  <SelectValue placeholder="Select payment mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="qr_pay">QR Pay</SelectItem>
-                  <SelectItem value="nil">Nil</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Advance Payment Info */}
-            {advanceAmount > 0 && (
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-700">
-                  <strong>Advance Paid:</strong> ₹{advanceAmount.toLocaleString()}
-                </p>
-                <p className="text-sm text-blue-700">
-                  <strong>Balance Due:</strong> ₹{balanceAmount.toLocaleString()}
-                </p>
+            {/* Order Details Card - Only show when order selected */}
+            {selectedOrder && (
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+                <h4 className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-3">Order Details</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase">Customer</p>
+                    <p className="font-semibold text-gray-800 text-sm truncate">{selectedOrder.customerName}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase">Order Date</p>
+                    <p className="font-semibold text-gray-800 text-sm">{format(selectedOrder.serviceOrderDate, 'dd MMM yyyy')}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase">Category</p>
+                    <p className="font-semibold text-gray-800 text-sm capitalize">{selectedOrder.orderCategory}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-500 uppercase">Quantity</p>
+                    <p className="font-semibold text-gray-800 text-sm">{selectedOrder.orderQty} Nos</p>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Amount */}
-            <div className="space-y-2">
-              <Label htmlFor="amountPaid">Amount (₹) *</Label>
-              <Input
-                id="amountPaid"
-                type="number"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(Number(e.target.value))}
-                min={0}
-              />
+            {/* Amount Section */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Payment Details</h4>
+              
+              {/* Stitching Cost */}
+              <div className="space-y-1">
+                <Label htmlFor="stitchingCost" className="text-sm">Total Amount (₹)</Label>
+                <Input
+                  id="stitchingCost"
+                  type="number"
+                  value={stitchingCost}
+                  onChange={(e) => {
+                    const cost = Number(e.target.value);
+                    setStitchingCost(cost);
+                    const balance = cost - advanceAmount;
+                    setBalanceAmount(balance > 0 ? balance : 0);
+                  }}
+                  min={0}
+                  className="text-lg font-bold border-purple-200"
+                />
+              </div>
+
+              {/* Advance Payment Info */}
               {advanceAmount > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Remaining after advance deduction: ₹{balanceAmount.toLocaleString()}
-                </p>
+                <div className="flex items-center justify-between py-2 px-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <span className="text-sm text-emerald-700">Advance Paid</span>
+                  <span className="font-bold text-emerald-700">- ₹{advanceAmount.toLocaleString()}</span>
+                </div>
               )}
+
+              {/* Balance Due */}
+              {advanceAmount > 0 && (
+                <div className="flex items-center justify-between py-2 px-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <span className="text-sm text-amber-700 font-medium">Balance Due</span>
+                  <span className="font-bold text-amber-700 text-lg">₹{balanceAmount.toLocaleString()}</span>
+                </div>
+              )}
+
+              {/* Mode of Payment */}
+              <div className="space-y-2">
+                <Label className="text-sm">Payment Mode *</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'cash', label: '💵 Cash', color: 'emerald' },
+                    { value: 'qr_pay', label: '📱 QR Pay', color: 'blue' },
+                    { value: 'nil', label: '⏸️ Nil', color: 'gray' },
+                  ].map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => setModeOfPayment(mode.value as PaymentMode)}
+                      className={`py-3 px-2 rounded-lg border-2 text-sm font-semibold transition-all ${
+                        modeOfPayment === mode.value
+                          ? mode.color === 'emerald' 
+                            ? 'bg-emerald-100 border-emerald-500 text-emerald-700'
+                            : mode.color === 'blue'
+                            ? 'bg-blue-100 border-blue-500 text-blue-700'
+                            : 'bg-gray-100 border-gray-500 text-gray-700'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Amount Paid */}
+              <div className="space-y-1">
+                <Label htmlFor="amountPaid" className="text-sm">Amount Received (₹) *</Label>
+                <Input
+                  id="amountPaid"
+                  type="number"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(Number(e.target.value))}
+                  min={0}
+                  className="text-xl font-bold text-emerald-600 border-emerald-300 focus:border-emerald-500"
+                />
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)} disabled={saving}>
+
+          {/* Dialog Footer */}
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDialog(false)} 
+              disabled={saving}
+              className="flex-1"
+            >
               Cancel
             </Button>
-            <Button onClick={handleConfirmPayment} disabled={saving}>
-              {saving ? 'Creating...' : 'Create Payment'}
+            <Button 
+              onClick={handleConfirmPayment} 
+              disabled={saving || !selectedOrderId}
+              className="flex-1 bg-purple-600 hover:bg-purple-700"
+            >
+              {saving ? (
+                <>
+                  <Spinner size={16} className="animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                'Confirm Payment'
+              )}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

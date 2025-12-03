@@ -295,7 +295,7 @@ export function generateOrderConfirmationMessage(data: OrderConfirmationMessageD
 }
 
 /**
- * Generate order ready message for WhatsApp
+ * Generate order ready message for WhatsApp (simple version)
  */
 export function generateOrderReadyMessage(
   customerName: string,
@@ -303,5 +303,102 @@ export function generateOrderReadyMessage(
   companyName?: string
 ): string {
   return `Dear ${customerName},\n\n🎉 *Great News!*\n\nYour order *${orderNumber}* is ready for delivery!\n\nPlease visit us to collect your order at your convenience.\n\nThank you for your patience! 🙏\n${companyName || 'Tailor Shop'}`;
+}
+
+/**
+ * Data structure for order ready message with full details
+ */
+export interface OrderReadyMessageData {
+  customerName: string;
+  orderNumber: string;
+  orderDate: string;
+  deliveryDate: string;
+  totalAmount?: number;
+  advanceAmount?: number;
+  balanceAmount?: number;
+  dressItems?: Array<{ dressName: string; quantity: number }>;
+  garmentTypes?: string[]; // e.g., ['Shirt', 'Pant']
+  measurements?: MeasurementData[]; // Measurements for each garment
+  companyName?: string;
+  orderCategory?: string; // Men/Women/Kids
+}
+
+/**
+ * Generate order ready message with full order details for WhatsApp
+ */
+export function generateOrderReadyMessageWithDetails(data: OrderReadyMessageData): string {
+  const {
+    customerName,
+    orderNumber,
+    orderDate,
+    deliveryDate,
+    totalAmount,
+    advanceAmount,
+    balanceAmount,
+    dressItems,
+    garmentTypes,
+    measurements,
+    companyName,
+    orderCategory
+  } = data;
+
+  let message = `🎉 *ORDER READY FOR DELIVERY*\n`;
+  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  message += `Dear *${customerName}*,\n\n`;
+  message += `Great news! Your order is ready for pickup! ✨\n\n`;
+
+  message += `📋 *Order Details*\n`;
+  message += `• Order No: *${orderNumber}*\n`;
+  message += `• Order Date: ${orderDate}\n`;
+  message += `• Delivery Date: *${deliveryDate}*\n`;
+  if (orderCategory) {
+    const categoryLabel = orderCategory === 'male' ? 'Men' : orderCategory === 'female' ? 'Women' : 'Kids';
+    message += `• Category: ${categoryLabel}\n`;
+  }
+
+  // Add garment types if available
+  if (garmentTypes && garmentTypes.length > 0) {
+    message += `\n👔 *Garments*\n`;
+    message += `• ${garmentTypes.join(', ')}\n`;
+  }
+
+  // Add dress items if available (with quantities)
+  if (dressItems && dressItems.length > 0) {
+    message += `\n📦 *Items*\n`;
+    dressItems.forEach((item, index) => {
+      message += `${index + 1}. ${item.dressName} × ${item.quantity}\n`;
+    });
+  }
+
+  // Add measurements if available
+  if (measurements && measurements.length > 0) {
+    message += `\n📏 *Measurements*\n`;
+    measurements.forEach((m) => {
+      const formattedMeasurements = formatMeasurements(m.measurements);
+      if (formattedMeasurements) {
+        message += `\n*${m.garmentType}:*\n`;
+        message += formattedMeasurements + '\n';
+      }
+    });
+  }
+
+  // Add payment details if available
+  if (totalAmount !== undefined && totalAmount > 0) {
+    message += `\n💰 *Payment Summary*\n`;
+    message += `• Total Amount: *₹${totalAmount.toLocaleString('en-IN')}*\n`;
+    if (advanceAmount !== undefined && advanceAmount > 0) {
+      message += `• Advance Paid: ₹${advanceAmount.toLocaleString('en-IN')}\n`;
+    }
+    if (balanceAmount !== undefined && balanceAmount > 0) {
+      message += `• Balance Due: *₹${balanceAmount.toLocaleString('en-IN')}*\n`;
+    }
+  }
+
+  message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
+  message += `Please visit us to collect your order at your convenience. 📍\n\n`;
+  message += `Thank you for your patience! 🙏\n`;
+  message += `*${companyName || 'Tailor Shop'}*`;
+
+  return message;
 }
 
