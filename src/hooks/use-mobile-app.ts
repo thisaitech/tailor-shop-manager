@@ -274,42 +274,79 @@ export function useHasNotch(): boolean {
 
 /**
  * Prevent default touch behaviors that can interfere with app
+ * IMPORTANT: This hook is very careful NOT to break normal touch/click interactions
  */
 export function usePreventDefaultTouchBehaviors() {
   useEffect(() => {
-    // Prevent pull-to-refresh
-    const preventPullToRefresh = (e: TouchEvent) => {
-      if (e.touches.length > 1) return; // Allow pinch zoom
+    // Track touch start position for pull-to-refresh prevention
+    let touchStartY = 0;
+    let isPulling = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartY = e.touches[0].clientY;
+        const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+        // Only track if we're at the very top
+        isPulling = scrollTop <= 0;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPulling || e.touches.length !== 1) return;
       
-      const touch = e.touches[0];
+      const touchY = e.touches[0].clientY;
       const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
       
-      if (scrollTop <= 0 && touch.clientY > 0) {
-        // At top of page, prevent pull-to-refresh
-        // But allow if touching a scrollable element
+      // Only prevent if:
+      // 1. We started at the top
+      // 2. We're still at the top
+      // 3. User is pulling DOWN (not scrolling through content)
+      // 4. The target is not inside a scrollable container
+      if (scrollTop <= 0 && touchY > touchStartY + 10) {
         const target = e.target as HTMLElement;
-        if (!target.closest('[data-allow-pull-refresh]')) {
+        const scrollableParent = target.closest('[data-allow-pull-refresh], [data-scrollable], .overflow-auto, .overflow-y-auto, .overflow-y-scroll');
+        
+        if (!scrollableParent) {
+          // Prevent the pull-to-refresh browser behavior
           e.preventDefault();
         }
       }
     };
 
-    // Prevent double-tap zoom
-    let lastTouchEnd = 0;
-    const preventDoubleTapZoom = (e: TouchEvent) => {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault();
-      }
-      lastTouchEnd = now;
+    const handleTouchEnd = () => {
+      isPulling = false;
     };
 
-    document.addEventListener('touchstart', preventPullToRefresh, { passive: false });
-    document.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
+    // Use CSS to prevent double-tap zoom instead of JavaScript
+    // This doesn't interfere with click events
+    const style = document.createElement('style');
+    style.id = 'prevent-double-tap-zoom';
+    style.textContent = `
+      * {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+    `;
+    
+    if (!document.getElementById('prevent-double-tap-zoom')) {
+      document.head.appendChild(style);
+    }
+
+    // Only add touchmove listener with passive: false (for pull-to-refresh prevention)
+    // touchstart and touchend can be passive (won't block clicks)
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      document.removeEventListener('touchstart', preventPullToRefresh);
-      document.removeEventListener('touchend', preventDoubleTapZoom);
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      
+      const existingStyle = document.getElementById('prevent-double-tap-zoom');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
     };
   }, []);
 }

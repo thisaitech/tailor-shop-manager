@@ -398,19 +398,17 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-          <DialogTitle className="flex items-center justify-between text-white text-base w-full">
-            <div className="flex items-center gap-2 min-w-0">
-              {/* Back/Close Button */}
-              <button
-                type="button"
-                onClick={() => onOpenChange(false)}
-                className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors flex-shrink-0"
-              >
-                <ArrowLeft size={18} weight="bold" />
-              </button>
-              <span className="truncate">{customer ? t('editCustomer') : t('createCustomer')}</span>
-            </div>
-            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded flex-shrink-0 ml-2">
+          <DialogTitle className="flex items-center gap-2 text-white text-base">
+            {/* Back/Close Button */}
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors mr-1"
+            >
+              <ArrowLeft size={18} weight="bold" />
+            </button>
+            <span>{customer ? t('editCustomer') : t('createCustomer')}</span>
+            <span className="text-xs font-normal text-white/80 bg-white/20 px-2 py-0.5 rounded">
               {customer?.id || nextCustomerId || 'Loading...'}
             </span>
           </DialogTitle>

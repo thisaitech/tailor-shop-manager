@@ -21,6 +21,49 @@
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Ensure touch events work properly on mobile */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure all interactive elements are properly tappable */
+  button, 
+  a, 
+  input, 
+  select, 
+  textarea,
+  [role="button"],
+  [role="link"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="tab"],
+  [role="menuitem"],
+  [tabindex]:not([tabindex="-1"]) {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(124, 58, 237, 0.1);
+    cursor: pointer;
+  }
+
+  /* Ensure minimum touch target size for accessibility */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Allow smaller buttons when explicitly styled */
+  button.p-0,
+  button.p-1,
+  button.h-6,
+  button.h-7,
+  button.h-8,
+  button.w-6,
+  button.w-7,
+  button.w-8,
+  .btn-sm {
+    min-height: unset;
+    min-width: unset;
   }
 
   @media (max-width: 768px) {
