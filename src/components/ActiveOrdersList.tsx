@@ -32,7 +32,7 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
     switch (filterType) {
       case 'open':
         return {
-          title: 'Open Orders',
+          title: 'New Orders',
           subtitle: 'Orders not yet assigned',
           icon: Scissors,
           color: '#9333ea', // purple

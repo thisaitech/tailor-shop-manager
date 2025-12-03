@@ -1,0 +1,29 @@
+[33mcommit 033437e4747acf6285c4369fddf1a77b6dfb9960[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mAjay_final_test_one[m[33m, [m[1;31morigin/Ajay_final_test_one[m[33m)[m
+Author: thisaitech <sales@thisaitech.com>
+Date:   Wed Dec 3 13:08:43 2025 +0530
+
+    Fix UI overflow issues
+
+ BUILD_APK_GUIDE.md                             | 173 [31m-----------[m
+ android/app/build.gradle                       |   4 [31m-[m
+ android/app/src/main/AndroidManifest.xml       |  20 [32m+[m[31m-[m
+ capacitor.config.json                          |  16 [32m+[m[31m-[m
+ src/App.tsx                                    |   4 [32m+[m
+ src/components/CustomerForm.tsx                | 114 [32m++++[m[31m---[m
+ src/components/DevKeyboard.tsx                 | 170 [32m+++++++++++[m
+ src/components/EmployeeManagementFirestore.tsx |  26 [32m+[m[31m-[m
+ src/components/OrderForm.tsx                   |   2 [32m+[m[31m-[m
+ src/components/OwnerDashboard.tsx              |  12 [32m+[m[31m-[m
+ src/components/SeedData.tsx                    |  15 [31m-[m
+ src/components/ServiceOrderForm.tsx            |  72 [32m++[m[31m---[m
+ src/components/VendorManagementFirestore.tsx   |  35 [32m++[m[31m-[m
+ src/components/ui/button.tsx                   |   2 [32m+[m[31m-[m
+ src/components/ui/dialog.tsx                   |  15 [32m+[m[31m-[m
+ src/hooks/use-auth.tsx                         |  63 [32m+[m[31m---[m
+ src/hooks/use-mobile-app.ts                    | 401 [32m+[m[31m------------------------[m
+ src/index.css                                  |  43 [31m---[m
+ src/lib/firestore/notificationService.ts       | 187 [32m+[m[31m-----------[m
+ src/lib/translations.ts                        |   2 [32m+[m[31m-[m
+ src/lib/types.ts                               |  77 [32m+[m[31m----[m
+ src/main.css                                   |  53 [32m+++[m[31m-[m
+ 22 files changed, 417 insertions(+), 1089 deletions(-)

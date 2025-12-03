@@ -86,7 +86,7 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
       filter: 'overdue' as const,
     },
     {
-      label: 'Open Orders',
+      label: 'New Orders',
       value: openOrders,
       icon: Scissors,
       color: 'text-purple-600',
