@@ -42,21 +42,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
     console.log('Username:', username);
-    console.log('Password:', password);
+
+    // Trim inputs to handle accidental whitespace
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
 
     // First, check if this is an employee login (Firestore)
     console.log('Checking Firestore for employee credentials...');
-    const employee = await verifyEmployeeCredentials(username, password);
+    const employeeResult = await verifyEmployeeCredentials(trimmedUsername, trimmedPassword);
 
-    if (employee) {
+    if (employeeResult.success && employeeResult.employee) {
+      const employee = employeeResult.employee;
       console.log('[Auth] Found employee:', employee);
       console.log('[Auth] Employee firstLogin status:', employee.firstLogin);
-      console.log('[Auth] Employee isActive status:', employee.isActive);
-
-      if (!employee.isActive) {
-        console.log('[Auth] Employee account is not active');
-        return { success: false, message: 'Your account is not active. Please contact the administrator.' };
-      }
 
       if (employee.firstLogin) {
         console.log('[Auth] ✅ FIRST LOGIN DETECTED - NOT setting employee in storage yet');
@@ -76,11 +74,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true, isEmployee: true };
     }
 
+    // If employee auth failed with a specific error (not just "not found"), return that error
+    if (!employeeResult.success && employeeResult.error !== 'not_found') {
+      console.log('[Auth] Employee auth failed:', employeeResult.message);
+      return { success: false, message: employeeResult.message };
+    }
+
     // Second, check if this is a vendor/job work tailor login (Firestore)
     console.log('Checking Firestore for vendor credentials...');
-    const vendor = await authenticateVendor(username, password);
+    const vendorResult = await authenticateVendor(trimmedUsername, trimmedPassword);
 
-    if (vendor) {
+    if (vendorResult.success && vendorResult.vendor) {
+      const vendor = vendorResult.vendor;
       console.log('[Auth] Found vendor:', vendor);
       console.log('[Auth] Vendor isFirstLogin status:', vendor.isFirstLogin);
 
@@ -100,19 +105,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true, isVendor: true };
     }
 
-    // If not an employee, check localStorage users (owner, tailor, customer)
+    // If vendor auth failed with a specific error (not just "not found"), return that error
+    if (!vendorResult.success && vendorResult.error !== 'not_found') {
+      console.log('[Auth] Vendor auth failed:', vendorResult.message);
+      return { success: false, message: vendorResult.message };
+    }
+
+    // If not an employee or vendor, check localStorage users (owner, tailor, customer)
     console.log('Total users in storage:', (users || []).length);
     console.log('All users:', (users || []).map(u => ({
       id: u.id,
       username: u.username,
-      password: u.password,
       role: u.role,
       name: u.name
     })));
 
     const user = (users || []).find(u => {
-      console.log(`Checking user ${u.username}: username match=${u.username === username}, password match=${u.password === password}`);
-      return u.username === username && u.password === password;
+      // Trim stored values for comparison to handle any stored whitespace
+      const storedUsername = u.username?.trim() || '';
+      const storedPassword = u.password?.trim() || '';
+      console.log(`Checking user ${storedUsername}: username match=${storedUsername === trimmedUsername}, password match=${storedPassword === trimmedPassword}`);
+      return storedUsername === trimmedUsername && storedPassword === trimmedPassword;
     });
 
     console.log('Found user:', user);

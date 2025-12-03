@@ -50,12 +50,18 @@ function encryptPassword(password: string): string {
 
 /**
  * Decrypt password (base64 decoding)
+ * Returns null if decryption fails instead of empty string to prevent false negatives
  */
-export function decryptPassword(encryptedPassword: string): string {
+export function decryptPassword(encryptedPassword: string): string | null {
   try {
+    if (!encryptedPassword) {
+      console.error('[Vendor Auth] No encrypted password provided');
+      return null;
+    }
     return atob(encryptedPassword);
-  } catch {
-    return '';
+  } catch (error) {
+    console.error('[Vendor Auth] Failed to decrypt password:', error);
+    return null;
   }
 }
 
@@ -328,6 +334,9 @@ export async function changeVendorPassword(
 
     // Verify current password
     const decryptedPassword = decryptPassword(vendor.password);
+    if (decryptedPassword === null) {
+      throw new Error('Unable to verify current password. Please contact support.');
+    }
     if (decryptedPassword !== currentPassword) {
       throw new Error('Current password is incorrect');
     }
@@ -357,36 +366,67 @@ export async function changeVendorPassword(
 }
 
 /**
+ * Authentication result with specific error messages
+ */
+export interface VendorAuthResult {
+  success: boolean;
+  vendor?: Vendor;
+  error?: 'not_found' | 'invalid_password' | 'account_inactive' | 'decryption_error' | 'system_error';
+  message?: string;
+}
+
+/**
  * Authenticate vendor with phone number and password
  * @param contactNumber - Vendor contact number (phone)
  * @param password - Password (plain text)
- * @returns Vendor data if authentication successful, null otherwise
+ * @returns Authentication result with vendor data or specific error
  */
 export async function authenticateVendor(
   contactNumber: string,
   password: string
-): Promise<Vendor | null> {
+): Promise<VendorAuthResult> {
   try {
+    // Trim inputs to handle accidental whitespace
+    const trimmedContact = contactNumber.trim();
+    const trimmedPassword = password.trim();
+
+    console.log('[Vendor Auth] Authenticating vendor:', trimmedContact);
+
     const vendorsRef = collection(db, VENDORS_COLLECTION);
-    const q = query(vendorsRef, where('contactNumber', '==', contactNumber));
+    const q = query(vendorsRef, where('contactNumber', '==', trimmedContact));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      return null;
+      console.log('[Vendor Auth] No vendor found with contact number:', trimmedContact);
+      return { success: false, error: 'not_found', message: 'No account found with this phone number' };
     }
 
     const vendorDoc = snapshot.docs[0];
     const vendor = vendorDoc.data() as Vendor;
 
-    // Verify password
-    const decryptedPassword = decryptPassword(vendor.password);
-    if (decryptedPassword === password) {
-      return vendor;
+    // Check if vendor is active (if the field exists)
+    if (vendor.isActive === false) {
+      console.log('[Vendor Auth] Vendor account is inactive:', vendor.tailorCode);
+      return { success: false, error: 'account_inactive', message: 'Your account is not active. Please contact the administrator.' };
     }
 
-    return null;
+    // Verify password
+    const decryptedPassword = decryptPassword(vendor.password);
+
+    if (decryptedPassword === null) {
+      console.error('[Vendor Auth] Failed to decrypt password for vendor:', vendor.tailorCode);
+      return { success: false, error: 'decryption_error', message: 'Authentication error. Please contact support.' };
+    }
+
+    if (decryptedPassword === trimmedPassword) {
+      console.log('[Vendor Auth] Authentication successful for vendor:', vendor.tailorCode);
+      return { success: true, vendor };
+    }
+
+    console.log('[Vendor Auth] Invalid password for vendor:', vendor.tailorCode);
+    return { success: false, error: 'invalid_password', message: 'Invalid password' };
   } catch (error) {
-    console.error('Error authenticating vendor:', error);
-    return null;
+    console.error('[Vendor Auth] Error authenticating vendor:', error);
+    return { success: false, error: 'system_error', message: 'System error. Please try again.' };
   }
 }

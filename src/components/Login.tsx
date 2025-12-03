@@ -44,13 +44,17 @@ export function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password) {
+    // Trim inputs to remove accidental whitespace
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUsername || !trimmedPassword) {
       toast.error('Please enter phone number and password');
       return;
     }
 
     setIsLoading(true);
-    const result = await login(username, password);
+    const result = await login(trimmedUsername, trimmedPassword);
     setIsLoading(false);
 
     console.log('[Login] Login result:', result);
@@ -441,7 +445,7 @@ export function Login() {
         console.log('[Login] Modal render check - tempVendor:', tempVendor);
         if (showVendorPasswordSetup && tempVendor) {
           console.log('[Login] ✅ RENDERING VendorChangePasswordDialog');
-          const currentPassword = decryptPassword(tempVendor.password);
+          const currentPassword = decryptPassword(tempVendor.password) || '';
           return (
             <VendorChangePasswordDialog
               vendorId={tempVendor.tailorCode}

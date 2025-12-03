@@ -440,33 +440,47 @@ export async function changeEmployeePassword(
 }
 
 /**
+ * Authentication result with specific error messages
+ */
+export interface EmployeeAuthResult {
+  success: boolean;
+  employee?: EmployeeWithCompany;
+  error?: 'not_found' | 'invalid_password' | 'account_inactive' | 'access_disabled' | 'system_error';
+  message?: string;
+}
+
+/**
  * Verify employee login credentials
  * @param contactNumber - Employee phone number
  * @param password - Employee password
- * @returns Employee data if credentials are valid, null otherwise
+ * @returns Authentication result with employee data or specific error
  */
 export async function verifyEmployeeCredentials(
   contactNumber: string,
   password: string
-): Promise<EmployeeWithCompany | null> {
+): Promise<EmployeeAuthResult> {
   try {
-    console.log('[Employee Auth] Verifying credentials for:', contactNumber);
+    // Trim inputs to handle accidental whitespace
+    const trimmedContact = contactNumber.trim();
+    const trimmedPassword = password.trim();
+
+    console.log('[Employee Auth] Verifying credentials for:', trimmedContact);
+
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
-    const q = query(
+
+    // First, find employee by contact number only
+    const contactQuery = query(
       employeesRef,
-      where('contactNumber', '==', contactNumber),
-      where('password', '==', password)
+      where('contactNumber', '==', trimmedContact)
     );
-    const snapshot = await getDocs(q);
+    const contactSnapshot = await getDocs(contactQuery);
 
-    console.log('[Employee Auth] Query result - documents found:', snapshot.size);
-
-    if (snapshot.empty) {
-      console.log('[Employee Auth] No employee found with these credentials');
-      return null;
+    if (contactSnapshot.empty) {
+      console.log('[Employee Auth] No employee found with contact number:', trimmedContact);
+      return { success: false, error: 'not_found', message: 'No account found with this phone number' };
     }
 
-    const employeeData = snapshot.docs[0].data() as EmployeeWithCompany;
+    const employeeData = contactSnapshot.docs[0].data() as EmployeeWithCompany;
     console.log('[Employee Auth] Employee found:', {
       id: employeeData.id,
       name: employeeData.name,
@@ -477,15 +491,28 @@ export async function verifyEmployeeCredentials(
       role: employeeData.role
     });
 
-    // Check if access permission is enabled
-    if (!employeeData.accessPermissionEnabled) {
-      console.log('[Employee Auth] Access permission is disabled for this employee');
-      return null;
+    // Check password (trimmed comparison)
+    if (employeeData.password !== trimmedPassword) {
+      console.log('[Employee Auth] Invalid password for employee:', employeeData.id);
+      return { success: false, error: 'invalid_password', message: 'Invalid password' };
     }
 
-    return employeeData;
+    // Check if account is active
+    if (employeeData.isActive === false) {
+      console.log('[Employee Auth] Employee account is inactive:', employeeData.id);
+      return { success: false, error: 'account_inactive', message: 'Your account is not active. Please contact the administrator.' };
+    }
+
+    // Check if access permission is enabled
+    if (!employeeData.accessPermissionEnabled) {
+      console.log('[Employee Auth] Access permission is disabled for this employee:', employeeData.id);
+      return { success: false, error: 'access_disabled', message: 'Your access has been disabled. Please contact the administrator.' };
+    }
+
+    console.log('[Employee Auth] Authentication successful for employee:', employeeData.id);
+    return { success: true, employee: employeeData };
   } catch (error) {
     console.error('[Employee Auth] Error verifying employee credentials:', error);
-    return null;
+    return { success: false, error: 'system_error', message: 'System error. Please try again.' };
   }
 }
