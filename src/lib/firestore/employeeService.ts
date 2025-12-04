@@ -455,6 +455,18 @@ export interface EmployeeAuthResult {
  * @param password - Employee password
  * @returns Authentication result with employee data or specific error
  */
+/**
+ * Timeout wrapper for Firestore queries
+ */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+    ),
+  ]);
+}
+
 export async function verifyEmployeeCredentials(
   contactNumber: string,
   password: string
@@ -468,12 +480,12 @@ export async function verifyEmployeeCredentials(
 
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
 
-    // First, find employee by contact number only
+    // First, find employee by contact number only (with timeout)
     const contactQuery = query(
       employeesRef,
       where('contactNumber', '==', trimmedContact)
     );
-    const contactSnapshot = await getDocs(contactQuery);
+    const contactSnapshot = await withTimeout(getDocs(contactQuery), 5000);
 
     if (contactSnapshot.empty) {
       console.log('[Employee Auth] No employee found with contact number:', trimmedContact);

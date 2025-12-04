@@ -1,34 +1,58 @@
 import { useEffect, useCallback, useState } from 'react';
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 /**
- * Hook to handle Android hardware back button
+ * Hook to handle Android hardware back button using Capacitor App plugin
  * Call this in your main App component
  */
 export function useHardwareBackButton(onBackPress: () => boolean) {
   useEffect(() => {
-    const handleBackButton = (e: PopStateEvent) => {
-      // Prevent default back navigation
-      e.preventDefault();
+    // Only use native back button on Capacitor/native platforms
+    if (!Capacitor.isNativePlatform()) {
+      console.log('[useHardwareBackButton] Not on native platform, using browser history API');
+      
+      // Fallback to browser history API for web
+      const handleBackButton = (e: PopStateEvent) => {
+        e.preventDefault();
+        const handled = onBackPress();
+        
+        if (!handled) {
+          window.history.back();
+        } else {
+          window.history.pushState(null, '', window.location.href);
+        }
+      };
+
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handleBackButton);
+      
+      return () => {
+        window.removeEventListener('popstate', handleBackButton);
+      };
+    }
+
+    // Use Capacitor's native back button handler
+    console.log('[useHardwareBackButton] Setting up Capacitor back button listener');
+    
+    const backButtonListener = App.addListener('backButton', ({ canGoBack }) => {
+      console.log('[BackButton] Native back button pressed, canGoBack:', canGoBack);
       
       // Call the custom back handler
       const handled = onBackPress();
       
       if (!handled) {
-        // If not handled, allow default behavior (exit app or go back)
-        window.history.back();
+        console.log('[BackButton] Not handled by app, minimizing app');
+        // Minimize the app instead of closing it
+        App.minimizeApp();
       } else {
-        // Push a dummy state to prevent actual navigation
-        window.history.pushState(null, '', window.location.href);
+        console.log('[BackButton] Handled by app navigation');
       }
-    };
-
-    // Push initial state
-    window.history.pushState(null, '', window.location.href);
-    
-    window.addEventListener('popstate', handleBackButton);
+    });
     
     return () => {
-      window.removeEventListener('popstate', handleBackButton);
+      console.log('[useHardwareBackButton] Removing back button listener');
+      backButtonListener.then(listener => listener.remove());
     };
   }, [onBackPress]);
 }
@@ -270,58 +294,60 @@ export function useHasNotch(): boolean {
 
 /**
  * Prevent default touch behaviors that can interfere with app
- * FIXED: No longer blocks touch/click events
+ * MINIMAL VERSION: Only prevents pull-to-refresh, allows all scrolling
  */
 export function usePreventDefaultTouchBehaviors() {
   useEffect(() => {
     let touchStartY = 0;
-    let isPulling = false;
 
-    // Track touch start - PASSIVE (doesn't block clicks)
+    // Track touch start - PASSIVE
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) {
         touchStartY = e.touches[0].clientY;
-        const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-        isPulling = scrollTop <= 0;
       }
     };
 
-    // Only prevent on touchmove for pull-to-refresh
+    // ONLY prevent pull-to-refresh at top of page
     const handleTouchMove = (e: TouchEvent) => {
-      if (!isPulling || e.touches.length !== 1) return;
+      if (e.touches.length !== 1) return;
       
       const touchY = e.touches[0].clientY;
       const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const target = e.target as HTMLElement;
       
-      if (scrollTop <= 0 && touchY > touchStartY + 10) {
-        const target = e.target as HTMLElement;
-        if (!target.closest('.overflow-auto, .overflow-y-auto, .overflow-y-scroll')) {
-          e.preventDefault();
-        }
+      // Only prevent if:
+      // 1. User is at the top of the page
+      // 2. User is pulling down (not scrolling within a container)
+      // 3. Not inside a scrollable element
+      if (scrollTop <= 0 && touchY > touchStartY + 50 && !target.closest('.overflow-auto, .overflow-y-auto, .overflow-scroll, [data-radix-scroll-area-viewport]')) {
+        e.preventDefault();
       }
     };
 
-    const handleTouchEnd = () => {
-      isPulling = false;
-    };
-
-    // Add CSS for double-tap zoom prevention (doesn't block clicks)
+    // Minimal CSS - ONLY prevent double-tap zoom on buttons
     const style = document.createElement('style');
     style.id = 'touch-fix';
-    style.textContent = `* { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }`;
+    style.textContent = `
+      /* Allow scrolling everywhere */
+      html, body, #root {
+        touch-action: pan-y !important;
+      }
+      /* Prevent double-tap zoom on interactive elements only */
+      button, a, [role="button"], input[type="button"], input[type="submit"] {
+        touch-action: manipulation;
+      }
+    `;
     if (!document.getElementById('touch-fix')) {
       document.head.appendChild(style);
     }
 
-    // PASSIVE listeners for start/end (won't block clicks)
+    // PASSIVE listeners (won't block scrolling)
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
       document.getElementById('touch-fix')?.remove();
     };
   }, []);

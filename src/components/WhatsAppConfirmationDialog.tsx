@@ -44,12 +44,38 @@ function formatPhoneForWhatsApp(phone: string): string {
 
 /**
  * Open WhatsApp with pre-filled message
+ * Uses intent:// URL for mobile apps (Android) and wa.me for iOS/web
  */
 function openWhatsApp(phone: string, message: string): void {
   const formattedPhone = formatPhoneForWhatsApp(phone);
   const encodedMessage = encodeURIComponent(message);
-  const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-  window.open(whatsappUrl, '_blank');
+  
+  // Check if running on mobile (Capacitor)
+  const isCapacitor = !!(
+    typeof window !== 'undefined' &&
+    (window as any).Capacitor &&
+    (window as any).Capacitor.isNativePlatform &&
+    (window as any).Capacitor.isNativePlatform()
+  );
+  
+  if (isCapacitor) {
+    // For mobile apps, use intent URL for Android or whatsapp:// for iOS
+    const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
+    
+    if (isAndroid) {
+      // Android: Use intent URL to open WhatsApp app directly
+      const intentUrl = `intent://send?phone=${formattedPhone}&text=${encodedMessage}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+      window.location.href = intentUrl;
+    } else {
+      // iOS: Use whatsapp:// URL scheme
+      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
+      window.location.href = whatsappUrl;
+    }
+  } else {
+    // Web: Use wa.me URL
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+  }
 }
 
 export function WhatsAppConfirmationDialog({

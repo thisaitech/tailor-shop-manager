@@ -221,13 +221,45 @@ export async function savePdfToDownloads(doc: jsPDF, filename: string): Promise<
 }
 
 /**
- * Open PDF in a new window/tab (for printing on web)
- * On mobile, this will share the PDF
+ * Open PDF in a new window/tab (for printing/viewing on web)
+ * On mobile, this will open the PDF viewer instead of sharing
  */
 export async function openPdfForPrint(doc: jsPDF, filename: string): Promise<void> {
   if (isCapacitorNative()) {
-    // On mobile, share instead of print
-    await sharePdfMobile(doc, filename, 'Print Document');
+    // On mobile, open PDF viewer instead of share dialog
+    try {
+      if (!filename.toLowerCase().endsWith('.pdf')) {
+        filename = `${filename}.pdf`;
+      }
+      const safeFilename = filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+      
+      const pdfBase64 = getBase64FromPdf(doc);
+      
+      // Save to cache directory
+      const result = await Filesystem.writeFile({
+        path: safeFilename,
+        data: pdfBase64,
+        directory: Directory.Cache,
+      });
+
+      console.log('[PDF] File saved for viewing:', result.uri);
+
+      // Open the PDF in the default viewer by navigating to it
+      // This opens the file in a PDF viewer instead of the share dialog
+      window.open(result.uri, '_system');
+      
+    } catch (error) {
+      console.error('[PDF] Error opening PDF on mobile:', error);
+      
+      // Fallback: Try data URI
+      try {
+        const pdfDataUri = doc.output('datauristring');
+        window.open(pdfDataUri, '_blank');
+      } catch (fallbackError) {
+        console.error('[PDF] Fallback also failed:', fallbackError);
+        throw new Error('Unable to open PDF on this device');
+      }
+    }
   } else {
     // Web browser
     const pdfBlob = doc.output('blob');

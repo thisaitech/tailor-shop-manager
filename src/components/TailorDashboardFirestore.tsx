@@ -55,7 +55,9 @@ import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { sendOrderReadyEmail, sendOrderRejectionEmail } from '@/lib/emailService';
 import { 
   WhatsAppConfirmationDialog, 
-  generateOrderReadyMessage 
+  generateOrderReadyMessage,
+  generateOrderReadyMessageWithDetails,
+  MeasurementData
 } from '@/components/WhatsAppConfirmationDialog';
 
 // Employee orders follow a simpler flow (no DC step):
@@ -292,7 +294,7 @@ export function TailorDashboardFirestore() {
     setShowOrderDetails(true);
   };
 
-  // Initiate "Mark as Ready" - Show WhatsApp dialog first
+  // Initiate "Mark as Ready" - Show WhatsApp dialog with FULL ORDER DETAILS
   const initiateMarkAsReady = async (order: ServiceOrderWithCompany) => {
     if (!employee) return;
 
@@ -301,9 +303,52 @@ export function TailorDashboardFirestore() {
       const customer = await getCustomerById(order.customerId);
       
       if (customer && (customer.whatsappNumber || customer.phone)) {
-        // Show WhatsApp dialog
+        // Show WhatsApp dialog with full order details
         const customerPhone = customer.whatsappNumber || customer.phone;
-        const message = generateOrderReadyMessage(customer.name, order.id, companyName);
+
+        // Build measurements data for the message
+        const measurementsData: MeasurementData[] = [];
+        if (order.measurements) {
+          // Add measurements for each garment type that has data
+          const garmentTypes = ['shirt', 'pant', 'coat', 'sherwani', 'kurta', 'blouse', 'churidar', 'lehenga', 'kurti', 'trouser', 'gown', 'frock'];
+          garmentTypes.forEach(type => {
+            const measurements = order.measurements?.[type as keyof typeof order.measurements];
+            if (measurements && typeof measurements === 'object' && Object.keys(measurements).length > 0) {
+              measurementsData.push({
+                garmentType: type.charAt(0).toUpperCase() + type.slice(1),
+                measurements: measurements as Record<string, number | string | undefined>
+              });
+            }
+          });
+        }
+
+        // Build garment types from dress items
+        const garmentTypes = order.dressItems
+          ?.map(item => item.dressType)
+          .filter((type, index, arr) => arr.indexOf(type) === index)
+          .map(type => type.charAt(0).toUpperCase() + type.slice(1)) || [];
+
+        // Build dress items for the message
+        const dressItems = order.dressItems?.map(item => ({
+          dressName: item.dressName || item.dressType,
+          quantity: item.quantity
+        })) || [];
+
+        // Generate DETAILED message with ALL order information
+        const message = generateOrderReadyMessageWithDetails({
+          customerName: customer.name,
+          orderNumber: order.id,
+          orderDate: format(new Date(order.serviceOrderDate), 'dd MMM yyyy'),
+          deliveryDate: format(new Date(order.expectedDeliveryDate), 'dd MMM yyyy'),
+          totalAmount: order.stitchingCost,
+          advanceAmount: order.advanceAmount,
+          balanceAmount: order.balanceAmount,
+          dressItems,
+          garmentTypes,
+          measurements: measurementsData,
+          companyName,
+          orderCategory: order.orderCategory
+        });
         
         setWhatsAppDialog({
           open: true,

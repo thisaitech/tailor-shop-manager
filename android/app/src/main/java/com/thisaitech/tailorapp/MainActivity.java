@@ -1,4 +1,4 @@
-package com.tailorshop.manager;
+package com.thisaitech.tailorapp;
 
 import com.getcapacitor.BridgeActivity;
 

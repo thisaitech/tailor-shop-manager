@@ -196,26 +196,29 @@ body.keyboard-open {
   /* Prevent layout jump - keyboard overlays content */
 }
 
-/* For Capacitor/native apps - proper keyboard handling */
+/* For Capacitor/native apps - ENABLE SCROLLING */
 html.capacitor-app,
 html.native-app {
   height: 100%;
   height: 100dvh;
-  overflow: hidden;
+  /* CRITICAL: Don't block scrolling on html */
+  overflow-y: visible;
+  overflow-x: hidden;
   /* Store initial height - set by JS in main.tsx */
   --app-height: 100dvh;
 }
 
 html.capacitor-app body,
 html.native-app body {
-  /* Use min-height instead of fixed positioning to allow keyboard resize */
+  /* Full height scrollable body */
   min-height: 100%;
-  min-height: var(--app-height, 100dvh);
-  /* Allow body to resize when keyboard opens */
-  height: auto;
+  height: 100%;
+  /* CRITICAL: Allow vertical scrolling */
+  overflow-y: scroll;
   overflow-x: hidden;
-  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Allow pan gestures for scrolling */
+  touch-action: pan-y;
 }
 
 /* When keyboard is open, allow content to scroll */
@@ -232,8 +235,11 @@ html.native-app #root {
   min-height: var(--app-height, 100dvh);
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  /* CRITICAL: Allow scrolling in root */
+  overflow-y: scroll;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 /* Dev keyboard extra space - DESKTOP BROWSER DEVELOPMENT ONLY */
@@ -464,13 +470,15 @@ button:active,
   right: 0;
   background: white;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding: 0.5rem 0;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0) + 0.5rem);
   z-index: 50;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
 }
 
 /* Status bar padding */
 .status-bar-padding {
-  padding-top: max(env(safe-area-inset-top, 0), 20px);
+  padding-top: max(env(safe-area-inset-top, 0), 12px);
 }
 
 /* Full screen modal for mobile */

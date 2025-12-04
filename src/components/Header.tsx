@@ -89,16 +89,17 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
   };
 
   return (
-    <header className="border-b backdrop-blur-md sticky top-0 z-50 shadow-lg" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-      <div className="container mx-auto px-4 py-4">
+    <header className="border-b backdrop-blur-md sticky top-0 z-50 shadow-lg status-bar-padding" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+      <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg shadow-md" style={{ background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)' }}>
-              <Scissors size={28} className="text-white" weight="duotone" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2.5 rounded-lg shadow-md" style={{ background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)' }}>
+              <Scissors size={24} className="text-white sm:hidden" weight="duotone" />
+              <Scissors size={28} className="text-white hidden sm:block" weight="duotone" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">{t('appName')}</h1>
-              <p className="text-xs text-purple-100 hidden sm:block">
+              <h1 className="text-lg sm:text-2xl font-bold text-white">{t('appName')}</h1>
+              <p className="text-[10px] sm:text-xs text-purple-100 hidden sm:block">
                 {user?.role === 'owner' && 'Owner Dashboard'}
                 {user?.role === 'tailor' && 'Tailor Portal'}
                 {user?.role === 'customer' && 'Customer Portal'}
@@ -107,24 +108,27 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Notification Bell */}
             {onNotificationsClick && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={onNotificationsClick}
-                className="relative hover:bg-white/20 text-white"
+                className="relative hover:bg-white/20 text-white h-8 w-8 sm:h-10 sm:w-10"
               >
-                <Bell size={22} weight={unreadCount > 0 ? 'fill' : 'regular'} />
+                <Bell size={18} weight={unreadCount > 0 ? 'fill' : 'regular'} className="sm:hidden" />
+                <Bell size={22} weight={unreadCount > 0 ? 'fill' : 'regular'} className="hidden sm:block" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
+                  <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] px-0.5 sm:px-1 flex items-center justify-center text-[9px] sm:text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </Button>
             )}
-            <LanguageSwitcher />
+            <div className="hidden sm:block">
+              <LanguageSwitcher />
+            </div>
             {user?.role === 'owner' && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
               <AdminMenu
                 onDashboardClick={onDashboardClick}
@@ -142,8 +146,9 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
             ) : vendor && onVendorProfileClick ? (
               <VendorMenu onProfileClick={onVendorProfileClick} />
             ) : (
-              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
-                <SignOut size={16} />
+              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2 h-8 px-2 sm:h-10 sm:px-4">
+                <SignOut size={14} className="sm:hidden" />
+                <SignOut size={16} className="hidden sm:block" />
                 <span className="hidden sm:inline">Logout</span>
               </Button>
             )}

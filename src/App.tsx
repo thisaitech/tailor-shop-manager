@@ -54,11 +54,38 @@ function AppContent() {
 
   // Handle hardware back button (Android)
   const handleHardwareBack = useCallback(() => {
-    // Return true if we handled the back press, false to allow default behavior
+    console.log('[App] Back button pressed');
+    
+    // Check if any modal/dialog is open - let it handle the back press
+    const openDialogs = document.querySelectorAll('[role="dialog"][data-state="open"]');
+    const openSheets = document.querySelectorAll('[data-radix-dialog-overlay][data-state="open"]');
+    
+    if (openDialogs.length > 0 || openSheets.length > 0) {
+      console.log('[App] Dialog/Modal is open, attempting to close...');
+      // Try to find and click the close/cancel button
+      const closeButton = document.querySelector('[role="dialog"] button[aria-label="Close"]') ||
+                         document.querySelector('[role="dialog"] button:contains("Cancel")') ||
+                         document.querySelector('[data-radix-dialog-close]');
+      if (closeButton) {
+        (closeButton as HTMLElement).click();
+        return true;
+      }
+      // If no close button found, still return true to prevent app from closing
+      return true;
+    }
     
     // For admin users
     if (user?.role === 'owner') {
+      // If on a tab other than dashboard, go back to dashboard tab
+      if (dashboardTab !== 'dashboard' && adminView === 'dashboard') {
+        console.log('[App] Returning to dashboard tab');
+        setDashboardTab('dashboard');
+        return true;
+      }
+      
+      // If on a different view, go back to dashboard
       if (adminView !== 'dashboard') {
+        console.log('[App] Returning to dashboard view');
         setAdminView('dashboard');
         setSelectedOrderForDC(undefined);
         setSelectedOrderForPayment(undefined);
@@ -69,6 +96,7 @@ function AppContent() {
     // For employee users
     if (employee) {
       if (employeeView !== 'dashboard') {
+        console.log('[App] Returning to employee dashboard');
         setEmployeeView('dashboard');
         return true;
       }
@@ -77,14 +105,16 @@ function AppContent() {
     // For vendor users
     if (vendor) {
       if (vendorView !== 'dashboard') {
+        console.log('[App] Returning to vendor dashboard');
         setVendorView('dashboard');
         return true;
       }
     }
     
-    // Not handled - allow default back behavior (exit app or go to previous page)
-    return false;
-  }, [user, employee, vendor, adminView, employeeView, vendorView]);
+    // If on main dashboard, show confirmation before exit
+    console.log('[App] On main screen, allowing exit');
+    return false; // Allow app to close
+  }, [user, employee, vendor, adminView, employeeView, vendorView, dashboardTab]);
 
   useHardwareBackButton(handleHardwareBack);
 

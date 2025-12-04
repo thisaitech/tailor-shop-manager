@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStorage } from '@/hooks/use-storage';
 import { User } from '@/lib/types';
 
@@ -31,6 +31,7 @@ const DEFAULT_USERS: User[] = [
 export function SeedData() {
   const [users, setUsers] = useStorage<User[]>('auth_users', []);
   const hasSeeded = useRef(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     // Only seed once per app session
@@ -38,8 +39,9 @@ export function SeedData() {
       return;
     }
 
-    console.log('[SeedData] Checking if seeding is needed...');
+    console.log('[SeedData] 🌱 Checking if seeding is needed...');
     console.log('[SeedData] Current users count:', users?.length || 0);
+    console.log('[SeedData] Current users:', users?.map(u => ({ username: u.username, role: u.role })));
 
     // Check if default users already exist
     const hasDefaultUsers = DEFAULT_USERS.every(defaultUser => 
@@ -47,25 +49,38 @@ export function SeedData() {
     );
 
     if (hasDefaultUsers && (users || []).length > 0) {
-      console.log('[SeedData] Default users already exist, skipping seed');
+      console.log('[SeedData] ✅ Default users already exist, skipping seed');
+      console.log('[SeedData] Available users:', users.map(u => `${u.name} (${u.username})`).join(', '));
       hasSeeded.current = true;
+      setIsReady(true);
       return;
     }
 
-    console.log('[SeedData] Seeding default admin users...');
+    console.log('[SeedData] 🌱 Seeding default admin users...');
 
     // Merge default users with existing users (avoid duplicates)
     const existingUsernames = new Set((users || []).map(u => u.username));
     const newDefaultUsers = DEFAULT_USERS.filter(u => !existingUsernames.has(u.username));
-    const mergedUsers = [...(users || []), ...newDefaultUsers];
+    
+    if (newDefaultUsers.length > 0) {
+      const mergedUsers = [...(users || []), ...newDefaultUsers];
+      console.log('[SeedData] Adding', newDefaultUsers.length, 'new admin users');
+      setUsers(mergedUsers);
+    }
 
-    setUsers(mergedUsers);
     hasSeeded.current = true;
+    setIsReady(true);
 
-    console.log('[SeedData] ✅ Seed complete! Available logins:');
+    console.log('[SeedData] ✅ Seed complete! Available admin logins:');
     console.log('  1. Sandra - Phone: 7373333273, Password: sandra123');
     console.log('  2. Thisai - Phone: 9486229273, Password: password');
+    console.log('[SeedData] Total users now:', (users?.length || 0) + newDefaultUsers.length);
   }, [users, setUsers]);
+
+  // Show loading indicator until seeding is done
+  if (!isReady) {
+    return null; // Could show a small loader if needed
+  }
 
   return null;
 }

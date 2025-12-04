@@ -106,16 +106,23 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
       try {
         setLoading(true);
 
-        if (!user?.id) {
-          console.error('[OwnerDashboard] No user ID found');
+        if (!user?.id && !employee?.id) {
+          console.error('[OwnerDashboard] No user or employee ID found');
           setLoading(false);
           return;
         }
 
         // Get company profile to get the real company ID
-        const company = await getCompanyProfile(user.id);
+        const userId = employee?.companyDocId || user?.id;
+        if (!userId) {
+          console.error('[OwnerDashboard] No valid user ID');
+          setLoading(false);
+          return;
+        }
+
+        const company = await getCompanyProfile(userId);
         if (!company) {
-          console.error('[OwnerDashboard] No company profile found for user:', user.id);
+          console.error('[OwnerDashboard] No company profile found for user:', userId);
           setLoading(false);
           return;
         }
@@ -123,27 +130,44 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
         const realCompanyId = employee?.companyId || company.id;
         setCompanyId(realCompanyId);
         console.log('[OwnerDashboard] Loading data for company:', realCompanyId);
-        console.log('[OwnerDashboard] Company profile ID:', company.id);
 
         // Subscribe to real-time service orders updates (non-blocking)
         unsubscribeOrders = subscribeToServiceOrders(
           realCompanyId,
           (ordersData) => {
-            setServiceOrders(ordersData);
             console.log('[OwnerDashboard] Real-time service orders update:', ordersData.length);
+            setServiceOrders(ordersData);
           },
           (error) => {
             console.error('[OwnerDashboard] Service orders subscription error:', error);
           }
         );
 
-        // Load all data in PARALLEL for faster loading (instead of sequential)
+        // Load all data in PARALLEL for faster loading
+        console.log('[OwnerDashboard] 🚀 Starting parallel data fetch...');
+        const startTime = Date.now();
+        
         const [customersData, allotmentsData, employeesData, vendorsData] = await Promise.all([
-          getCustomersByCompany(realCompanyId),
-          getOrderAllotmentsByCompany(realCompanyId),
-          getEmployeesByCompany(user.id),
-          getVendorsByCompany(user.id),
+          getCustomersByCompany(realCompanyId).catch(err => {
+            console.error('[OwnerDashboard] Error loading customers:', err);
+            return [];
+          }),
+          getOrderAllotmentsByCompany(realCompanyId).catch(err => {
+            console.error('[OwnerDashboard] Error loading allotments:', err);
+            return [];
+          }),
+          getEmployeesByCompany(userId).catch(err => {
+            console.error('[OwnerDashboard] Error loading employees:', err);
+            return [];
+          }),
+          getVendorsByCompany(userId).catch(err => {
+            console.error('[OwnerDashboard] Error loading vendors:', err);
+            return [];
+          }),
         ]);
+
+        const loadTime = Date.now() - startTime;
+        console.log(`[OwnerDashboard] ✅ Parallel fetch completed in ${loadTime}ms`);
 
         // Set all state at once after parallel fetch completes
         setCustomers(customersData);
@@ -151,15 +175,16 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
         setEmployees(employeesData);
         setVendors(vendorsData);
 
-        console.log('[OwnerDashboard] Loaded in parallel - customers:', customersData.length,
-          'allotments:', allotmentsData.length,
-          'employees:', employeesData.length,
-          'vendors:', vendorsData.length);
+        console.log('[OwnerDashboard] 📊 Data loaded:',
+          `${customersData.length} customers,`,
+          `${allotmentsData.length} allotments,`,
+          `${employeesData.length} employees,`,
+          `${vendorsData.length} vendors`);
 
         setLoading(false);
       } catch (error) {
-        console.error('[OwnerDashboard] Error loading data:', error);
-        toast.error('Failed to load data');
+        console.error('[OwnerDashboard] ❌ Error loading data:', error);
+        toast.error('Failed to load data. Please check your internet connection.');
         setLoading(false);
       }
     };
@@ -173,23 +198,28 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
         unsubscribeOrders();
       }
     };
-  }, [user]);
+  }, [user, employee]);
 
   const handleAddCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       console.log('[OwnerDashboard] Adding customer to Firestore newcustomers collection');
-      console.log('[OwnerDashboard] Customer data with measurements:', customerData);
       console.log('[OwnerDashboard] Company ID:', companyId);
       console.log('[OwnerDashboard] Admin ID:', adminId);
 
       const newCustomer = await addCustomer(customerData, companyId, adminId);
-      setCustomers([...(customers || []), newCustomer]);
+      
+      // Reload customers from Firestore to ensure consistency
+      console.log('[OwnerDashboard] ✅ Customer created, reloading customer list...');
+      const updatedCustomers = await getCustomersByCompany(companyId);
+      setCustomers(updatedCustomers);
+      
+      console.log('[OwnerDashboard] ✅ Customer list updated with', updatedCustomers.length, 'customers');
       toast.success('Account created successfully');
-      return newCustomer; // Return the newly created customer
+      return newCustomer;
     } catch (error) {
-      console.error('[OwnerDashboard] Error adding customer:', error);
-      toast.error('Failed to create account');
-      throw error; // Re-throw to handle in caller
+      console.error('[OwnerDashboard] ❌ Error adding customer:', error);
+      toast.error('Failed to create account. Please try again.');
+      throw error;
     }
   };
 
@@ -401,66 +431,9 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
         }
       }
 
-      // Send WhatsApp notification to customer
-      try {
-        console.log('[OwnerDashboard] Sending WhatsApp order confirmation to customer');
-        const customer = await getCustomerById(orderData.customerId);
-        
-        if (customer && (customer.whatsappNumber || customer.phone)) {
-          // Get company name for the message
-          let companyName = 'Tailor Shop';
-          try {
-            const company = await getCompanyProfile(companyId);
-            if (company) {
-              companyName = company.companyName || company.aliasName || 'Tailor Shop';
-            }
-          } catch {
-            // Use default company name
-          }
-
-          // Format dates
-          const orderDate = new Date(orderData.serviceOrderDate).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          });
-          const deliveryDate = new Date(orderData.expectedDeliveryDate).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-          });
-
-          // Prepare dress items for message
-          const dressItems = orderData.dressItems?.map(item => ({
-            dressName: item.dressName || item.dressType,
-            quantity: item.quantity
-          })) || [];
-
-          const notificationData: OrderConfirmationData = {
-            customerName: customer.name,
-            customerPhone: customer.whatsappNumber || customer.phone,
-            orderNumber: newServiceOrder.id,
-            orderDate,
-            deliveryDate,
-            totalAmount: orderData.stitchingCost,
-            advanceAmount: advancePaymentData?.amount || orderData.advanceAmount,
-            balanceAmount: orderData.balanceAmount || (orderData.stitchingCost - (advancePaymentData?.amount || orderData.advanceAmount || 0)),
-            dressItems,
-            companyName
-          };
-
-          const { whatsappSent } = await notifyOrderCreated(notificationData);
-          
-          if (whatsappSent) {
-            console.log('[OwnerDashboard] WhatsApp order confirmation sent successfully');
-          }
-        } else {
-          console.log('[OwnerDashboard] Customer phone not available for WhatsApp notification');
-        }
-      } catch (notificationError) {
-        console.error('[OwnerDashboard] Error sending WhatsApp notification:', notificationError);
-        // Don't show error to user as order was created successfully
-      }
+      // WhatsApp notification disabled on Save Order
+      // User can manually send WhatsApp from customer list or order details
+      console.log('[OwnerDashboard] WhatsApp notification disabled for Save Order - manual notification available from customer/order list');
     } catch (error) {
       console.error('[OwnerDashboard] Error adding service order:', error);
       toast.error('Failed to create service order');

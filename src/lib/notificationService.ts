@@ -359,6 +359,7 @@ export async function notifyOrderCreated(
 /**
  * Open WhatsApp with pre-filled message (for manual sending)
  * Useful when API is not configured
+ * Uses intent:// URL for Android mobile, whatsapp:// for iOS, wa.me for web
  */
 export function openWhatsAppWithMessage(
   phone: string,
@@ -366,8 +367,32 @@ export function openWhatsAppWithMessage(
 ): void {
   const cleanPhone = phone.replace(/[^0-9]/g, '');
   const phoneWithCountryCode = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
-  const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodeURIComponent(message)}`;
+  const encodedMessage = encodeURIComponent(message);
   
-  // Open in new window/tab
-  window.open(whatsappUrl, '_blank');
+  // Check if running on mobile (Capacitor)
+  const isCapacitor = !!(
+    typeof window !== 'undefined' &&
+    (window as any).Capacitor &&
+    (window as any).Capacitor.isNativePlatform &&
+    (window as any).Capacitor.isNativePlatform()
+  );
+  
+  if (isCapacitor) {
+    // For mobile apps, use intent URL for Android or whatsapp:// for iOS
+    const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
+    
+    if (isAndroid) {
+      // Android: Use intent URL to open WhatsApp app directly
+      const intentUrl = `intent://send?phone=${phoneWithCountryCode}&text=${encodedMessage}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+      window.location.href = intentUrl;
+    } else {
+      // iOS: Use whatsapp:// URL scheme
+      const whatsappUrl = `whatsapp://send?phone=${phoneWithCountryCode}&text=${encodedMessage}`;
+      window.location.href = whatsappUrl;
+    }
+  } else {
+    // Web: Use wa.me URL and open in new window/tab
+    const whatsappUrl = `https://wa.me/${phoneWithCountryCode}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+  }
 }

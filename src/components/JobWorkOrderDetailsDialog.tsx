@@ -29,7 +29,7 @@ export function JobWorkOrderDetailsDialog({
   onOpenChange,
   onStatusUpdate,
 }: JobWorkOrderDetailsDialogProps) {
-  const { vendor } = useAuth();
+  const { vendor, employee } = useAuth();
   const [order, setOrder] = useState<ServiceOrder | null>(null);
   const [allotment, setAllotment] = useState<OrderAllotment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,15 +77,22 @@ export function JobWorkOrderDetailsDialog({
       setOrder(orderData);
 
       // Get the allotment for this order to check status
+      // Support both vendors and employees
       if (vendor?.tailorCode) {
         const allotments = await getOrderAllotmentsByVendor(vendor.tailorCode);
         const matchingAllotment = allotments.find(a => a.serviceOrderNo === serviceOrderNo);
-        console.log('[JobWorkOrderDetailsDialog] Matching allotment:', matchingAllotment);
+        console.log('[JobWorkOrderDetailsDialog] Matching allotment for vendor:', matchingAllotment);
         setAllotment(matchingAllotment || null);
+      } else if (employee?.employeeCode) {
+        // For employees, try to get allotments by checking the order data
+        // Employees can view order details even without allotment buttons
+        console.log('[JobWorkOrderDetailsDialog] Employee viewing order - no allotment actions available');
+        setAllotment(null);
       }
     } catch (error) {
       console.error('[JobWorkOrderDetailsDialog] Error loading order details:', error);
       toast.error('Failed to load order details');
+      setOrder(null);
     } finally {
       setLoading(false);
     }

@@ -51,27 +51,35 @@
             --status-bar-height: 24px;
         }
         
-        /* Prevent pull-to-refresh on mobile */
-        html, body {
-            overscroll-behavior-y: contain;
-            -webkit-overflow-scrolling: touch;
-            touch-action: pan-x pan-y;
+        /* Enable smooth scrolling on mobile - SIMPLIFIED */
+        html {
             height: 100%;
-            height: var(--app-height, 100vh);
-            overflow: hidden;
+            overflow: visible;
         }
         
-        /* Prevent text selection for app-like feel */
+        body {
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+            /* CRITICAL: Allow vertical scrolling */
+            touch-action: pan-y;
+            height: 100%;
+            overflow-y: visible;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Prevent text selection for app-like feel BUT allow scrolling */
         * {
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
-            -webkit-touch-callout: none;
+            /* IMPORTANT: Don't block touch callout completely */
         }
         
-        /* Allow text selection only in inputs and textareas */
+        /* Allow text selection in inputs and textareas */
         input, textarea, [contenteditable="true"], .selectable {
             -webkit-user-select: text;
             -moz-user-select: text;
@@ -80,24 +88,20 @@
             -webkit-touch-callout: default;
         }
         
-        /* Safe area padding for notched devices */
-        body {
-            padding-top: var(--safe-area-inset-top);
-            padding-bottom: var(--safe-area-inset-bottom);
-            padding-left: var(--safe-area-inset-left);
-            padding-right: var(--safe-area-inset-right);
-            position: fixed;
-            width: 100%;
-            top: 0;
-            left: 0;
+        /* Ensure scrollable containers allow touch scrolling */
+        .overflow-auto, .overflow-y-auto, .overflow-scroll, [data-radix-scroll-area-viewport] {
+            -webkit-overflow-scrolling: touch !important;
+            touch-action: pan-y !important;
         }
         
-        /* Root container for app */
+        
+        /* Root container for app - MUST allow scrolling */
         #root {
-            height: 100%;
-            overflow-y: auto;
+            min-height: 100%;
+            overflow-y: visible;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
+            position: relative;
         }
         
         /* Native scrolling for the app */
@@ -106,10 +110,6 @@
             -webkit-overflow-scrolling: touch;
         }
         
-        /* Capacitor app specific styles */
-        .capacitor-app body {
-            padding-top: var(--status-bar-height);
-        }
         
         /* Splash screen */
         #splash-screen {
@@ -240,17 +240,8 @@
             }, 800);
         });
         
-        // Prevent zoom on double tap for iOS
-        document.addEventListener('touchstart', function(e) {
-            if (e.touches.length > 1) {
-                e.preventDefault();
-            }
-        }, { passive: false });
-        
-        // Prevent pinch zoom
-        document.addEventListener('gesturestart', function(e) {
-            e.preventDefault();
-        });
+        // Note: Double-tap zoom is already prevented by viewport meta tag
+        // No need for additional touch event blocking that might interfere with scrolling
     </script>
 </body>
 

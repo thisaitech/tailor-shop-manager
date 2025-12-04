@@ -381,6 +381,18 @@ export interface VendorAuthResult {
  * @param password - Password (plain text)
  * @returns Authentication result with vendor data or specific error
  */
+/**
+ * Timeout wrapper for Firestore queries
+ */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+    ),
+  ]);
+}
+
 export async function authenticateVendor(
   contactNumber: string,
   password: string
@@ -394,7 +406,7 @@ export async function authenticateVendor(
 
     const vendorsRef = collection(db, VENDORS_COLLECTION);
     const q = query(vendorsRef, where('contactNumber', '==', trimmedContact));
-    const snapshot = await getDocs(q);
+    const snapshot = await withTimeout(getDocs(q), 5000);
 
     if (snapshot.empty) {
       console.log('[Vendor Auth] No vendor found with contact number:', trimmedContact);

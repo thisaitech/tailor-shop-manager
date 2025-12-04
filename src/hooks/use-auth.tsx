@@ -32,12 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentVendor, setCurrentVendor] = useStorage<Vendor | null>('current_vendor', null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check if user data is ready from storage (no artificial delay)
+  // Wait for storage to be ready before allowing login
   useEffect(() => {
-    // Storage hook loads synchronously from localStorage, so we can set loading to false immediately
-    // The useStorage hook will have already loaded the data by the time this effect runs
-    setIsLoading(false);
-  }, []);
+    // Give a small delay to ensure useStorage has finished initializing
+    const timer = setTimeout(() => {
+      console.log('[Auth] Storage initialized, users ready:', users?.length || 0);
+      setIsLoading(false);
+    }, 300); // Short delay to ensure localStorage is read
+    
+    return () => clearTimeout(timer);
+  }, [users]);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
@@ -47,105 +51,120 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const trimmedUsername = username.trim();
     const trimmedPassword = password.trim();
 
-    // First, check if this is an employee login (Firestore)
-    console.log('Checking Firestore for employee credentials...');
-    const employeeResult = await verifyEmployeeCredentials(trimmedUsername, trimmedPassword);
-
-    if (employeeResult.success && employeeResult.employee) {
-      const employee = employeeResult.employee;
-      console.log('[Auth] Found employee:', employee);
-      console.log('[Auth] Employee firstLogin status:', employee.firstLogin);
-
-      if (employee.firstLogin) {
-        console.log('[Auth] ✅ FIRST LOGIN DETECTED - NOT setting employee in storage yet');
-        console.log('[Auth] Will set employee after password change');
-        // DON'T set employee in storage yet - wait for password change
-        // This prevents premature redirect to dashboard
-        // Return employee data so Login component can show the modal
-        return { success: true, needsPasswordSetup: true, isEmployee: true, employeeData: employee };
-      }
-
-      console.log('[Auth] Setting current employee in storage');
-      setCurrentEmployee(employee);
-      setCurrentUser(null); // Clear any existing user session
-      setCurrentVendor(null); // Clear any existing vendor session
-
-      console.log('[Auth] Not first login - proceeding to dashboard');
-      return { success: true, isEmployee: true };
-    }
-
-    // If employee auth failed with a specific error (not just "not found"), return that error
-    if (!employeeResult.success && employeeResult.error !== 'not_found') {
-      console.log('[Auth] Employee auth failed:', employeeResult.message);
-      return { success: false, message: employeeResult.message };
-    }
-
-    // Second, check if this is a vendor/job work tailor login (Firestore)
-    console.log('Checking Firestore for vendor credentials...');
-    const vendorResult = await authenticateVendor(trimmedUsername, trimmedPassword);
-
-    if (vendorResult.success && vendorResult.vendor) {
-      const vendor = vendorResult.vendor;
-      console.log('[Auth] Found vendor:', vendor);
-      console.log('[Auth] Vendor isFirstLogin status:', vendor.isFirstLogin);
-
-      if (vendor.isFirstLogin) {
-        console.log('[Auth] ✅ FIRST LOGIN DETECTED FOR VENDOR - NOT setting vendor in storage yet');
-        console.log('[Auth] Will set vendor after password change');
-        // DON'T set vendor in storage yet - wait for password change
-        return { success: true, needsPasswordSetup: true, isVendor: true, vendorData: vendor };
-      }
-
-      console.log('[Auth] Setting current vendor in storage');
-      setCurrentVendor(vendor);
-      setCurrentUser(null); // Clear any existing user session
-      setCurrentEmployee(null); // Clear any existing employee session
-
-      console.log('[Auth] Not first login - proceeding to vendor dashboard');
-      return { success: true, isVendor: true };
-    }
-
-    // If vendor auth failed with a specific error (not just "not found"), return that error
-    if (!vendorResult.success && vendorResult.error !== 'not_found') {
-      console.log('[Auth] Vendor auth failed:', vendorResult.message);
-      return { success: false, message: vendorResult.message };
-    }
-
-    // If not an employee or vendor, check localStorage users (owner, tailor, customer)
-    console.log('Total users in storage:', (users || []).length);
-    console.log('All users:', (users || []).map(u => ({
-      id: u.id,
-      username: u.username,
-      role: u.role,
-      name: u.name
-    })));
-
-    const user = (users || []).find(u => {
-      // Trim stored values for comparison to handle any stored whitespace
+    // First, check localStorage for admin users (FAST, no network delay)
+    // This ensures admin can login immediately without waiting for Firestore
+    console.log('[Auth] Checking localStorage for admin users...');
+    console.log('[Auth] Total users in storage:', (users || []).length);
+    
+    const localUser = (users || []).find(u => {
       const storedUsername = u.username?.trim() || '';
       const storedPassword = u.password?.trim() || '';
-      console.log(`Checking user ${storedUsername}: username match=${storedUsername === trimmedUsername}, password match=${storedPassword === trimmedPassword}`);
       return storedUsername === trimmedUsername && storedPassword === trimmedPassword;
     });
 
-    console.log('Found user:', user);
+    if (localUser && localUser.role === 'owner') {
+      console.log('[Auth] ✅ Found admin user in localStorage:', localUser.name);
+      
+      if (!localUser.isActive) {
+        return { success: false, message: 'Your account is not active.' };
+      }
 
-    if (!user) {
-      return { success: false, message: 'Invalid username or password' };
+      setCurrentUser(localUser);
+      setCurrentEmployee(null);
+      setCurrentVendor(null);
+
+      if (!localUser.hasSetupPassword) {
+        return { success: true, needsPasswordSetup: true, isEmployee: false };
+      }
+
+      return { success: true, isEmployee: false };
     }
 
-    if (user.role !== 'customer' && !user.isActive) {
-      return { success: false, message: 'Your account is not active. Please contact the administrator.' };
+    // Second, check Firestore for employees (only if not admin)
+    console.log('[Auth] Not an admin, checking Firestore for employee credentials...');
+    try {
+      const employeeResult = await verifyEmployeeCredentials(trimmedUsername, trimmedPassword);
+
+      if (employeeResult.success && employeeResult.employee) {
+        const employee = employeeResult.employee;
+        console.log('[Auth] Found employee:', employee);
+
+        if (employee.firstLogin) {
+          console.log('[Auth] ✅ FIRST LOGIN DETECTED - NOT setting employee in storage yet');
+          return { success: true, needsPasswordSetup: true, isEmployee: true, employeeData: employee };
+        }
+
+        setCurrentEmployee(employee);
+        setCurrentUser(null);
+        setCurrentVendor(null);
+        return { success: true, isEmployee: true };
+      }
+
+      // If employee auth failed with specific error (not just "not found"), return that error
+      if (!employeeResult.success && employeeResult.error !== 'not_found') {
+        console.log('[Auth] Employee auth failed:', employeeResult.message);
+        return { success: false, message: employeeResult.message };
+      }
+    } catch (error) {
+      console.error('[Auth] Employee auth error (continuing to vendor check):', error);
+      // Continue to vendor check even if employee check fails
     }
 
-    setCurrentUser(user);
-    setCurrentEmployee(null); // Clear any existing employee session
+    // Third, check Firestore for vendors
+    console.log('[Auth] Checking Firestore for vendor credentials...');
+    try {
+      const vendorResult = await authenticateVendor(trimmedUsername, trimmedPassword);
 
-    if (!user.hasSetupPassword) {
-      return { success: true, needsPasswordSetup: true, isEmployee: false };
+      if (vendorResult.success && vendorResult.vendor) {
+        const vendor = vendorResult.vendor;
+        console.log('[Auth] Found vendor:', vendor);
+
+        if (vendor.isFirstLogin) {
+          console.log('[Auth] ✅ FIRST LOGIN DETECTED FOR VENDOR');
+          return { success: true, needsPasswordSetup: true, isVendor: true, vendorData: vendor };
+        }
+
+        setCurrentVendor(vendor);
+        setCurrentUser(null);
+        setCurrentEmployee(null);
+        return { success: true, isVendor: true };
+      }
+
+      // If vendor auth failed with specific error, return that error
+      if (!vendorResult.success && vendorResult.error !== 'not_found') {
+        console.log('[Auth] Vendor auth failed:', vendorResult.message);
+        return { success: false, message: vendorResult.message };
+      }
+    } catch (error) {
+      console.error('[Auth] Vendor auth error (continuing to customer check):', error);
+      // Continue to customer check
     }
 
-    return { success: true, isEmployee: false };
+    // Final check: Other localStorage users (tailor, customer) - already checked admin above
+    console.log('[Auth] Checking for other users (tailor/customer) in localStorage...');
+    
+    if (localUser) {
+      // localUser was already found in first check but might not be owner
+      console.log('[Auth] Found user in localStorage:', localUser.name, 'Role:', localUser.role);
+      
+      if (localUser.role !== 'customer' && !localUser.isActive) {
+        return { success: false, message: 'Your account is not active. Please contact the administrator.' };
+      }
+
+      setCurrentUser(localUser);
+      setCurrentEmployee(null);
+      setCurrentVendor(null);
+
+      if (!localUser.hasSetupPassword) {
+        return { success: true, needsPasswordSetup: true, isEmployee: false };
+      }
+
+      return { success: true, isEmployee: false };
+    }
+
+    // No match found anywhere
+    console.log('[Auth] ❌ No matching credentials found');
+    return { success: false, message: 'Invalid username or password' };
   };
 
   const updatePassword = async (newPassword: string) => {

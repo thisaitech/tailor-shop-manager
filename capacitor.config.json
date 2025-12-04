@@ -1,15 +1,50 @@
 {
-  "appId": "com.tailorshop.manager",
-  "appName": "Tailor Shop Manager",
+  "appId": "com.thisaitech.tailorapp",
+  "appName": "Thisai Tailor",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": ["*"]
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 2000,
-      "backgroundColor": "#ffffff",
-      "showSpinner": false
+      "launchShowDuration": 1000,
+      "launchAutoHide": true,
+      "backgroundColor": "#7c3aed",
+      "showSpinner": true,
+      "spinnerColor": "#ffffff",
+      "androidSpinnerStyle": "small",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true,
+      "style": "dark"
+    },
+    "Camera": {
+      "presentationStyle": "fullscreen",
+      "quality": 85
+    },
+    "Filesystem": {
+      "readEncoding": "utf8"
+    },
+    "Share": {
+      "enabled": true
+    },
+    "StatusBar": {
+      "style": "light",
+      "backgroundColor": "#7c3aed"
     }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#7c3aed"
+  },
+  "ios": {
+    "scrollEnabled": true,
+    "contentInset": "always",
+    "backgroundColor": "#7c3aed"
   }
 }
