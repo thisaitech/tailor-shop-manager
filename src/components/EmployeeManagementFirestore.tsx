@@ -147,6 +147,8 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
       if (!user?.id) return;
 
       setLoading(true);
+      const startTime = Date.now();
+      
       try {
         // Get company profile to get company ID and name
         const profile = await getCompanyProfile(user.id);
@@ -158,6 +160,13 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
         // Load employees
         const employeesList = await getEmployeesByCompany(user.id);
         setEmployees(employeesList);
+        
+        // Ensure spinner shows for at least 500ms for better UX
+        const elapsedTime = Date.now() - startTime;
+        const minLoadingTime = 500;
+        if (elapsedTime < minLoadingTime) {
+          await new Promise(resolve => setTimeout(resolve, minLoadingTime - elapsedTime));
+        }
       } catch (error) {
         console.error('Error loading data:', error);
         toast.error('Failed to load employees');
@@ -670,10 +679,12 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-6 max-w-6xl flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Spinner size={48} className="animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading employees...</p>
+      <div className="container mx-auto px-4 py-6 max-w-6xl">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Spinner size={48} className="animate-spin mx-auto mb-4 text-purple-600" />
+            <p className="text-muted-foreground text-lg font-medium">Loading employees...</p>
+          </div>
         </div>
       </div>
     );

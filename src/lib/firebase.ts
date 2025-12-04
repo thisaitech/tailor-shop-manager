@@ -27,72 +27,81 @@ let db;
 let auth;
 let storage;
 let firebaseReady = false;
+let initializationPromise: Promise<void>;
 
-try {
-  console.log('🔥 Initializing Firebase...');
-  console.log('Project ID:', firebaseConfig.projectId);
-  
-  app = initializeApp(firebaseConfig);
-  
-  // Initialize Firestore with optimized settings for mobile
-  db = initializeFirestore(app, {
-    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-    experimentalForceLongPolling: false,
-  });
-  
-  // Enable offline persistence for better performance
-  enableIndexedDbPersistence(db, {
-    forceOwnership: false
-  }).then(() => {
-    console.log('✅ Firebase offline persistence enabled');
-    firebaseReady = true;
-  }).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('⚠️ Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('⚠️ The current browser does not support offline persistence');
-    } else {
-      console.error('❌ Persistence error:', err);
-    }
-    firebaseReady = true; // Still mark as ready even if persistence fails
-  });
-  
-  auth = getAuth(app);
-  storage = getStorage(app);
-  
-  console.log('✅ Firebase initialized successfully');
-  
-  // Mark as ready after initial setup
-  setTimeout(() => {
-    firebaseReady = true;
-  }, 1000);
-  
-} catch (error) {
-  console.error('❌ Firebase initialization error:', error);
-  firebaseReady = false;
-}
-
-/**
- * Check if Firebase is ready for queries
- */
-export function isFirebaseReady(): boolean {
-  return firebaseReady && !!db;
-}
+// Create a promise that resolves when Firebase is fully ready
+initializationPromise = new Promise((resolve) => {
+  try {
+    console.log('🔥 Initializing Firebase...');
+    console.log('Project ID:', firebaseConfig.projectId);
+    
+    app = initializeApp(firebaseConfig);
+    
+    // Initialize Firestore with optimized settings for mobile
+    db = initializeFirestore(app, {
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      experimentalForceLongPolling: false,
+    });
+    
+    auth = getAuth(app);
+    storage = getStorage(app);
+    
+    console.log('✅ Firebase core initialized successfully');
+    
+    // Enable offline persistence for better performance (non-blocking)
+    enableIndexedDbPersistence(db, {
+      forceOwnership: false
+    }).then(() => {
+      console.log('✅ Firebase offline persistence enabled');
+    }).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('⚠️ Multiple tabs open, persistence can only be enabled in one tab at a time.');
+      } else if (err.code === 'unimplemented') {
+        console.warn('⚠️ The current browser does not support offline persistence');
+      } else {
+        console.error('❌ Persistence error:', err);
+      }
+      // Persistence failure is not critical - continue anyway
+    });
+    
+    // Wait a moment for auth state to initialize, then mark as ready
+    setTimeout(() => {
+      firebaseReady = true;
+      console.log('✅ Firebase fully ready for operations');
+      resolve();
+    }, 1500); // Increased from 1000ms to 1500ms for mobile devices
+    
+  } catch (error) {
+    console.error('❌ Firebase initialization error:', error);
+    firebaseReady = false;
+    resolve(); // Resolve anyway to prevent hanging
+  }
+});
 
 /**
  * Wait for Firebase to be ready (with timeout)
+ * Waits for the initialization promise to complete
  */
-export async function waitForFirebase(timeoutMs: number = 5000): Promise<boolean> {
+export async function waitForFirebase(timeoutMs: number = 10000): Promise<boolean> {
+  // If already ready, return immediately
   if (firebaseReady && db) {
     return true;
   }
   
-  const startTime = Date.now();
-  while (!firebaseReady && (Date.now() - startTime) < timeoutMs) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+  // Wait for initialization promise with timeout
+  try {
+    await Promise.race([
+      initializationPromise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Firebase initialization timeout')), timeoutMs)
+      )
+    ]);
+    return firebaseReady && !!db;
+  } catch (error) {
+    console.error('❌ Firebase wait timeout:', error);
+    // Return current state even if timeout
+    return firebaseReady && !!db;
   }
-  
-  return firebaseReady && !!db;
 }
 
 export { db, auth, storage };

@@ -46,12 +46,7 @@ import {
 } from '@/lib/firestore/designCategoryService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { getRecentCustomers, searchCustomers, addCustomer } from '@/lib/firestore/customerService';
-import { 
-  WhatsAppConfirmationDialog, 
-  generateOrderConfirmationMessage,
-  OrderConfirmationMessageData,
-  MeasurementData
-} from '@/components/WhatsAppConfirmationDialog';
+// WhatsApp confirmation removed - orders save directly
 
 // Garment types by category (Men/Women/Kids)
 const GARMENT_TYPES_BY_CATEGORY = {
@@ -357,9 +352,6 @@ export function ServiceOrderForm({
   // Special note text for pant options
   const [specialNoteText, setSpecialNoteText] = useState('');
 
-  // WhatsApp confirmation dialog state
-  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
-  const [pendingAdvancePaymentData, setPendingAdvancePaymentData] = useState<Omit<AdvancePayment, 'id' | 'proformaInvoiceNo' | 'invoiceNo' | 'createdAt' | 'updatedAt'> | null>(null);
   const [companyName, setCompanyName] = useState<string>('Tailor Shop');
 
   // Load design categories, recent customers, and next service order ID on mount
@@ -712,120 +704,23 @@ export function ServiceOrderForm({
       adminId: '', // Will be set by the parent component
     };
 
-    // Check if customer has WhatsApp/phone number
-    if (selectedCustomer && (selectedCustomer.whatsappNumber || selectedCustomer.phone)) {
-      // Store payment data and show WhatsApp dialog
-      setPendingAdvancePaymentData(advancePaymentData);
-      setShowWhatsAppDialog(true);
-    } else {
-      // No phone number, save directly
-      onSave(createdOrderData, advancePaymentData);
-      onOpenChange(false);
-      resetForm();
-    }
-  };
-
-  // Complete save after WhatsApp dialog (send or skip)
-  const completeOrderSave = () => {
-    if (!createdOrderData) return;
-    
-    onSave(createdOrderData, pendingAdvancePaymentData || undefined);
+    // Save order directly without WhatsApp confirmation dialog
+    onSave(createdOrderData, advancePaymentData);
     onOpenChange(false);
-    setShowWhatsAppDialog(false);
-    setPendingAdvancePaymentData(null);
     resetForm();
   };
 
-  // Generate WhatsApp message for order confirmation
-  const getWhatsAppMessageData = () => {
-    if (!createdOrderData || !selectedCustomer) {
-      return {
-        customerName: '',
-        customerPhone: '',
-        message: '',
-      };
-    }
-
-    const orderDate = new Date(createdOrderData.serviceOrderDate).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-    const deliveryDate = new Date(createdOrderData.expectedDeliveryDate).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-
-    // Build measurements data for WhatsApp message
-    const measurementsData: MeasurementData[] = [];
-    if (createdOrderData.measurements) {
-      const measurementCategories = Object.keys(createdOrderData.measurements) as Array<keyof typeof createdOrderData.measurements>;
-      measurementCategories.forEach(category => {
-        const categoryMeasurements = createdOrderData.measurements?.[category];
-        if (categoryMeasurements && typeof categoryMeasurements === 'object') {
-          const hasValues = Object.values(categoryMeasurements).some(v => v !== undefined && v !== null && v !== '' && v !== 0);
-          if (hasValues) {
-            // Get display label for garment type
-            const garmentLabel = MEASUREMENT_CATEGORIES[category as MeasurementCategoryKey]?.label || category;
-            measurementsData.push({
-              garmentType: garmentLabel,
-              measurements: categoryMeasurements as Record<string, number | string | undefined>,
-            });
-          }
-        }
-      });
-    }
-
-    // Get garment type labels
-    const garmentTypeLabels = selectedGarmentTypes.map(gt => {
-      const config = MEASUREMENT_CATEGORIES[gt as MeasurementCategoryKey];
-      return config?.label || gt;
-    });
-
-    const messageData: OrderConfirmationMessageData = {
-      customerName: createdOrderData.customerName,
-      orderNumber: nextServiceOrderId || serviceOrderNo,
-      orderDate,
-      deliveryDate,
-      totalAmount: createdOrderData.stitchingCost,
-      advanceAmount: advanceAmount,
-      balanceAmount: createdOrderData.stitchingCost - advanceAmount,
-      dressItems: createdOrderData.dressItems?.map(item => ({
-        dressName: item.dressName || item.dressType,
-        quantity: item.quantity
-      })),
-      garmentTypes: garmentTypeLabels.length > 0 ? garmentTypeLabels : undefined,
-      measurements: measurementsData.length > 0 ? measurementsData : undefined,
-      companyName,
-      orderCategory: createdOrderData.orderCategory,
-    };
-
-    return {
-      customerName: selectedCustomer.name,
-      customerPhone: selectedCustomer.whatsappNumber || selectedCustomer.phone,
-      message: generateOrderConfirmationMessage(messageData),
-    };
-  };
-
-  // Skip advance payment and save order only - Show WhatsApp dialog first
+  // Skip advance payment and save order only
   const handleSkipAdvancePayment = () => {
     if (!createdOrderData) {
       toast.error('Order data not found');
       return;
     }
 
-    // Check if customer has WhatsApp/phone number
-    if (selectedCustomer && (selectedCustomer.whatsappNumber || selectedCustomer.phone)) {
-      // Show WhatsApp dialog without advance payment data
-      setPendingAdvancePaymentData(null);
-      setShowWhatsAppDialog(true);
-    } else {
-      // No phone number, save directly
-      onSave(createdOrderData);
-      onOpenChange(false);
-      resetForm();
-    }
+    // Save order directly without WhatsApp confirmation dialog
+    onSave(createdOrderData);
+    onOpenChange(false);
+    resetForm();
   };
 
   // Generate measurements HTML for invoice
@@ -2348,19 +2243,6 @@ export function ServiceOrderForm({
         )}
       </DialogContent>
     </Dialog>
-
-    {/* WhatsApp Confirmation Dialog */}
-    <WhatsAppConfirmationDialog
-      open={showWhatsAppDialog}
-      onOpenChange={setShowWhatsAppDialog}
-      title="Send Order Confirmation"
-      description="Send order details to customer via WhatsApp"
-      messageData={getWhatsAppMessageData()}
-      onSend={completeOrderSave}
-      onSkip={completeOrderSave}
-      sendButtonText="Send & Save Order"
-      skipButtonText="Skip & Save Order"
-    />
 
     {/* Design Selection Modal */}
     <Dialog open={showDesignModal} onOpenChange={setShowDesignModal}>

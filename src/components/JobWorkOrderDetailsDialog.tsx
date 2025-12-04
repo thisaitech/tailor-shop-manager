@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { getServiceOrderById } from '@/lib/firestore/serviceOrderService';
-import { getOrderAllotmentsByVendor, updateVendorOrderStatus } from '@/lib/firestore/orderAllotmentService';
+import { getOrderAllotmentsByVendor, getOrderAllotmentsByEmployee, updateVendorOrderStatus } from '@/lib/firestore/orderAllotmentService';
 import type { ServiceOrder, OrderAllotment } from '@/lib/types';
 import { format } from 'date-fns';
 import { Spinner, CheckCircle, PlayCircle } from '@phosphor-icons/react';
@@ -84,10 +84,11 @@ export function JobWorkOrderDetailsDialog({
         console.log('[JobWorkOrderDetailsDialog] Matching allotment for vendor:', matchingAllotment);
         setAllotment(matchingAllotment || null);
       } else if (employee?.employeeCode) {
-        // For employees, try to get allotments by checking the order data
-        // Employees can view order details even without allotment buttons
-        console.log('[JobWorkOrderDetailsDialog] Employee viewing order - no allotment actions available');
-        setAllotment(null);
+        // For employees, get their allotments and find the matching one
+        const allotments = await getOrderAllotmentsByEmployee(employee.employeeCode);
+        const matchingAllotment = allotments.find(a => a.serviceOrderNo === serviceOrderNo);
+        console.log('[JobWorkOrderDetailsDialog] Matching allotment for employee:', matchingAllotment);
+        setAllotment(matchingAllotment || null);
       }
     } catch (error) {
       console.error('[JobWorkOrderDetailsDialog] Error loading order details:', error);
@@ -102,7 +103,8 @@ export function JobWorkOrderDetailsDialog({
     if (!allotment) return;
     try {
       setUpdating(true);
-      await updateVendorOrderStatus(allotment.id, 'in_progress');
+      const performedBy = employee?.name || vendor?.tailorName || 'Unknown';
+      await updateVendorOrderStatus(allotment.id, 'in_progress', performedBy);
       toast.success('Order accepted! Status updated to In Progress');
       if (onStatusUpdate) onStatusUpdate();
       onOpenChange(false);
@@ -118,7 +120,8 @@ export function JobWorkOrderDetailsDialog({
     if (!allotment) return;
     try {
       setUpdating(true);
-      await updateVendorOrderStatus(allotment.id, 'stitched');
+      const performedBy = employee?.name || vendor?.tailorName || 'Unknown';
+      await updateVendorOrderStatus(allotment.id, 'stitched', performedBy);
       toast.success('Order marked as stitched!');
       if (onStatusUpdate) onStatusUpdate();
       onOpenChange(false);
@@ -315,8 +318,8 @@ export function JobWorkOrderDetailsDialog({
           </div>
         )}
 
-        {/* Action Buttons for Job Work Tailor */}
-        {allotment && vendor && (
+        {/* Action Buttons for Job Work Tailor and Employees */}
+        {allotment && (vendor || employee) && (
           <DialogFooter className="border-t pt-4">
             {allotment.status === 'allotted' && (
               <Button

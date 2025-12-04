@@ -31,8 +31,8 @@ export function sendWhatsAppMessage(phone: string, message: string) {
       window.location.href = whatsappUrl;
     }
   } else {
-    // Web: Use wa.me URL
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    window.open(whatsappUrl, '_blank');
+    // Use api.whatsapp.com - prefers mobile app over web
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`;
+    window.location.href = whatsappUrl;
   }
 }

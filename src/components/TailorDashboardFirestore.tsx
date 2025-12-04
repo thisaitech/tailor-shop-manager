@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
+import { ServiceOrderDetailsDialog } from '@/components/ServiceOrderDetailsDialog';
 import { TailorProfile } from '@/components/TailorProfile';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
@@ -888,8 +888,8 @@ export function TailorDashboardFirestore() {
 
       {/* Order Details Dialog */}
       {selectedOrder && (
-        <OrderDetailsDialog
-          allotment={selectedOrder}
+        <ServiceOrderDetailsDialog
+          serviceOrder={selectedOrder}
           open={showOrderDetails}
           onClose={() => {
             setShowOrderDetails(false);

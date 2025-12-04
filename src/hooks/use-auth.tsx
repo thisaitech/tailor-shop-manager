@@ -3,6 +3,7 @@ import { useStorage } from './use-storage';
 import { User, UserRole, Vendor } from '@/lib/types';
 import { verifyEmployeeCredentials } from '@/lib/firestore/employeeService';
 import { authenticateVendor } from '@/lib/firestore/vendorService';
+import { waitForFirebase } from '@/lib/firebase';
 import type { EmployeeWithCompany } from '@/lib/firestore/employeeService';
 
 interface AuthContextType {
@@ -34,11 +35,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Wait for storage to be ready before allowing login
   useEffect(() => {
-    // Give a small delay to ensure useStorage has finished initializing
-    const timer = setTimeout(() => {
-      console.log('[Auth] Storage initialized, users ready:', users?.length || 0);
+    // Initialize both storage and Firebase
+    const initializeAuth = async () => {
+      console.log('[Auth] Initializing auth system...');
+      console.log('[Auth] Storage users ready:', users?.length || 0);
+      
+      // Wait for Firebase to be fully initialized
+      console.log('[Auth] Waiting for Firebase to be ready...');
+      const firebaseReady = await waitForFirebase(10000); // 10 second timeout
+      
+      if (firebaseReady) {
+        console.log('[Auth] ✅ Firebase is ready');
+      } else {
+        console.warn('[Auth] ⚠️ Firebase initialization timeout - will retry on demand');
+      }
+      
+      console.log('[Auth] ✅ Auth system ready for login');
       setIsLoading(false);
-    }, 300); // Short delay to ensure localStorage is read
+    };
+    
+    // Small delay to ensure localStorage is fully read
+    const timer = setTimeout(initializeAuth, 500);
     
     return () => clearTimeout(timer);
   }, [users]);
@@ -82,6 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Second, check Firestore for employees (only if not admin)
     console.log('[Auth] Not an admin, checking Firestore for employee credentials...');
+    
+    // Ensure Firebase is ready before querying
+    const firebaseReady = await waitForFirebase(5000);
+    if (!firebaseReady) {
+      console.error('[Auth] ⚠️ Firebase not ready, cannot check employee/vendor credentials');
+      return { success: false, message: 'System is initializing. Please try again in a moment.' };
+    }
+    
     try {
       const employeeResult = await verifyEmployeeCredentials(trimmedUsername, trimmedPassword);
 
