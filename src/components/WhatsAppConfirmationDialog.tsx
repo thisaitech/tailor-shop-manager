@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { WhatsappLogo, PaperPlaneTilt, X } from '@phosphor-icons/react';
+import { openWhatsAppChat } from '@/lib/nativeWhatsApp';
 
 export interface WhatsAppMessageData {
   customerName: string;
@@ -29,55 +30,6 @@ interface WhatsAppConfirmationDialogProps {
   skipButtonText?: string;
 }
 
-/**
- * Format phone number for WhatsApp URL
- * Removes all non-digits and adds India country code if not present
- */
-function formatPhoneForWhatsApp(phone: string): string {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  // Add India country code if not present
-  if (cleanPhone.startsWith('91') && cleanPhone.length >= 12) {
-    return cleanPhone;
-  }
-  return `91${cleanPhone}`;
-}
-
-/**
- * Open WhatsApp with pre-filled message
- * Uses intent:// URL for mobile apps (Android) and wa.me for iOS/web
- */
-function openWhatsApp(phone: string, message: string): void {
-  const formattedPhone = formatPhoneForWhatsApp(phone);
-  const encodedMessage = encodeURIComponent(message);
-  
-  // Check if running on mobile (Capacitor)
-  const isCapacitor = !!(
-    typeof window !== 'undefined' &&
-    (window as any).Capacitor &&
-    (window as any).Capacitor.isNativePlatform &&
-    (window as any).Capacitor.isNativePlatform()
-  );
-  
-  if (isCapacitor) {
-    // For mobile apps, use intent URL for Android or whatsapp:// for iOS
-    const isAndroid = (window as any).Capacitor?.getPlatform() === 'android';
-    
-    if (isAndroid) {
-      // Android: Use intent URL to open WhatsApp app directly
-      const intentUrl = `intent://send?phone=${formattedPhone}&text=${encodedMessage}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
-      window.location.href = intentUrl;
-    } else {
-      // iOS: Use whatsapp:// URL scheme
-      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
-      window.location.href = whatsappUrl;
-    }
-  } else {
-    // Use api.whatsapp.com - prefers mobile app over web
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodedMessage}`;
-    window.location.href = whatsappUrl;
-  }
-}
-
 export function WhatsAppConfirmationDialog({
   open,
   onOpenChange,
@@ -90,15 +42,25 @@ export function WhatsAppConfirmationDialog({
   skipButtonText = 'Skip',
 }: WhatsAppConfirmationDialogProps) {
   const [message, setMessage] = useState(messageData.message);
+  const [sending, setSending] = useState(false);
 
   // Update message when messageData changes
   useState(() => {
     setMessage(messageData.message);
   });
 
-  const handleSend = () => {
-    openWhatsApp(messageData.customerPhone, message);
-    onSend();
+  const handleSend = async () => {
+    try {
+      setSending(true);
+      await openWhatsAppChat(messageData.customerPhone, message);
+      onSend();
+    } catch (error) {
+      console.error('[WhatsApp Dialog] Failed to send:', error);
+      // Still call onSend to mark order as ready even if WhatsApp fails
+      onSend();
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleSkip = () => {
@@ -151,6 +113,7 @@ export function WhatsAppConfirmationDialog({
             variant="outline"
             onClick={handleSkip}
             className="flex-1 sm:flex-none"
+            disabled={sending}
           >
             <X size={16} className="mr-1" />
             {skipButtonText}
@@ -159,9 +122,10 @@ export function WhatsAppConfirmationDialog({
             type="button"
             onClick={handleSend}
             className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
+            disabled={sending}
           >
-            <PaperPlaneTilt size={16} className="mr-1" />
-            {sendButtonText}
+            <PaperPlaneTilt size={16} className="mr-1" weight="fill" />
+            {sending ? 'Opening...' : sendButtonText}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -169,15 +133,45 @@ export function WhatsAppConfirmationDialog({
   );
 }
 
-// ============================================
-// Message Generation Helpers
-// ============================================
+/**
+ * Format phone number for WhatsApp URL
+ * Removes all non-digits and adds India country code if not present
+ */
+function formatPhoneForWhatsApp(phone: string): string {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  // Add India country code if not present
+  if (cleanPhone.startsWith('91') && cleanPhone.length >= 12) {
+    return cleanPhone;
+  }
+  return `91${cleanPhone}`;
+}
 
-// Measurement type for WhatsApp message
+/**
+ * Helper function to format measurements for WhatsApp message
+ */
+function formatMeasurements(measurements: Record<string, number | string | undefined>): string {
+  let formatted = '';
+  Object.entries(measurements).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '' && value !== 0) {
+      // Convert camelCase to Title Case with spaces
+      const label = key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (str) => str.toUpperCase())
+        .trim();
+      formatted += `  ${label}: ${value}\n`;
+    }
+  });
+  return formatted;
+}
+
 export interface MeasurementData {
   garmentType: string;
   measurements: Record<string, number | string | undefined>;
 }
+
+/**
+ * Message generation functions
+ */
 
 export interface OrderConfirmationMessageData {
   customerName: string;
@@ -188,152 +182,12 @@ export interface OrderConfirmationMessageData {
   advanceAmount?: number;
   balanceAmount?: number;
   dressItems?: Array<{ dressName: string; quantity: number }>;
-  garmentTypes?: string[]; // e.g., ['Shirt', 'Pant']
-  measurements?: MeasurementData[]; // Measurements for each garment
+  garmentTypes?: string[];
+  measurements?: MeasurementData[];
   companyName?: string;
-  orderCategory?: string; // Men/Women/Kids
+  orderCategory?: string;
 }
 
-// Measurement field labels for display
-const MEASUREMENT_LABELS: Record<string, string> = {
-  length: 'Length',
-  shoulder: 'Shoulder',
-  sleeveType: 'Sleeve Type',
-  sleeveLength: 'Sleeve Length',
-  sleeveLoose: 'Sleeve Loose',
-  body: 'Body',
-  waist: 'Waist',
-  neck: 'Neck',
-  bodyLooseFront: 'Body Loose (Front)',
-  bodyLooseBack: 'Body Loose (Back)',
-  pocket: 'Pocket',
-  bottomCut: 'Bottom Cut',
-  chest: 'Chest',
-  kneeLength: 'Knee Length',
-  seat: 'Seat',
-  fly: 'Fly (Zip)',
-  fork: 'Fork',
-  thighLoose: 'Thigh Loose',
-  kneeLoose: 'Knee Loose',
-  bottom: 'Bottom',
-  neckDepthFront: 'Neck Depth (Front)',
-  neckDepthBack: 'Neck Depth (Back)',
-  armhole: 'Armhole',
-  halfSleeve: 'Half Sleeve',
-  fullSleeve: 'Full Sleeve',
-  bust: 'Bust',
-  hip: 'Hip',
-};
-
-/**
- * Format measurements for display in WhatsApp message
- */
-function formatMeasurements(measurements: Record<string, number | string | undefined>): string {
-  const entries = Object.entries(measurements)
-    .filter(([key, value]) => value !== undefined && value !== null && value !== '' && value !== 0 && key !== 'options' && key !== 'specialNote')
-    .map(([key, value]) => {
-      const label = MEASUREMENT_LABELS[key] || key.replace(/([A-Z])/g, ' $1').trim();
-      if (typeof value === 'number') {
-        return `  • ${label}: ${value}"`;
-      }
-      return `  • ${label}: ${value}`;
-    });
-  return entries.join('\n');
-}
-
-/**
- * Generate order confirmation message for WhatsApp
- */
-export function generateOrderConfirmationMessage(data: OrderConfirmationMessageData): string {
-  const { 
-    customerName, 
-    orderNumber, 
-    orderDate, 
-    deliveryDate, 
-    totalAmount, 
-    advanceAmount, 
-    balanceAmount,
-    dressItems,
-    garmentTypes,
-    measurements,
-    companyName,
-    orderCategory
-  } = data;
-
-  let message = `🧵 *ORDER CONFIRMATION*\n`;
-  message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  message += `Dear *${customerName}*,\n\n`;
-  message += `Thank you for your order! ✨\n\n`;
-  
-  message += `📋 *Order Details*\n`;
-  message += `• Order No: *${orderNumber}*\n`;
-  message += `• Order Date: ${orderDate}\n`;
-  message += `• Delivery Date: *${deliveryDate}*\n`;
-  if (orderCategory) {
-    const categoryLabel = orderCategory === 'male' ? 'Men' : orderCategory === 'female' ? 'Women' : 'Kids';
-    message += `• Category: ${categoryLabel}\n`;
-  }
-
-  // Add garment types if available
-  if (garmentTypes && garmentTypes.length > 0) {
-    message += `\n👔 *Garments*\n`;
-    message += `• ${garmentTypes.join(', ')}\n`;
-  }
-
-  // Add dress items if available (with quantities)
-  if (dressItems && dressItems.length > 0) {
-    message += `\n📦 *Items Ordered*\n`;
-    dressItems.forEach((item, index) => {
-      message += `${index + 1}. ${item.dressName} × ${item.quantity}\n`;
-    });
-  }
-
-  // Add measurements if available
-  if (measurements && measurements.length > 0) {
-    message += `\n📏 *Measurements*\n`;
-    measurements.forEach((m) => {
-      const formattedMeasurements = formatMeasurements(m.measurements);
-      if (formattedMeasurements) {
-        message += `\n*${m.garmentType}:*\n`;
-        message += formattedMeasurements + '\n';
-      }
-    });
-  }
-
-  // Add payment details if available
-  if (totalAmount !== undefined && totalAmount > 0) {
-    message += `\n💰 *Payment Summary*\n`;
-    message += `• Total Amount: *₹${totalAmount.toLocaleString('en-IN')}*\n`;
-    if (advanceAmount !== undefined && advanceAmount > 0) {
-      message += `• Advance Paid: ₹${advanceAmount.toLocaleString('en-IN')}\n`;
-    }
-    if (balanceAmount !== undefined && balanceAmount > 0) {
-      message += `• Balance Due: *₹${balanceAmount.toLocaleString('en-IN')}*\n`;
-    }
-  }
-
-  message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `We will notify you when your order is ready for pickup. 📱\n\n`;
-  message += `Thank you for choosing us! 🙏\n`;
-  message += `*${companyName || 'Tailor Shop'}*`;
-
-  return message;
-}
-
-/**
- * Generate order ready message for WhatsApp (simple version)
- */
-export function generateOrderReadyMessage(
-  customerName: string,
-  orderNumber: string,
-  companyName?: string
-): string {
-  return `Dear ${customerName},\n\n🎉 *Great News!*\n\nYour order *${orderNumber}* is ready for delivery!\n\nPlease visit us to collect your order at your convenience.\n\nThank you for your patience! 🙏\n${companyName || 'Tailor Shop'}`;
-}
-
-/**
- * Data structure for order ready message with full details
- */
 export interface OrderReadyMessageData {
   customerName: string;
   orderNumber: string;
@@ -342,11 +196,12 @@ export interface OrderReadyMessageData {
   totalAmount?: number;
   advanceAmount?: number;
   balanceAmount?: number;
-  dressItems?: Array<{ dressName: string; quantity: number }>;
+  dressItems?: Array<{ dressName: string; quantity: number; price?: number }>;
   garmentTypes?: string[]; // e.g., ['Shirt', 'Pant']
   measurements?: MeasurementData[]; // Measurements for each garment
   companyName?: string;
   orderCategory?: string; // Men/Women/Kids
+  jobWorkNo?: string; // Job Work Number
 }
 
 /**
@@ -365,7 +220,8 @@ export function generateOrderReadyMessageWithDetails(data: OrderReadyMessageData
     garmentTypes,
     measurements,
     companyName,
-    orderCategory
+    orderCategory,
+    jobWorkNo
   } = data;
 
   let message = `🎉 *ORDER READY FOR DELIVERY*\n`;
@@ -373,32 +229,44 @@ export function generateOrderReadyMessageWithDetails(data: OrderReadyMessageData
   message += `Dear *${customerName}*,\n\n`;
   message += `Great news! Your order is ready for pickup! ✨\n\n`;
 
-  message += `📋 *Order Details*\n`;
-  message += `• Order No: *${orderNumber}*\n`;
-  message += `• Order Date: ${orderDate}\n`;
-  message += `• Delivery Date: *${deliveryDate}*\n`;
+  message += `📋 *ORDER DETAILS*\n`;
+  message += `┌────────────────────\n`;
+  message += `│ Order Code: *${orderNumber}*\n`;
+  if (jobWorkNo) {
+    message += `│ Job Work No: *${jobWorkNo}*\n`;
+  }
+  message += `│ Customer: *${customerName}*\n`;
+  message += `│ Order Date: ${orderDate}\n`;
+  message += `│ Delivery Date: *${deliveryDate}*\n`;
   if (orderCategory) {
     const categoryLabel = orderCategory === 'male' ? 'Men' : orderCategory === 'female' ? 'Women' : 'Kids';
-    message += `• Category: ${categoryLabel}\n`;
+    message += `│ Category: ${categoryLabel}\n`;
   }
+  message += `└────────────────────\n`;
 
-  // Add garment types if available
-  if (garmentTypes && garmentTypes.length > 0) {
-    message += `\n👔 *Garments*\n`;
-    message += `• ${garmentTypes.join(', ')}\n`;
-  }
-
-  // Add dress items if available (with quantities)
+  // Add dress items (What was stitched) with details
   if (dressItems && dressItems.length > 0) {
-    message += `\n📦 *Items*\n`;
+    message += `\n👔 *ITEMS STITCHED*\n`;
+    message += `┌────────────────────\n`;
     dressItems.forEach((item, index) => {
-      message += `${index + 1}. ${item.dressName} × ${item.quantity}\n`;
+      message += `│ ${index + 1}. *${item.dressName}* × ${item.quantity}`;
+      if (item.price) {
+        message += ` - ₹${item.price.toLocaleString('en-IN')}`;
+      }
+      message += `\n`;
     });
+    message += `└────────────────────\n`;
+  }
+
+  // Add garment types if available and different from dress items
+  if (garmentTypes && garmentTypes.length > 0 && (!dressItems || dressItems.length === 0)) {
+    message += `\n👔 *Garment Types*\n`;
+    message += `• ${garmentTypes.join(', ')}\n`;
   }
 
   // Add measurements if available
   if (measurements && measurements.length > 0) {
-    message += `\n📏 *Measurements*\n`;
+    message += `\n📏 *MEASUREMENTS*\n`;
     measurements.forEach((m) => {
       const formattedMeasurements = formatMeasurements(m.measurements);
       if (formattedMeasurements) {
@@ -408,23 +276,35 @@ export function generateOrderReadyMessageWithDetails(data: OrderReadyMessageData
     });
   }
 
-  // Add payment details if available
+  // Add payment details
+  message += `\n💰 *PAYMENT SUMMARY*\n`;
+  message += `┌────────────────────\n`;
   if (totalAmount !== undefined && totalAmount > 0) {
-    message += `\n💰 *Payment Summary*\n`;
-    message += `• Total Amount: *₹${totalAmount.toLocaleString('en-IN')}*\n`;
-    if (advanceAmount !== undefined && advanceAmount > 0) {
-      message += `• Advance Paid: ₹${advanceAmount.toLocaleString('en-IN')}\n`;
-    }
-    if (balanceAmount !== undefined && balanceAmount > 0) {
-      message += `• Balance Due: *₹${balanceAmount.toLocaleString('en-IN')}*\n`;
-    }
+    message += `│ Total Amount: *₹${totalAmount.toLocaleString('en-IN')}*\n`;
   }
+  if (advanceAmount !== undefined && advanceAmount > 0) {
+    message += `│ Advance Paid: ₹${advanceAmount.toLocaleString('en-IN')}\n`;
+  }
+  if (balanceAmount !== undefined && balanceAmount > 0) {
+    message += `│ *Balance Due: ₹${balanceAmount.toLocaleString('en-IN')}*\n`;
+  } else if (totalAmount && (!advanceAmount || advanceAmount >= totalAmount)) {
+    message += `│ ✅ *FULLY PAID*\n`;
+  }
+  message += `└────────────────────\n`;
 
   message += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
-  message += `Please visit us to collect your order at your convenience. 📍\n\n`;
-  message += `Thank you for your patience! 🙏\n`;
+  message += `📍 Please visit us to collect your order.\n\n`;
+  message += `Thank you for choosing us! 🙏\n`;
   message += `*${companyName || 'Tailor Shop'}*`;
 
   return message;
 }
 
+export function generateOrderConfirmationMessage(data: OrderConfirmationMessageData): string {
+  // Simple confirmation message
+  return `Order ${data.orderNumber} confirmed for ${data.customerName}. Delivery: ${data.deliveryDate}. Total: ₹${data.totalAmount}`;
+}
+
+export function generateOrderReadyMessage(data: Omit<OrderReadyMessageData, 'dressItems' | 'measurements' | 'garmentTypes'>): string {
+  return `Order ${data.orderNumber} is ready for ${data.customerName}!`;
+}

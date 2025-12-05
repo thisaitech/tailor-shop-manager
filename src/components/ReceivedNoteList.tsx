@@ -172,22 +172,24 @@ export function ReceivedNoteList({ serviceOrders, orderAllotments, onBack, onDat
           .filter((type, index, arr) => arr.indexOf(type) === index)
           .map(type => type.charAt(0).toUpperCase() + type.slice(1)) || [];
 
-        // Build dress items for the message
-        const dressItems = order.dressItems?.map(item => ({
+        // Build dress items with price for the message
+        const dressItemsWithPrice = order.dressItems?.map(item => ({
           dressName: item.dressName || item.dressType,
-          quantity: item.quantity
+          quantity: item.quantity,
+          price: item.stitchingCost || (item as any).price
         })) || [];
 
         // Generate detailed message with order info
         const message = generateOrderReadyMessageWithDetails({
           customerName: customer.name,
           orderNumber: order.id,
+          jobWorkNo: order.jobWorkNo,
           orderDate: format(new Date(order.serviceOrderDate), 'dd MMM yyyy'),
           deliveryDate: format(new Date(order.expectedDeliveryDate), 'dd MMM yyyy'),
           totalAmount: order.stitchingCost,
           advanceAmount: order.advanceAmount,
           balanceAmount: order.balanceAmount,
-          dressItems,
+          dressItems: dressItemsWithPrice,
           garmentTypes,
           measurements: measurementsData,
           companyName,
