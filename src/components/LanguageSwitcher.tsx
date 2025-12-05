@@ -10,10 +10,10 @@ export function LanguageSwitcher() {
       variant="outline"
       size="sm"
       onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
-      className="gap-2 font-semibold touch-manipulation"
-      style={{ backgroundColor: 'white' }}
+      className="gap-2 font-semibold min-w-[44px] min-h-[44px] p-2"
+      style={{ backgroundColor: 'white', touchAction: 'manipulation' }}
     >
-      <Translate size={18} weight="bold" />
+      <Translate size={22} weight="bold" />
       <span className="hidden sm:inline">{lang === 'en' ? 'தமிழ்' : 'English'}</span>
       <span className="sm:hidden">{lang === 'en' ? 'த' : 'EN'}</span>
     </Button>

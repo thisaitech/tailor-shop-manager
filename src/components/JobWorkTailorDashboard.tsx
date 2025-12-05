@@ -56,15 +56,36 @@ import { JobWorkOrderDetailsDialog } from './JobWorkOrderDetailsDialog';
 // awaiting → waitingForDC → inprogress → job-completed → received-note → delivered
 // rejected can happen from awaiting
 
-type DashboardView = 'dashboard' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'job_completed' | 'rejected' | 'all';
+export type VendorDashboardView = 'dashboard' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'job_completed' | 'rejected' | 'all';
+type DashboardView = VendorDashboardView;
 
 const ITEMS_PER_PAGE = 6;
 
-export function JobWorkTailorDashboard() {
+interface JobWorkTailorDashboardProps {
+  initialView?: DashboardView;
+  onViewChange?: (view: DashboardView) => void;
+}
+
+export function JobWorkTailorDashboard({ initialView = 'dashboard', onViewChange }: JobWorkTailorDashboardProps = {}) {
   const { vendor } = useAuth();
   const [orders, setOrders] = useState<ServiceOrderWithCompany[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
+  const [currentViewInternal, setCurrentViewInternal] = useState<DashboardView>(initialView);
+
+  // Use internal state for reading
+  const currentView = currentViewInternal;
+
+  // Wrapper to sync view changes with parent
+  const setCurrentView = (view: DashboardView) => {
+    setCurrentViewInternal(view);
+    onViewChange?.(view);
+  };
+
+  // Sync view when initialView prop changes (e.g., from back button press)
+  useEffect(() => {
+    setCurrentViewInternal(initialView);
+  }, [initialView]);
+
   const [selectedOrderNo, setSelectedOrderNo] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [acceptingOrder, setAcceptingOrder] = useState<string | null>(null);

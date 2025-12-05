@@ -32,42 +32,54 @@ let storage!: FirebaseStorage;
 // Track offline persistence status
 let offlinePersistenceEnabled = false;
 
-try {
-  app = initializeApp(firebaseConfig);
+// Track Firebase initialization status
+let firebaseInitialized = false;
+let firebaseInitPromise: Promise<void> | null = null;
 
-  // Initialize Firestore with persistent cache for offline support
-  // This is the modern approach (Firebase v9.8.0+)
+/**
+ * Initialize Firebase and wait for all async setup to complete
+ */
+async function initializeFirebaseAsync(): Promise<void> {
+  if (firebaseInitialized) {
+    return;
+  }
+
   try {
-    db = initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      }),
-    });
-    offlinePersistenceEnabled = true;
-    console.log('✅ Firestore initialized with offline persistence (multi-tab)');
-  } catch (persistenceError: any) {
-    // If modern persistence fails, fall back to legacy approach
-    if (persistenceError.code === 'failed-precondition') {
-      // Multiple tabs open, persistence can only be enabled in one tab at a time
-      console.warn('⚠️ Multiple tabs detected. Offline persistence enabled in another tab.');
-      db = getFirestore(app);
-    } else if (persistenceError.code === 'unimplemented') {
-      // The current browser doesn't support persistence
-      console.warn('⚠️ Browser does not support offline persistence. Using online-only mode.');
-      db = getFirestore(app);
-    } else {
-      // Unknown error, try legacy enableIndexedDbPersistence
-      console.warn('⚠️ Modern persistence failed, trying legacy approach:', persistenceError);
-      db = getFirestore(app);
+    app = initializeApp(firebaseConfig);
+    console.log('✅ Firebase app initialized');
 
-      // Try legacy persistence enablement
-      enableIndexedDbPersistence(db)
-        .then(() => {
+    // Initialize Firestore with persistent cache for offline support
+    // This is the modern approach (Firebase v9.8.0+)
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+        }),
+      });
+      offlinePersistenceEnabled = true;
+      console.log('✅ Firestore initialized with offline persistence (multi-tab)');
+    } catch (persistenceError: any) {
+      // If modern persistence fails, fall back to legacy approach
+      if (persistenceError.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time
+        console.warn('⚠️ Multiple tabs detected. Offline persistence enabled in another tab.');
+        db = getFirestore(app);
+      } else if (persistenceError.code === 'unimplemented') {
+        // The current browser doesn't support persistence
+        console.warn('⚠️ Browser does not support offline persistence. Using online-only mode.');
+        db = getFirestore(app);
+      } else {
+        // Unknown error, try legacy enableIndexedDbPersistence
+        console.warn('⚠️ Modern persistence failed, trying legacy approach:', persistenceError);
+        db = getFirestore(app);
+
+        // Try legacy persistence enablement - AWAIT this!
+        try {
+          await enableIndexedDbPersistence(db);
           offlinePersistenceEnabled = true;
           console.log('✅ Firestore offline persistence enabled (legacy)');
-        })
-        .catch((err) => {
+        } catch (err: any) {
           if (err.code === 'failed-precondition') {
             console.warn('⚠️ Offline persistence unavailable: Multiple tabs open');
           } else if (err.code === 'unimplemented') {
@@ -75,15 +87,42 @@ try {
           } else {
             console.error('❌ Error enabling offline persistence:', err);
           }
-        });
+          // Continue without persistence - not a fatal error
+        }
+      }
     }
-  }
 
-  auth = getAuth(app);
-  storage = getStorage(app);
-  console.log('✅ Firebase initialized successfully');
-} catch (error) {
-  console.error('❌ Firebase initialization error:', error);
+    auth = getAuth(app);
+    storage = getStorage(app);
+    firebaseInitialized = true;
+    console.log('✅ Firebase initialized successfully');
+  } catch (error) {
+    console.error('❌ Firebase initialization error:', error);
+    throw error;
+  }
+}
+
+// Start initialization immediately
+firebaseInitPromise = initializeFirebaseAsync();
+
+/**
+ * Wait for Firebase to be fully initialized
+ * Call this before any Firebase operations on first app load
+ */
+export async function waitForFirebase(): Promise<void> {
+  if (firebaseInitialized) {
+    return;
+  }
+  if (firebaseInitPromise) {
+    await firebaseInitPromise;
+  }
+}
+
+/**
+ * Check if Firebase is initialized
+ */
+export function isFirebaseReady(): boolean {
+  return firebaseInitialized;
 }
 
 /**

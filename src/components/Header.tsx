@@ -103,9 +103,10 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
                 variant="ghost"
                 size="icon"
                 onClick={onBackClick}
-                className="hover:bg-white/20 text-white -ml-2"
+                className="hover:bg-white/20 text-white -ml-2 min-w-[44px] min-h-[44px]"
+                style={{ touchAction: 'manipulation' }}
               >
-                <ArrowLeft size={24} weight="bold" />
+                <ArrowLeft size={26} weight="bold" />
               </Button>
             )}
             <div className="p-2.5 rounded-lg shadow-md" style={{ background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)' }}>
@@ -129,9 +130,10 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
                 variant="ghost"
                 size="icon"
                 onClick={onNotificationsClick}
-                className="relative hover:bg-white/20 text-white"
+                className="relative hover:bg-white/20 text-white min-w-[44px] min-h-[44px]"
+                style={{ touchAction: 'manipulation' }}
               >
-                <Bell size={22} weight={unreadCount > 0 ? 'fill' : 'regular'} />
+                <Bell size={24} weight={unreadCount > 0 ? 'fill' : 'regular'} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
                     {unreadCount > 99 ? '99+' : unreadCount}

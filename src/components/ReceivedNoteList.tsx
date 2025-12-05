@@ -320,8 +320,8 @@ export function ReceivedNoteList({ serviceOrders, orderAllotments, onBack, onDat
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: '400px' }}>
-      {/* Fixed Header */}
+    <div className="flex flex-col pb-4">
+      {/* Header */}
       <div className="flex items-center gap-3 pb-4 flex-shrink-0 bg-background">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft size={20} />
@@ -332,9 +332,9 @@ export function ReceivedNoteList({ serviceOrders, orderAllotments, onBack, onDat
         </div>
       </div>
 
-      {/* Scrollable Orders List */}
-      <Card className="flex-1 min-h-0 overflow-hidden">
-        <CardContent className="p-4 h-full overflow-y-auto" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%)' }}>
+      {/* Orders List */}
+      <Card className="border-0 shadow-none">
+        <CardContent className="p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%)' }}>
           {receivedNoteOrders.length === 0 ? (
             <EmptyState
               icon={Package}

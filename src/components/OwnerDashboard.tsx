@@ -63,12 +63,18 @@ import { getCustomerById } from '@/lib/firestore/customerService';
 
 interface OwnerDashboardProps {
   initialTab?: string;
+  initialFilter?: DashboardFilter;
+  onFilterChange?: (filter: DashboardFilter) => void;
+  onTabChange?: (tab: string) => void; // Notify parent when tab changes
+  onInternalViewChange?: (hasInternalView: boolean) => void; // Notify parent when internal views (customer/order detail) are shown
+  closeInternalView?: boolean; // When true, close any open internal detail views
+  onCloseInternalViewHandled?: () => void; // Callback after internal view is closed
   onEmployeeClick?: () => void;
   onNavigateToDeliveryChallan?: (orderId?: string) => void; // Navigate to DC page with optional pre-selected order
   onNavigateToPayment?: (orderId: string) => void; // Navigate to Payment page with pre-selected order
 }
 
-export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNavigateToDeliveryChallan, onNavigateToPayment }: OwnerDashboardProps) {
+export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all', onFilterChange, onTabChange, onInternalViewChange, closeInternalView, onCloseInternalViewHandled, onEmployeeClick, onNavigateToDeliveryChallan, onNavigateToPayment }: OwnerDashboardProps) {
   const { t } = useLanguage();
   const { user, employee } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -80,8 +86,38 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
   const [inventory, setInventory] = useStorage<InventoryItem[]>('inventory', []);
   const [transactions, setTransactions] = useStorage<InventoryTransaction[]>('transactions', []);
   const [tailors] = useStorage<Tailor[]>('tailors', []);
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [orderFilter, setOrderFilter] = useState<DashboardFilter>('all');
+  const [activeTabInternal, setActiveTabInternal] = useState(initialTab);
+
+  // Use internal state for reading
+  const activeTab = activeTabInternal;
+
+  // Wrapper to sync tab changes with parent
+  const setActiveTab = (tab: string) => {
+    setActiveTabInternal(tab);
+    onTabChange?.(tab);
+  };
+
+  // Sync tab when initialTab prop changes (e.g., from back button press)
+  useEffect(() => {
+    setActiveTabInternal(initialTab);
+  }, [initialTab]);
+
+  const [orderFilter, setOrderFilterInternal] = useState<DashboardFilter>(initialFilter);
+
+  // Sync filter state with parent App.tsx
+  const setOrderFilter = (filter: DashboardFilter) => {
+    setOrderFilterInternal(filter);
+    onFilterChange?.(filter);
+  };
+
+  // Update internal filter when initialFilter prop changes (e.g., from back button)
+  useEffect(() => {
+    setOrderFilterInternal(initialFilter);
+  }, [initialFilter]);
+
+  // Track if we have an internal detail view open (for back button handling)
+  const [hasInternalDetailView, setHasInternalDetailView] = useState(false);
+
   const [showServiceOrderForm, setShowServiceOrderForm] = useState(false);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showOrderAllotmentForm, setShowOrderAllotmentForm] = useState(false);
@@ -90,10 +126,40 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
   const [companyId, setCompanyId] = useState<string>('');
   const [newlyCreatedCustomerId, setNewlyCreatedCustomerId] = useState<string | undefined>();
   const [reassignOrder, setReassignOrder] = useState<OrderAllotment | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomerInternal] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [selectedServiceOrder, setSelectedServiceOrder] = useState<ServiceOrder | null>(null);
+  const [selectedServiceOrder, setSelectedServiceOrderInternal] = useState<ServiceOrder | null>(null);
   const [initialServiceOrderId, setInitialServiceOrderId] = useState<string | undefined>(); // For Job Allotment from Open Orders
+
+  // Wrapper functions to sync internal detail view state with parent
+  const setSelectedCustomer = (customer: Customer | null) => {
+    setSelectedCustomerInternal(customer);
+    onInternalViewChange?.(customer !== null || selectedServiceOrder !== null);
+  };
+
+  const setSelectedServiceOrder = (order: ServiceOrder | null) => {
+    setSelectedServiceOrderInternal(order);
+    onInternalViewChange?.(selectedCustomer !== null || order !== null);
+  };
+
+  // Notify parent when internal detail views change
+  useEffect(() => {
+    const hasDetailView = selectedCustomer !== null || selectedServiceOrder !== null;
+    onInternalViewChange?.(hasDetailView);
+  }, [selectedCustomer, selectedServiceOrder, onInternalViewChange]);
+
+  // Handle close internal view request from parent (e.g., back button press)
+  useEffect(() => {
+    if (closeInternalView) {
+      if (selectedServiceOrder) {
+        setSelectedServiceOrderInternal(null);
+        onCloseInternalViewHandled?.();
+      } else if (selectedCustomer) {
+        setSelectedCustomerInternal(null);
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, selectedServiceOrder, selectedCustomer, onCloseInternalViewHandled]);
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';

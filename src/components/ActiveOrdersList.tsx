@@ -118,7 +118,7 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: '400px' }}>
+    <div className="flex flex-col pb-4">
       {/* Fixed Header - Never scrolls */}
       <div className="flex items-center gap-3 pb-4 flex-shrink-0 bg-background">
         <Button variant="ghost" size="icon" onClick={onBack}>
@@ -130,9 +130,9 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
         </div>
       </div>
 
-      {/* Scrollable Orders List */}
-      <Card className="flex-1 min-h-0 overflow-hidden border-0 shadow-none bg-transparent">
-        <CardContent className="p-0 h-full overflow-y-auto">
+      {/* Orders List */}
+      <Card className="border-0 shadow-none bg-transparent">
+        <CardContent className="p-0">
           {filteredOrders.length === 0 ? (
             <EmptyState
               icon={ViewIcon}

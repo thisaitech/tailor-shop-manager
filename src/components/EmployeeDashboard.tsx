@@ -35,15 +35,36 @@ interface OrderWithCustomer extends OrderAllotment {
   customerName?: string;
 }
 
-type DashboardView = 'dashboard' | 'assigned' | 'in_progress' | 'completed' | 'all' | 'profile';
+export type EmployeeDashboardView = 'dashboard' | 'assigned' | 'in_progress' | 'completed' | 'all' | 'profile';
+type DashboardView = EmployeeDashboardView;
 
 const ITEMS_PER_PAGE = 6;
 
-export function EmployeeDashboard() {
+interface EmployeeDashboardProps {
+  initialView?: DashboardView;
+  onViewChange?: (view: DashboardView) => void;
+}
+
+export function EmployeeDashboard({ initialView = 'dashboard', onViewChange }: EmployeeDashboardProps = {}) {
   const { employee } = useAuth();
   const [orders, setOrders] = useState<OrderWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<DashboardView>('dashboard');
+  const [currentViewInternal, setCurrentViewInternal] = useState<DashboardView>(initialView);
+
+  // Use internal state for reading
+  const currentView = currentViewInternal;
+
+  // Wrapper to sync view changes with parent
+  const setCurrentView = (view: DashboardView) => {
+    setCurrentViewInternal(view);
+    onViewChange?.(view);
+  };
+
+  // Sync view when initialView prop changes (e.g., from back button press)
+  useEffect(() => {
+    setCurrentViewInternal(initialView);
+  }, [initialView]);
+
   const [selectedOrderNo, setSelectedOrderNo] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [search, setSearch] = useState('');

@@ -22,6 +22,14 @@ allprojects {
         google()
         mavenCentral()
     }
+
+    // Fix for deprecated jcenter in old plugins
+    buildscript {
+        repositories {
+            google()
+            mavenCentral()
+        }
+    }
     
     tasks.withType(JavaCompile).configureEach {
         sourceCompatibility = JavaVersion.VERSION_17

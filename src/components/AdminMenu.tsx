@@ -44,10 +44,25 @@ export function AdminMenu({
   };
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={true}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" style={{ backgroundColor: 'white' }}>
-          <List size={20} weight="bold" />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-2 min-w-[48px] min-h-[48px] p-2 sm:px-3"
+          style={{ backgroundColor: 'white', touchAction: 'manipulation' }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+          }}
+          onTouchEnd={(e) => {
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <List size={28} weight="bold" />
           <span className="hidden sm:inline">Menu</span>
         </Button>
       </DropdownMenuTrigger>

@@ -65,8 +65,8 @@ export function WaitingForDCList({ serviceOrders, orderAllotments, onBack, onCre
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: '400px' }}>
-      {/* Fixed Header */}
+    <div className="flex flex-col pb-4">
+      {/* Header */}
       <div className="flex items-center justify-between gap-3 pb-4 flex-shrink-0 bg-background">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={onBack}>
@@ -97,9 +97,9 @@ export function WaitingForDCList({ serviceOrders, orderAllotments, onBack, onCre
         </div>
       </div>
 
-      {/* Scrollable Orders List */}
-      <Card className="flex-1 min-h-0 overflow-hidden">
-        <CardContent className="p-4 h-full overflow-y-auto" style={{ background: 'linear-gradient(135deg, #ccfbf1 0%, #99f6e4 50%, #5eead4 100%)' }}>
+      {/* Orders List */}
+      <Card className="border-0 shadow-none">
+        <CardContent className="p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, #ccfbf1 0%, #99f6e4 50%, #5eead4 100%)' }}>
           {sortedOrders.length === 0 ? (
             <EmptyState
               icon={ClipboardText}

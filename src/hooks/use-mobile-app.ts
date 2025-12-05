@@ -1,35 +1,69 @@
 import { useEffect, useCallback, useState } from 'react';
+import { App } from '@capacitor/app';
 
 /**
  * Hook to handle Android hardware back button
- * Call this in your main App component
+ * Uses Capacitor App plugin for native back button handling
  */
 export function useHardwareBackButton(onBackPress: () => boolean) {
   useEffect(() => {
-    const handleBackButton = (e: PopStateEvent) => {
-      // Prevent default back navigation
-      e.preventDefault();
-      
-      // Call the custom back handler
-      const handled = onBackPress();
-      
-      if (!handled) {
-        // If not handled, allow default behavior (exit app or go back)
-        window.history.back();
-      } else {
-        // Push a dummy state to prevent actual navigation
-        window.history.pushState(null, '', window.location.href);
-      }
-    };
+    // Check if running in Capacitor
+    const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
 
-    // Push initial state
-    window.history.pushState(null, '', window.location.href);
-    
-    window.addEventListener('popstate', handleBackButton);
-    
-    return () => {
-      window.removeEventListener('popstate', handleBackButton);
-    };
+    let backButtonListener: { remove: () => void } | null = null;
+
+    if (isCapacitor) {
+      // Use Capacitor App plugin for native back button
+      const setupBackButton = async () => {
+        try {
+          backButtonListener = await App.addListener('backButton', ({ canGoBack }) => {
+            console.log('[BackButton] Native back button pressed, canGoBack:', canGoBack);
+
+            // Call the custom back handler
+            const handled = onBackPress();
+
+            if (!handled) {
+              // If not handled and can't go back in web history, minimize app
+              if (!canGoBack) {
+                App.minimizeApp();
+              } else {
+                window.history.back();
+              }
+            }
+            // If handled, do nothing - the app handled the navigation
+          });
+          console.log('[BackButton] Capacitor back button listener registered');
+        } catch (error) {
+          console.error('[BackButton] Failed to setup Capacitor back button:', error);
+        }
+      };
+
+      setupBackButton();
+
+      return () => {
+        if (backButtonListener) {
+          backButtonListener.remove();
+        }
+      };
+    } else {
+      // Fallback for web: use popstate
+      const handleBackButton = () => {
+        const handled = onBackPress();
+
+        if (handled) {
+          // Push a dummy state to prevent actual navigation
+          window.history.pushState(null, '', window.location.href);
+        }
+      };
+
+      // Push initial state
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handleBackButton);
+
+      return () => {
+        window.removeEventListener('popstate', handleBackButton);
+      };
+    }
   }, [onBackPress]);
 }
 
@@ -270,59 +304,59 @@ export function useHasNotch(): boolean {
 
 /**
  * Prevent default touch behaviors that can interfere with app
- * FIXED: No longer blocks touch/click events
+ * FIXED: Prevents pull-to-refresh and overscroll for both Capacitor and PWA
  */
 export function usePreventDefaultTouchBehaviors() {
   useEffect(() => {
-    let touchStartY = 0;
-    let isPulling = false;
-
-    // Track touch start - PASSIVE (doesn't block clicks)
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        touchStartY = e.touches[0].clientY;
-        const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-        isPulling = scrollTop <= 0;
-      }
-    };
-
-    // Only prevent on touchmove for pull-to-refresh
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!isPulling || e.touches.length !== 1) return;
-      
-      const touchY = e.touches[0].clientY;
-      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-      
-      if (scrollTop <= 0 && touchY > touchStartY + 10) {
-        const target = e.target as HTMLElement;
-        if (!target.closest('.overflow-auto, .overflow-y-auto, .overflow-y-scroll')) {
-          e.preventDefault();
-        }
-      }
-    };
-
-    const handleTouchEnd = () => {
-      isPulling = false;
-    };
-
-    // Add CSS for double-tap zoom prevention (doesn't block clicks)
+    // Add CSS overscroll protection for all environments
     const style = document.createElement('style');
     style.id = 'touch-fix';
-    style.textContent = `* { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }`;
+    style.textContent = `
+      html, body {
+        overscroll-behavior-y: contain;
+        overscroll-behavior-x: none;
+      }
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* Prevent pull-to-refresh on the header area */
+      header {
+        touch-action: manipulation;
+        overscroll-behavior: contain;
+      }
+    `;
     if (!document.getElementById('touch-fix')) {
       document.head.appendChild(style);
     }
 
-    // PASSIVE listeners for start/end (won't block clicks)
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    // Prevent pull-to-refresh on touchmove at document level
+    const preventPullToRefresh = (e: TouchEvent) => {
+      // Only prevent if scrolling at top of page and pulling down
+      if (window.scrollY === 0) {
+        const touch = e.touches[0];
+        const startY = (e.target as any)._touchStartY;
+        if (startY !== undefined && touch.clientY > startY) {
+          // Pulling down at top of page - this could trigger refresh
+          // Only prevent if the target is not a scrollable element
+          const target = e.target as HTMLElement;
+          if (!target.closest('.native-scroll') && !target.closest('[data-radix-scroll-area-viewport]')) {
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    const trackTouchStart = (e: TouchEvent) => {
+      (e.target as any)._touchStartY = e.touches[0].clientY;
+    };
+
+    document.addEventListener('touchstart', trackTouchStart, { passive: true });
+    document.addEventListener('touchmove', preventPullToRefresh, { passive: false });
 
     return () => {
-      document.removeEventListener('touchstart', handleTouchStart);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
       document.getElementById('touch-fix')?.remove();
+      document.removeEventListener('touchstart', trackTouchStart);
+      document.removeEventListener('touchmove', preventPullToRefresh);
     };
   }, []);
 }

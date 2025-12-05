@@ -199,9 +199,9 @@ body.keyboard-open {
 /* For Capacitor/native apps - proper keyboard handling */
 html.capacitor-app,
 html.native-app {
-  height: 100%;
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100%;
+  min-height: 100dvh;
+  height: auto;
   /* Store initial height - set by JS in main.tsx */
   --app-height: 100dvh;
 }
@@ -225,15 +225,15 @@ html.native-app body.keyboard-open {
   overflow-y: auto;
 }
 
-/* Root container handles scrolling */
+/* Root container - let body handle scrolling */
 html.capacitor-app #root,
 html.native-app #root {
   min-height: 100%;
   min-height: var(--app-height, 100dvh);
+  height: auto;
   display: flex;
   flex-direction: column;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
 /* Dev keyboard extra space - DESKTOP BROWSER DEVELOPMENT ONLY */
@@ -363,7 +363,7 @@ html.native-app #root {
 }
 
 .keyboard-open .keyboard-aware-scroll {
-  max-height: calc(100vh - var(--keyboard-height, 0px) - 120px);
+  max-height: calc(100dvh - var(--keyboard-height, 0px) - 120px);
   padding-bottom: 20px;
 }
 
@@ -377,7 +377,8 @@ html.native-app #root {
 /* Form within dialog when keyboard is open */
 .keyboard-open [data-slot="dialog-content"] form {
   max-height: calc(100dvh - var(--keyboard-height, 0px) - 60px);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Ensure content scrolls properly when keyboard is visible */
@@ -478,20 +479,23 @@ button:active,
   [data-radix-dialog-content] {
     width: 100vw !important;
     max-width: 100vw !important;
-    height: 100vh;
-    max-height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     border-radius: 0 !important;
     margin: 0 !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Sheet style dialogs on mobile */
   .sheet-dialog[data-radix-dialog-content] {
     height: auto;
-    max-height: 90vh;
+    max-height: 90dvh;
     border-radius: 16px 16px 0 0 !important;
     bottom: 0;
     top: auto !important;
     transform: none !important;
+    overflow-y: auto;
   }
 }
 

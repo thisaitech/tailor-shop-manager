@@ -31,8 +31,8 @@ export function DeliveredOrdersList({ serviceOrders, orderAllotments, onBack }: 
   };
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: '400px' }}>
-      {/* Fixed Header - Never scrolls */}
+    <div className="flex flex-col pb-4">
+      {/* Header */}
       <div className="flex items-center gap-3 pb-4 flex-shrink-0 bg-background">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft size={20} />
@@ -43,9 +43,9 @@ export function DeliveredOrdersList({ serviceOrders, orderAllotments, onBack }: 
         </div>
       </div>
 
-      {/* Scrollable Delivered Orders List */}
-      <Card className="flex-1 min-h-0 overflow-hidden">
-        <CardContent className="p-4 h-full overflow-y-auto" style={{ background: '#EADDFD' }}>
+      {/* Delivered Orders List */}
+      <Card className="border-0 shadow-none">
+        <CardContent className="p-4 rounded-xl" style={{ background: '#EADDFD' }}>
           {deliveredOrders.length === 0 ? (
             <EmptyState
               icon={CheckCircle}

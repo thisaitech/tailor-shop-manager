@@ -51,26 +51,38 @@
             --status-bar-height: 24px;
         }
         
-        /* Prevent pull-to-refresh on mobile */
-        html, body {
+        /* Prevent pull-to-refresh on mobile - but allow scrolling */
+        html {
+            overscroll-behavior-y: contain;
+            min-height: 100%;
+            height: auto;
+        }
+
+        body {
             overscroll-behavior-y: contain;
             -webkit-overflow-scrolling: touch;
-            touch-action: pan-x pan-y;
-            height: 100%;
-            height: var(--app-height, 100vh);
-            overflow: hidden;
+            min-height: 100%;
+            height: auto;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            /* Safe area padding for notched devices */
+            padding-top: var(--safe-area-inset-top);
+            padding-bottom: var(--safe-area-inset-bottom);
+            padding-left: var(--safe-area-inset-left);
+            padding-right: var(--safe-area-inset-right);
         }
-        
-        /* Prevent text selection for app-like feel */
+
+        /* Prevent text selection for app-like feel - but don't block touch */
         * {
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
-            -webkit-touch-callout: none;
         }
-        
+
         /* Allow text selection only in inputs and textareas */
         input, textarea, [contenteditable="true"], .selectable {
             -webkit-user-select: text;
@@ -79,31 +91,19 @@
             user-select: text;
             -webkit-touch-callout: default;
         }
-        
-        /* Safe area padding for notched devices */
-        body {
-            padding-top: var(--safe-area-inset-top);
-            padding-bottom: var(--safe-area-inset-bottom);
-            padding-left: var(--safe-area-inset-left);
-            padding-right: var(--safe-area-inset-right);
-            position: fixed;
-            width: 100%;
-            top: 0;
-            left: 0;
-        }
-        
-        /* Root container for app */
+
+        /* Root container for app - allows content to flow naturally */
         #root {
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            -webkit-overflow-scrolling: touch;
+            min-height: 100%;
+            height: auto;
+            overflow: visible;
         }
         
-        /* Native scrolling for the app */
+        /* Native scrolling class for specific containers that need it */
         .native-scroll {
-            overflow-y: auto;
+            overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
         }
         
         /* Capacitor app specific styles */

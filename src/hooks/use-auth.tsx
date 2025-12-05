@@ -5,6 +5,7 @@ import { verifyEmployeeCredentials } from '@/lib/firestore/employeeService';
 import { authenticateVendor } from '@/lib/firestore/vendorService';
 import type { EmployeeWithCompany } from '@/lib/firestore/employeeService';
 import { encryptPassword, decryptPassword, isEncrypted } from '@/lib/crypto';
+import { waitForFirebase, isFirebaseReady } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -33,16 +34,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentVendor, setCurrentVendor] = useStorage<Vendor | null>('current_vendor', null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check if user data is ready from storage (no artificial delay)
+  // Wait for Firebase to be ready before allowing authentication
   useEffect(() => {
-    // Storage hook loads synchronously from localStorage, so we can set loading to false immediately
-    // The useStorage hook will have already loaded the data by the time this effect runs
-    setIsLoading(false);
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // Wait for Firebase to be fully initialized
+        await waitForFirebase();
+        console.log('✅ [Auth] Firebase is ready, auth can proceed');
+      } catch (error) {
+        console.error('❌ [Auth] Firebase initialization failed:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }> => {
     console.log('=== LOGIN ATTEMPT ===');
     console.log('Username:', username);
+
+    // Ensure Firebase is ready before attempting login
+    if (!isFirebaseReady()) {
+      console.log('[Auth] Firebase not ready, waiting...');
+      try {
+        await waitForFirebase();
+        console.log('[Auth] Firebase now ready, proceeding with login');
+      } catch (error) {
+        console.error('[Auth] Firebase initialization failed:', error);
+        return { success: false, message: 'Service is initializing. Please try again.' };
+      }
+    }
 
     // Trim inputs to handle accidental whitespace
     const trimmedUsername = username.trim();
