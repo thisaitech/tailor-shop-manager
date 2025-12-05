@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { AdminMenu } from '@/components/AdminMenu';
 import { EmployeeMenu } from '@/components/EmployeeMenu';
 import { VendorMenu } from '@/components/VendorMenu';
 import { Button } from '@/components/ui/button';
-import { Scissors, SignOut, Bell } from '@phosphor-icons/react';
+import { Scissors, SignOut, Bell, ArrowLeft } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { subscribeToNotifications } from '@/lib/firestore/notificationService';
 import { Notification } from '@/lib/types';
@@ -24,11 +25,14 @@ interface HeaderProps {
   onEmployeeProfileClick?: () => void;
   onVendorProfileClick?: () => void;
   onNotificationsClick?: () => void;
+  onBackClick?: () => void;
+  showBackButton?: boolean;
 }
 
-export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick }: HeaderProps) {
+export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick, onBackClick, showBackButton }: HeaderProps) {
   const { user, employee, vendor, logout } = useAuth();
   const { t } = useLanguage();
+  const isMobile = useIsMobile();
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Get current user ID based on user type
@@ -93,6 +97,17 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {/* Mobile Back Button */}
+            {isMobile && showBackButton && onBackClick && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onBackClick}
+                className="hover:bg-white/20 text-white -ml-2"
+              >
+                <ArrowLeft size={24} weight="bold" />
+              </Button>
+            )}
             <div className="p-2.5 rounded-lg shadow-md" style={{ background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)' }}>
               <Scissors size={28} className="text-white" weight="duotone" />
             </div>

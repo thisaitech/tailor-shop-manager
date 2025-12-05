@@ -557,6 +557,7 @@ export interface Vendor {
   passwordHistory: Array<{ password: string; changedAt: number }>; // Password change history
   isFirstLogin: boolean; // Flag to force password change on first login
   lastPasswordChange: number; // Timestamp of last password change
+  isActive?: boolean; // Whether vendor account is active
   companyId: string; // Company unique ID
   companyDocId: string; // Firestore document ID of company
   createdBy: string; // Admin user ID who created vendor

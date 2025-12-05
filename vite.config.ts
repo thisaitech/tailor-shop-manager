@@ -33,10 +33,12 @@ export default defineConfig({
         manualChunks: {
           // Firebase in its own chunk - loaded only when needed
           'firebase': ['firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage'],
-          // Charts library - heavy, separate chunk
-          'charts': ['recharts'],
-          // PDF generation - only load when generating PDFs
+          // Charts library - heavy (~500KB), separate chunk
+          'charts': ['recharts', 'd3'],
+          // PDF generation - only load when generating PDFs (~300KB)
           'pdf': ['jspdf', 'html2canvas'],
+          // 3D graphics - very heavy (~600KB), only load if needed
+          'three': ['three'],
           // UI components - shared across the app
           'radix-ui': [
             '@radix-ui/react-dialog',
@@ -60,6 +62,8 @@ export default defineConfig({
           'date': ['date-fns', 'react-day-picker'],
           // Capacitor plugins
           'capacitor': ['@capacitor/filesystem', '@capacitor/share', '@capacitor/camera'],
+          // Vendor - react and react-dom
+          'vendor': ['react', 'react-dom'],
         }
       }
     },

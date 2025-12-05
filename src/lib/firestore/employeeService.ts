@@ -12,6 +12,12 @@ import {
 import { db } from '@/lib/firebase';
 import { Employee } from '@/lib/types';
 import { sendTailorCredentialsEmail } from '@/lib/emailService';
+import {
+  encryptPassword as secureEncrypt,
+  decryptPassword as secureDecrypt,
+  generateSecurePassword,
+  isEncrypted,
+} from '@/lib/crypto';
 
 const EMPLOYEES_COLLECTION = 'employees';
 
@@ -33,16 +39,38 @@ async function generateEmployeeId(companyId: string): Promise<string> {
 }
 
 /**
- * Generate random password for employee
- * Format: ABC123XY (8 characters - uppercase letters and numbers)
+ * Generate secure random password for employee using Web Crypto API
+ * Format: 12 characters with uppercase, lowercase, numbers, special chars
  */
 export function generateEmployeePassword(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let password = '';
-  for (let i = 0; i < 8; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  return generateSecurePassword(12);
+}
+
+/**
+ * Encrypt password using AES-256-GCM
+ */
+async function encryptEmployeePassword(password: string): Promise<string> {
+  return await secureEncrypt(password);
+}
+
+/**
+ * Decrypt password - supports both new AES encryption and legacy plain text
+ */
+async function decryptEmployeePassword(encryptedPassword: string): Promise<string | null> {
+  try {
+    if (!encryptedPassword) return null;
+
+    // Check if it's encrypted with new format
+    if (isEncrypted(encryptedPassword)) {
+      return await secureDecrypt(encryptedPassword);
+    }
+
+    // Legacy: password is stored as plain text
+    return encryptedPassword;
+  } catch (error) {
+    console.error('[Employee Auth] Failed to decrypt password:', error);
+    return null;
   }
-  return password;
 }
 
 /**
@@ -179,7 +207,10 @@ export async function addEmployee(
   try {
     // Generate employee ID and password
     const employeeId = await generateEmployeeId(companyId);
-    const password = generateEmployeePassword();
+    const plainPassword = generateEmployeePassword();
+
+    // Encrypt password before storing
+    const encryptedPassword = await encryptEmployeePassword(plainPassword);
 
     const employee: EmployeeWithCompany = {
       id: employeeId,
@@ -209,7 +240,7 @@ export async function addEmployee(
       companyId,
       companyDocId,
       createdBy,
-      password,
+      password: encryptedPassword, // Store encrypted password
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -220,7 +251,7 @@ export async function addEmployee(
 
     console.log('[Employee Service] Employee added successfully:', employeeId);
 
-    // Send credentials email to all employees if email is provided
+    // Send credentials email with PLAIN password (not encrypted)
     if (employeeData.email) {
       console.log('[Employee Service] Sending credentials email to employee...');
       try {
@@ -228,7 +259,7 @@ export async function addEmployee(
           to: employeeData.email,
           employeeName: employeeData.name,
           loginId: employeeData.contactNumber,
-          temporaryPassword: password,
+          temporaryPassword: plainPassword, // Send plain password via email
           companyName: companyName,
         });
 
@@ -378,18 +409,20 @@ export async function toggleEmployeeStatus(
 /**
  * Reset employee password
  * @param employeeId - Employee ID
- * @returns New password
+ * @returns New plain password (to send to employee)
  */
 export async function resetEmployeePassword(employeeId: string): Promise<string> {
   try {
-    const newPassword = generateEmployeePassword();
+    const plainPassword = generateEmployeePassword();
+    const encryptedPassword = await encryptEmployeePassword(plainPassword);
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await updateDoc(employeeRef, {
-      password: newPassword,
+      password: encryptedPassword,
+      firstLogin: true, // Force password change on next login
       updatedAt: Date.now(),
     });
     console.log('Employee password reset:', employeeId);
-    return newPassword;
+    return plainPassword; // Return plain password for sending via email
   } catch (error) {
     console.error('Error resetting employee password:', error);
     throw new Error('Failed to reset password. Please try again.');
@@ -399,8 +432,8 @@ export async function resetEmployeePassword(employeeId: string): Promise<string>
 /**
  * Change employee password after first login
  * @param employeeId - Employee ID
- * @param oldPassword - Current password for verification
- * @param newPassword - New password set by employee
+ * @param oldPassword - Current password for verification (plain text)
+ * @param newPassword - New password set by employee (plain text)
  */
 export async function changeEmployeePassword(
   employeeId: string,
@@ -418,15 +451,24 @@ export async function changeEmployeePassword(
 
     const employeeData = employeeDoc.data() as EmployeeWithCompany;
 
+    // Verify old password
+    const decryptedOldPassword = await decryptEmployeePassword(employeeData.password);
+    if (decryptedOldPassword === null || decryptedOldPassword !== oldPassword) {
+      throw new Error('Current password is incorrect');
+    }
+
     // Initialize password history if it doesn't exist
     const passwordHistory = employeeData.passwordHistory || [];
 
-    // Add old password to history
-    passwordHistory.push(oldPassword);
+    // Encrypt new password
+    const encryptedNewPassword = await encryptEmployeePassword(newPassword);
 
-    // Update with new password and history
+    // Add old encrypted password to history (for audit trail)
+    passwordHistory.push(employeeData.password);
+
+    // Update with new encrypted password and history
     await updateDoc(employeeRef, {
-      password: newPassword,
+      password: encryptedNewPassword,
       passwordHistory: passwordHistory,
       firstLogin: false,
       updatedAt: Date.now(),
@@ -491,8 +533,14 @@ export async function verifyEmployeeCredentials(
       role: employeeData.role
     });
 
-    // Check password (trimmed comparison)
-    if (employeeData.password !== trimmedPassword) {
+    // Decrypt and verify password (supports both encrypted and legacy plain text)
+    const decryptedPassword = await decryptEmployeePassword(employeeData.password);
+    if (decryptedPassword === null) {
+      console.error('[Employee Auth] Failed to decrypt password for employee:', employeeData.id);
+      return { success: false, error: 'system_error', message: 'Authentication error. Please contact support.' };
+    }
+
+    if (decryptedPassword !== trimmedPassword) {
       console.log('[Employee Auth] Invalid password for employee:', employeeData.id);
       return { success: false, error: 'invalid_password', message: 'Invalid password' };
     }

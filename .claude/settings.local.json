@@ -15,7 +15,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite build)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nFix authentication issues causing login failures with correct passwords\n\n- Add input trimming in Login.tsx to handle accidental whitespace\n- Fix base64 decryption in vendorService.ts to return null instead of empty string on error\n- Add isActive check for vendor authentication\n- Change employee auth to find by phone first, then verify password separately\n- Return specific error messages for different failure scenarios:\n  - \"No account found with this phone number\"\n  - \"Invalid password\"  \n  - \"Your account is not active\"\n  - \"Your access has been disabled\"\n- Add input trimming in all authentication functions\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix authentication issues causing login failures with correct passwords\n\n- Add input trimming in Login.tsx to handle accidental whitespace\n- Fix base64 decryption in vendorService.ts to return null instead of empty string on error\n- Add isActive check for vendor authentication\n- Change employee auth to find by phone first, then verify password separately\n- Return specific error messages for different failure scenarios:\n  - \"No account found with this phone number\"\n  - \"Invalid password\"  \n  - \"Your account is not active\"\n  - \"Your access has been disabled\"\n- Add input trimming in all authentication functions\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(npx cap sync android)",
+      "Bash(npx cap sync:*)"
     ],
     "deny": [],
     "ask": []

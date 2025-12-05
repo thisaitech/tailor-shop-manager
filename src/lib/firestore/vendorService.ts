@@ -12,45 +12,66 @@ import {
 import { db } from '@/lib/firebase';
 import { Vendor } from '@/lib/types';
 import { sendTailorCredentialsEmail } from '@/lib/emailService';
+import {
+  encryptPassword as secureEncrypt,
+  decryptPassword as secureDecrypt,
+  generateSecurePassword,
+  isEncrypted,
+} from '@/lib/crypto';
 
 const VENDORS_COLLECTION = 'vendors';
 
 /**
- * Generate a random password
- * Format: 8 characters with uppercase, lowercase, numbers
+ * Generate a secure random password using Web Crypto API
+ * Format: 12 characters with uppercase, lowercase, numbers, special chars
  */
 function generatePassword(): string {
-  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
-  const numbers = '0123456789';
-  const allChars = uppercase + lowercase + numbers;
-
-  let password = '';
-  // Ensure at least one of each type
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-
-  // Fill remaining characters
-  for (let i = 3; i < 8; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
-  }
-
-  // Shuffle the password
-  return password.split('').sort(() => Math.random() - 0.5).join('');
+  return generateSecurePassword(12);
 }
 
 /**
- * Simple password encryption (base64 encoding)
- * Note: In production, use proper encryption like bcrypt
+ * Encrypt password using AES-256-GCM
+ * @param password - Plain text password
+ * @returns Encrypted password as base64 string
  */
-function encryptPassword(password: string): string {
-  return btoa(password);
+async function encryptPasswordSecure(password: string): Promise<string> {
+  return await secureEncrypt(password);
 }
 
 /**
- * Decrypt password (base64 decoding)
- * Returns null if decryption fails instead of empty string to prevent false negatives
+ * Decrypt password using AES-256-GCM
+ * Also handles legacy base64 encoded passwords for backward compatibility
+ * @param encryptedPassword - Encrypted password
+ * @returns Decrypted plain text password or null if decryption fails
+ */
+export async function decryptPasswordAsync(encryptedPassword: string): Promise<string | null> {
+  try {
+    if (!encryptedPassword) {
+      console.error('[Vendor Auth] No encrypted password provided');
+      return null;
+    }
+
+    // Check if it's encrypted with new format
+    if (isEncrypted(encryptedPassword)) {
+      return await secureDecrypt(encryptedPassword);
+    }
+
+    // Fallback to legacy base64 decoding for old passwords
+    try {
+      return atob(encryptedPassword);
+    } catch {
+      console.error('[Vendor Auth] Failed to decode legacy password');
+      return null;
+    }
+  } catch (error) {
+    console.error('[Vendor Auth] Failed to decrypt password:', error);
+    return null;
+  }
+}
+
+/**
+ * @deprecated Use decryptPasswordAsync instead. Kept for backward compatibility.
+ * Synchronous decrypt - only works with legacy base64 passwords
  */
 export function decryptPassword(encryptedPassword: string): string | null {
   try {
@@ -58,6 +79,7 @@ export function decryptPassword(encryptedPassword: string): string | null {
       console.error('[Vendor Auth] No encrypted password provided');
       return null;
     }
+    // Legacy base64 decoding only
     return atob(encryptedPassword);
   } catch (error) {
     console.error('[Vendor Auth] Failed to decrypt password:', error);
@@ -177,9 +199,9 @@ export async function addVendor(
     // Generate tailor code
     const tailorCode = await generateTailorCode(companyId);
 
-    // Generate auto password
+    // Generate auto password with secure encryption
     const autoPassword = generatePassword();
-    const encryptedPassword = encryptPassword(autoPassword);
+    const encryptedPassword = await encryptPasswordSecure(autoPassword);
     const now = Date.now();
 
     const vendor: Vendor = {
@@ -332,8 +354,8 @@ export async function changeVendorPassword(
       throw new Error('Vendor not found');
     }
 
-    // Verify current password
-    const decryptedPassword = decryptPassword(vendor.password);
+    // Verify current password using async decryption
+    const decryptedPassword = await decryptPasswordAsync(vendor.password);
     if (decryptedPassword === null) {
       throw new Error('Unable to verify current password. Please contact support.');
     }
@@ -341,8 +363,8 @@ export async function changeVendorPassword(
       throw new Error('Current password is incorrect');
     }
 
-    // Encrypt new password
-    const encryptedPassword = encryptPassword(newPassword);
+    // Encrypt new password with secure encryption
+    const encryptedPassword = await encryptPasswordSecure(newPassword);
     const now = Date.now();
 
     // Update password and history
@@ -410,8 +432,8 @@ export async function authenticateVendor(
       return { success: false, error: 'account_inactive', message: 'Your account is not active. Please contact the administrator.' };
     }
 
-    // Verify password
-    const decryptedPassword = decryptPassword(vendor.password);
+    // Verify password using async decryption (supports both new AES and legacy base64)
+    const decryptedPassword = await decryptPasswordAsync(vendor.password);
 
     if (decryptedPassword === null) {
       console.error('[Vendor Auth] Failed to decrypt password for vendor:', vendor.tailorCode);

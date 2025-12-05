@@ -1,20 +1,37 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { compressImage, needsCompression, formatFileSize } from '@/lib/imageCompression';
 
 /**
- * Upload image data URL to Firebase Storage
+ * Upload image data URL to Firebase Storage with automatic compression
  * @param dataUrl - Base64 data URL of the image
  * @param path - Storage path (e.g., 'delivery-challans/DC001/image1.jpg')
+ * @param compress - Whether to compress the image (default: true)
  * @returns Download URL of the uploaded image
  */
 export async function uploadImageToStorage(
   dataUrl: string,
-  path: string
+  path: string,
+  compress: boolean = true
 ): Promise<string> {
   try {
     // Convert data URL to Blob
     const response = await fetch(dataUrl);
-    const blob = await response.blob();
+    let blob = await response.blob();
+
+    // Compress image if enabled and file is large
+    if (compress && needsCompression(blob)) {
+      console.log(`[Storage] Compressing image: ${formatFileSize(blob.size)}`);
+      const compressed = await compressImage(blob, {
+        maxWidth: 1920,
+        maxHeight: 1080,
+        quality: 0.85,
+        format: 'jpeg',
+        maxSizeBytes: 500 * 1024, // 500KB max
+      });
+      console.log(`[Storage] Compressed: ${formatFileSize(compressed.originalSize)} → ${formatFileSize(compressed.compressedSize)}`);
+      blob = compressed.blob;
+    }
 
     // Create storage reference
     const storageRef = ref(storage, path);

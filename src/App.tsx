@@ -199,6 +199,12 @@ function AppContent() {
         onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
         onVendorProfileClick={vendor ? handleVendorProfileClick : undefined}
         onNotificationsClick={handleNotificationsClick}
+        showBackButton={
+          (user?.role === 'owner' && adminView !== 'dashboard') ||
+          (!!employee && employeeView !== 'dashboard') ||
+          (!!vendor && vendorView !== 'dashboard')
+        }
+        onBackClick={handleHardwareBack}
       />
       
       {/* Wrap lazy-loaded components with Suspense for better loading UX */}

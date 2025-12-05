@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,39 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { WhatsappLogo, PaperPlaneTilt, X } from '@phosphor-icons/react';
+
+// Check if running on native platform using Capacitor
+const isNativePlatform = (): boolean => {
+  try {
+    // Check for Capacitor on window object (set by Capacitor runtime)
+    // @ts-ignore - Capacitor types
+    return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
+  } catch {
+    return false;
+  }
+};
+
+// Open URL using Capacitor's bridge (for native platforms)
+const openUrlNative = async (url: string): Promise<boolean> => {
+  try {
+    // Use Capacitor's Plugins bridge directly to avoid import issues
+    // @ts-ignore - Capacitor runtime
+    const Plugins = window.Capacitor?.Plugins;
+    if (Plugins?.App?.openUrl) {
+      await Plugins.App.openUrl({ url });
+      return true;
+    }
+    // Fallback: Try using Browser plugin if App plugin is not available
+    if (Plugins?.Browser?.open) {
+      await Plugins.Browser.open({ url });
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.warn('[WhatsApp] Native openUrl failed:', error);
+    return false;
+  }
+};
 
 export interface WhatsAppMessageData {
   customerName: string;
@@ -34,6 +67,7 @@ interface WhatsAppConfirmationDialogProps {
  * Removes all non-digits and adds India country code if not present
  */
 function formatPhoneForWhatsApp(phone: string): string {
+  if (!phone) return '';
   const cleanPhone = phone.replace(/[^0-9]/g, '');
   // Add India country code if not present
   if (cleanPhone.startsWith('91') && cleanPhone.length >= 12) {
@@ -44,12 +78,58 @@ function formatPhoneForWhatsApp(phone: string): string {
 
 /**
  * Open WhatsApp with pre-filled message
+ * Works on both web and mobile (Capacitor) platforms
  */
-function openWhatsApp(phone: string, message: string): void {
-  const formattedPhone = formatPhoneForWhatsApp(phone);
-  const encodedMessage = encodeURIComponent(message);
-  const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-  window.open(whatsappUrl, '_blank');
+async function openWhatsApp(phone: string, message: string): Promise<void> {
+  try {
+    const formattedPhone = formatPhoneForWhatsApp(phone);
+    if (!formattedPhone) {
+      console.error('[WhatsApp] Invalid phone number');
+      return;
+    }
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+
+    // Check if running on native mobile platform
+    if (isNativePlatform()) {
+      // Use WhatsApp deep link for mobile - this opens WhatsApp app directly
+      const whatsappDeepLink = `whatsapp://send?phone=${formattedPhone}&text=${encodedMessage}`;
+
+      // Try deep link first
+      const deepLinkOpened = await openUrlNative(whatsappDeepLink);
+      if (deepLinkOpened) {
+        console.log('[WhatsApp] Opened via deep link on mobile');
+        return;
+      }
+
+      // Fallback to wa.me URL on native
+      const urlOpened = await openUrlNative(whatsappUrl);
+      if (urlOpened) {
+        console.log('[WhatsApp] Opened via wa.me URL on mobile');
+        return;
+      }
+
+      // Final fallback - window.open
+      window.open(whatsappUrl, '_blank');
+      console.log('[WhatsApp] Opened via window.open fallback on mobile');
+    } else {
+      // Web platform - use standard wa.me URL
+      window.open(whatsappUrl, '_blank');
+      console.log('[WhatsApp] Opened via wa.me URL on web');
+    }
+  } catch (error) {
+    console.error('[WhatsApp] Error opening WhatsApp:', error);
+    // Last resort fallback - try standard window.open
+    try {
+      const formattedPhone = formatPhoneForWhatsApp(phone);
+      const encodedMessage = encodeURIComponent(message);
+      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+      window.open(whatsappUrl, '_blank');
+    } catch (fallbackError) {
+      console.error('[WhatsApp] Fallback also failed:', fallbackError);
+    }
+  }
 }
 
 export function WhatsAppConfirmationDialog({
@@ -66,12 +146,16 @@ export function WhatsAppConfirmationDialog({
   const [message, setMessage] = useState(messageData.message);
 
   // Update message when messageData changes
-  useState(() => {
+  useEffect(() => {
     setMessage(messageData.message);
-  });
+  }, [messageData.message]);
 
-  const handleSend = () => {
-    openWhatsApp(messageData.customerPhone, message);
+  const handleSend = async () => {
+    try {
+      await openWhatsApp(messageData.customerPhone, message);
+    } catch (error) {
+      console.error('[WhatsAppDialog] Error sending:', error);
+    }
     onSend();
   };
 

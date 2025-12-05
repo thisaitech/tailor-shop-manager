@@ -1,9 +1,10 @@
-import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { useStorage } from './use-storage';
 import { User, UserRole, Vendor } from '@/lib/types';
 import { verifyEmployeeCredentials } from '@/lib/firestore/employeeService';
 import { authenticateVendor } from '@/lib/firestore/vendorService';
 import type { EmployeeWithCompany } from '@/lib/firestore/employeeService';
+import { encryptPassword, decryptPassword, isEncrypted } from '@/lib/crypto';
 
 interface AuthContextType {
   user: User | null;
@@ -14,10 +15,10 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; needsPasswordSetup?: boolean; isEmployee?: boolean; isVendor?: boolean; employeeData?: EmployeeWithCompany; vendorData?: Vendor; message?: string }>;
   logout: () => void;
   updatePassword: (newPassword: string) => Promise<void>;
-  addUser: (user: User) => void;
+  addUser: (user: User) => Promise<void>;
   resetUsers: (users: User[]) => void;
   getAllUsers: () => User[];
-  updateUser: (userId: string, updatedData: Partial<User>) => void;
+  updateUser: (userId: string, updatedData: Partial<User>) => Promise<void>;
   deleteUser: (userId: string) => void;
   setEmployeeAfterPasswordChange: (employee: EmployeeWithCompany) => void;
   setVendorAfterPasswordChange: (vendor: Vendor) => void;
@@ -120,19 +121,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: u.name
     })));
 
-    const user = (users || []).find(u => {
-      // Trim stored values for comparison to handle any stored whitespace
+    // Find user by username first, then verify password
+    let foundUser: User | undefined;
+    for (const u of (users || [])) {
       const storedUsername = u.username?.trim() || '';
-      const storedPassword = u.password?.trim() || '';
-      console.log(`Checking user ${storedUsername}: username match=${storedUsername === trimmedUsername}, password match=${storedPassword === trimmedPassword}`);
-      return storedUsername === trimmedUsername && storedPassword === trimmedPassword;
-    });
+      if (storedUsername === trimmedUsername) {
+        // Check password - support both encrypted and legacy plain text
+        let passwordMatches = false;
+        if (u.password) {
+          if (isEncrypted(u.password)) {
+            // New encrypted password
+            const decrypted = await decryptPassword(u.password);
+            passwordMatches = decrypted === trimmedPassword;
+          } else {
+            // Legacy plain text password
+            passwordMatches = u.password.trim() === trimmedPassword;
+          }
+        }
+        if (passwordMatches) {
+          foundUser = u;
+          break;
+        }
+      }
+    }
 
-    console.log('Found user:', user);
+    console.log('Found user:', foundUser);
 
-    if (!user) {
+    if (!foundUser) {
       return { success: false, message: 'Invalid username or password' };
     }
+
+    const user = foundUser;
 
     if (user.role !== 'customer' && !user.isActive) {
       return { success: false, message: 'Your account is not active. Please contact the administrator.' };
@@ -150,13 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updatePassword = async (newPassword: string) => {
     if (!currentUser) return;
-    
+
+    // Encrypt the new password before storing
+    const encryptedPassword = await encryptPassword(newPassword);
+
     const updatedUser = {
       ...currentUser,
-      password: newPassword,
+      password: encryptedPassword,
       hasSetupPassword: true,
     };
-    
+
     const updatedUsers = (users || []).map(u => u.id === currentUser.id ? updatedUser : u);
     setUsers(updatedUsers);
     setCurrentUser(updatedUser);
@@ -168,9 +190,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentVendor(null);
   };
 
-  const addUser = (user: User) => {
+  const addUser = async (user: User) => {
     console.log('[AuthContext] Adding user:', user);
-    const updatedUsers = [...(users || []), user];
+
+    // Encrypt password if provided
+    let userToAdd = user;
+    if (user.password && !isEncrypted(user.password)) {
+      const encryptedPassword = await encryptPassword(user.password);
+      userToAdd = { ...user, password: encryptedPassword };
+    }
+
+    const updatedUsers = [...(users || []), userToAdd];
     setUsers(updatedUsers);
     console.log('[AuthContext] Users after add:', updatedUsers);
   };
@@ -184,10 +214,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return users || [];
   };
 
-  const updateUser = (userId: string, updatedData: Partial<User>) => {
+  const updateUser = async (userId: string, updatedData: Partial<User>) => {
     console.log('[AuthContext] Updating user:', userId, updatedData);
-    const updatedUsers = (users || []).map(u => 
-      u.id === userId ? { ...u, ...updatedData } : u
+
+    // Encrypt password if being updated and not already encrypted
+    let dataToUpdate = updatedData;
+    if (updatedData.password && !isEncrypted(updatedData.password)) {
+      const encryptedPassword = await encryptPassword(updatedData.password);
+      dataToUpdate = { ...updatedData, password: encryptedPassword };
+    }
+
+    const updatedUsers = (users || []).map(u =>
+      u.id === userId ? { ...u, ...dataToUpdate } : u
     );
     setUsers(updatedUsers);
     console.log('[AuthContext] Users after update:', updatedUsers);
@@ -238,10 +276,10 @@ export function useAuth() {
       login: async () => ({ success: false, message: 'Auth not ready' }),
       logout: () => {},
       updatePassword: async () => {},
-      addUser: () => {},
+      addUser: async () => {},
       resetUsers: () => {},
       getAllUsers: () => [],
-      updateUser: () => {},
+      updateUser: async () => {},
       deleteUser: () => {},
       setEmployeeAfterPasswordChange: () => {},
       setVendorAfterPasswordChange: () => {},
