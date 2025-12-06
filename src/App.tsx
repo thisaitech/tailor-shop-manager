@@ -74,6 +74,10 @@ function AppContent() {
   const [hasOwnerInternalView, setHasOwnerInternalView] = useState(false);
   const [closeOwnerInternalView, setCloseOwnerInternalView] = useState(false);
 
+  // Track if admin view components (employees, vendors, payment, etc.) have internal dialogs open
+  const [hasAdminViewInternalDialog, setHasAdminViewInternalDialog] = useState(false);
+  const [closeAdminViewInternalDialog, setCloseAdminViewInternalDialog] = useState(false);
+
   // Navigation history stack for proper back button behavior
   const navigationHistory = useRef<NavigationEntry[]>([]);
 
@@ -127,8 +131,15 @@ function AppContent() {
         return true;
       }
 
-      // If on a different admin view (profile, employees, etc.), go back to dashboard
+      // If on a different admin view (profile, employees, etc.)
       if (adminView !== 'dashboard') {
+        // First check if there's an internal dialog open in the admin view component
+        if (hasAdminViewInternalDialog) {
+          console.log('[BackButton] Closing internal dialog in admin view component');
+          setCloseAdminViewInternalDialog(true);
+          return true;
+        }
+        // No internal dialog, go back to dashboard
         console.log('[BackButton] Going back from admin view to dashboard');
         setAdminView('dashboard');
         setSelectedOrderForDC(undefined);
@@ -179,7 +190,7 @@ function AppContent() {
 
     // Not handled - allow default back behavior (exit app or go to previous page)
     return false;
-  }, [user, employee, vendor, adminView, dashboardTab, dashboardFilter, hasOwnerInternalView, employeeView, employeeInternalView, vendorView, vendorInternalView]);
+  }, [user, employee, vendor, adminView, dashboardTab, dashboardFilter, hasOwnerInternalView, hasAdminViewInternalDialog, employeeView, employeeInternalView, vendorView, vendorInternalView]);
 
   useHardwareBackButton(handleHardwareBack);
 
@@ -200,6 +211,11 @@ function AppContent() {
     setDashboardKey(prev => prev + 1); // Force remount to reset all internal state
     setSelectedOrderForDC(undefined);
     setSelectedOrderForPayment(undefined);
+    // Reset internal view tracking states
+    setHasOwnerInternalView(false);
+    setCloseOwnerInternalView(false);
+    setHasAdminViewInternalDialog(false);
+    setCloseAdminViewInternalDialog(false);
     // Clear navigation history when explicitly going to dashboard
     navigationHistory.current = [];
   };
@@ -209,6 +225,9 @@ function AppContent() {
     setDashboardTab('customers');
     setDashboardFilter('all');
     setDashboardKey(prev => prev + 1); // Force remount to show customers tab with loader
+    // Reset internal view tracking states
+    setHasOwnerInternalView(false);
+    setCloseOwnerInternalView(false);
   };
 
   const handleProfileClick = () => {
@@ -335,30 +354,90 @@ function AppContent() {
             }}
           />
         )}
-        {user?.role === 'owner' && adminView === 'profile' && <CompanyProfile onBack={handleBackToDashboard} />}
-        {user?.role === 'owner' && adminView === 'employees' && <EmployeeManagement onBack={handleBackToDashboard} />}
-        {user?.role === 'owner' && adminView === 'vendors' && <VendorManagement onBack={handleBackToDashboard} />}
-        {user?.role === 'owner' && adminView === 'designs' && <DesignManagement onBack={handleBackToDashboard} />}
+        {user?.role === 'owner' && adminView === 'profile' && (
+          <CompanyProfile
+            onBack={handleBackToDashboard}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
+          />
+        )}
+        {user?.role === 'owner' && adminView === 'employees' && (
+          <EmployeeManagement
+            onBack={handleBackToDashboard}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
+          />
+        )}
+        {user?.role === 'owner' && adminView === 'vendors' && (
+          <VendorManagement
+            onBack={handleBackToDashboard}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
+          />
+        )}
+        {user?.role === 'owner' && adminView === 'designs' && (
+          <DesignManagement
+            onBack={handleBackToDashboard}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
+          />
+        )}
         {user?.role === 'owner' && adminView === 'payment' && (
-          <Payment 
+          <Payment
             onBack={() => {
               setSelectedOrderForPayment(undefined); // Clear the selected order on back
               handleBackToDashboard();
-            }} 
+            }}
             initialOrderId={selectedOrderForPayment}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
         {user?.role === 'owner' && adminView === 'delivery-challan' && (
-          <DeliveryChallan 
+          <DeliveryChallan
             onBack={() => {
               setSelectedOrderForDC(undefined); // Clear the selected order on back
               handleBackToDashboard();
-            }} 
+            }}
             initialOrderId={selectedOrderForDC}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
         {user?.role === 'owner' && adminView === 'goods-receipt' && (
-          <GoodsReceipt onBack={handleBackToDashboard} />
+          <GoodsReceipt
+            onBack={handleBackToDashboard}
+            closeInternalView={closeAdminViewInternalDialog}
+            onCloseInternalViewHandled={() => {
+              setCloseAdminViewInternalDialog(false);
+              setHasAdminViewInternalDialog(false);
+            }}
+            onInternalViewChange={setHasAdminViewInternalDialog}
+          />
         )}
         {user?.role === 'owner' && adminView === 'notifications' && (
           <NotificationsPage onBack={handleNotificationsBack} />

@@ -14,7 +14,7 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { getDb } from '@/lib/firebase';
 import { addOrderHistory } from './orderHistoryService';
 
 const NEW_ORDERS_COLLECTION = 'newOrders';
@@ -94,6 +94,7 @@ export async function createNewOrder(
   dueDate?: Date
 ): Promise<NewOrder> {
   try {
+    const db = await getDb();
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = Timestamp.now();
 
@@ -133,6 +134,7 @@ export async function createNewOrder(
 // Get order by ID
 export async function getOrderById(orderId: string): Promise<NewOrder | null> {
   try {
+    const db = await getDb();
     const orderDoc = await getDoc(doc(db, NEW_ORDERS_COLLECTION, orderId));
     if (!orderDoc.exists()) return null;
     return { id: orderDoc.id, ...orderDoc.data() } as NewOrder;
@@ -145,6 +147,7 @@ export async function getOrderById(orderId: string): Promise<NewOrder | null> {
 // Get all orders by status
 export async function getOrdersByStatus(status: OrderStatus): Promise<NewOrder[]> {
   try {
+    const db = await getDb();
     const q = query(
       collection(db, NEW_ORDERS_COLLECTION),
       where('status', '==', status)
@@ -160,6 +163,7 @@ export async function getOrdersByStatus(status: OrderStatus): Promise<NewOrder[]
 // Get orders assigned to a user
 export async function getOrdersAssignedToUser(userId: string): Promise<NewOrder[]> {
   try {
+    const db = await getDb();
     const q = query(
       collection(db, NEW_ORDERS_COLLECTION),
       where('assignedTo.userId', '==', userId)
@@ -175,6 +179,7 @@ export async function getOrdersAssignedToUser(userId: string): Promise<NewOrder[
 // Get orders by company
 export async function getOrdersByCompany(companyId: string): Promise<NewOrder[]> {
   try {
+    const db = await getDb();
     const q = query(
       collection(db, NEW_ORDERS_COLLECTION),
       where('companyId', '==', companyId)
@@ -194,6 +199,7 @@ export async function assignOrderToUser(
   assignedBy: AssignedUser
 ): Promise<void> {
   try {
+    const db = await getDb();
     const order = await getOrderById(orderId);
     if (!order) throw new Error(`Order ${orderId} not found`);
 
@@ -236,6 +242,7 @@ export async function updateOrderStatus(
   additionalData?: Record<string, any>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const order = await getOrderById(orderId);
     if (!order) throw new Error(`Order ${orderId} not found`);
 
@@ -381,6 +388,7 @@ export async function markDelivered(
 // Get orders by custom query
 export async function getOrdersByQuery(constraints: QueryConstraint[]): Promise<NewOrder[]> {
   try {
+    const db = await getDb();
     const q = query(collection(db, NEW_ORDERS_COLLECTION), ...constraints);
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewOrder));
@@ -397,6 +405,7 @@ export async function updateOrderPayment(
   updatedBy: AssignedUser
 ): Promise<void> {
   try {
+    const db = await getDb();
     const order = await getOrderById(orderId);
     if (!order) throw new Error(`Order ${orderId} not found`);
 
@@ -445,6 +454,7 @@ export async function reassignOrder(
   reassignedBy: AssignedUser
 ): Promise<void> {
   try {
+    const db = await getDb();
     const order = await getOrderById(orderId);
     if (!order) throw new Error(`Order ${orderId} not found`);
 
@@ -479,6 +489,7 @@ export async function reassignOrder(
 // Get overdue orders
 export async function getOverdueOrders(): Promise<NewOrder[]> {
   try {
+    const db = await getDb();
     const q = query(
       collection(db, NEW_ORDERS_COLLECTION),
       where('isOverdue', '==', true),
@@ -495,6 +506,7 @@ export async function getOverdueOrders(): Promise<NewOrder[]> {
 // Delete order
 export async function deleteOrder(orderId: string, deletedBy: AssignedUser): Promise<void> {
   try {
+    const db = await getDb();
     const order = await getOrderById(orderId);
     if (!order) throw new Error(`Order ${orderId} not found`);
 

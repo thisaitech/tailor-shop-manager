@@ -1,5 +1,5 @@
 import { doc, setDoc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { CompanyProfile } from '@/lib/types';
 
 const COMPANIES_COLLECTION = 'companies';
@@ -10,6 +10,7 @@ const COMPANIES_COLLECTION = 'companies';
  */
 async function generateCompanyId(): Promise<string> {
   try {
+    const db = await getDb();
     const companiesRef = collection(db, COMPANIES_COLLECTION);
     const snapshot = await getDocs(companiesRef);
     const count = snapshot.size + 1;
@@ -32,6 +33,7 @@ export async function saveCompanyProfile(
   profileData: Partial<CompanyProfile>
 ): Promise<CompanyProfile> {
   try {
+    const db = await getDb();
     // Generate company ID if this is a new profile
     let companyId = profileData.id;
     if (!companyId) {
@@ -85,6 +87,7 @@ export async function saveCompanyProfile(
  */
 export async function getCompanyProfile(userId: string): Promise<CompanyProfile | null> {
   try {
+    const db = await getDb();
     const companyRef = doc(db, COMPANIES_COLLECTION, userId);
     const docSnap = await getDoc(companyRef);
 
@@ -105,6 +108,7 @@ export async function getCompanyProfile(userId: string): Promise<CompanyProfile 
  */
 export async function getCompanyByCompanyId(companyId: string): Promise<CompanyProfile | null> {
   try {
+    const db = await getDb();
     const companiesRef = collection(db, COMPANIES_COLLECTION);
     const q = query(companiesRef, where('id', '==', companyId));
     const snapshot = await getDocs(q);
@@ -125,6 +129,7 @@ export async function getCompanyByCompanyId(companyId: string): Promise<CompanyP
  */
 export async function deleteCompanyProfile(userId: string): Promise<void> {
   try {
+    const db = await getDb();
     const companyRef = doc(db, COMPANIES_COLLECTION, userId);
     await setDoc(companyRef, { deleted: true, deletedAt: Date.now() }, { merge: true });
     console.log('Company profile deleted successfully');

@@ -72,11 +72,21 @@ const initApp = async () => {
   // Wait for Capacitor plugins if in native environment
   if (isNativePlatform) {
     try {
-      // Dynamically import and configure Capacitor plugins
-      // StatusBar configuration is handled natively via capacitor.config.json
-      console.log('[Init] Running in native Capacitor environment');
+      // Configure StatusBar for edge-to-edge display
+      const { StatusBar, Style } = await import('@capacitor/status-bar');
+
+      // Set status bar to overlay content (edge-to-edge)
+      await StatusBar.setOverlaysWebView({ overlay: true });
+
+      // Set status bar style (light content for dark headers)
+      await StatusBar.setStyle({ style: Style.Light });
+
+      // Make status bar background transparent
+      await StatusBar.setBackgroundColor({ color: '#00000000' });
+
+      console.log('[Init] StatusBar configured for edge-to-edge display');
     } catch (e) {
-      console.log('[Init] Plugin initialization error:', e);
+      console.log('[Init] StatusBar configuration error:', e);
     }
   }
   

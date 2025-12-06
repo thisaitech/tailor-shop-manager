@@ -47,9 +47,12 @@ import { savePdfMobile, openPdfForPrint } from '@/lib/mobilePdfUtils';
 interface PaymentProps {
   onBack: () => void;
   initialOrderId?: string; // Pre-select an order when navigating from Ready to Deliver
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
-export function Payment({ onBack, initialOrderId }: PaymentProps) {
+export function Payment({ onBack, initialOrderId, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: PaymentProps) {
   const { user } = useAuth();
   const [payments, setPayments] = useState<PaymentType[]>([]);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
@@ -84,6 +87,32 @@ export function Payment({ onBack, initialOrderId }: PaymentProps) {
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    const hasOpenDialog = showDialog || showConfirmDialog || showFilters;
+    onInternalViewChange?.(hasOpenDialog);
+  }, [showDialog, showConfirmDialog, showFilters, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      // Close dialogs in priority order
+      if (showConfirmDialog) {
+        setShowConfirmDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showDialog) {
+        setShowDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showFilters) {
+        setShowFilters(false);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showDialog, showConfirmDialog, showFilters, onCloseInternalViewHandled]);
 
   // Load data
   useEffect(() => {

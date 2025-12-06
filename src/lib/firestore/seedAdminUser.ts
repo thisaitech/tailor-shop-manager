@@ -1,5 +1,5 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 
 const EMPLOYEES_COLLECTION = 'employees';
 const COMPANIES_COLLECTION = 'companies';
@@ -12,6 +12,7 @@ const COMPANIES_COLLECTION = 'companies';
  */
 export async function seedAdminUser(): Promise<{ success: boolean; message: string }> {
   try {
+    const db = await getDb();
     const adminContactNumber = '9486229273';
     const adminPassword = 'password';
     const adminEmployeeId = 'ADMIN001';
@@ -133,6 +134,7 @@ export async function seedAdminUser(): Promise<{ success: boolean; message: stri
  */
 export async function checkAdminExists(): Promise<boolean> {
   try {
+    const db = await getDb();
     const adminRef = doc(db, EMPLOYEES_COLLECTION, 'ADMIN001');
     const adminDoc = await getDoc(adminRef);
     return adminDoc.exists();

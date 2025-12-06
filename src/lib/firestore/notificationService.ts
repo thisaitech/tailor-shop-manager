@@ -11,7 +11,7 @@ import {
   Unsubscribe,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb, db as dbSync } from '@/lib/firebase';
 import { Notification, NotificationType } from '@/lib/types';
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
@@ -30,6 +30,7 @@ export async function createNotification(
   notification: Omit<Notification, 'id' | 'createdAt' | 'isRead'>
 ): Promise<Notification> {
   try {
+    const db = await getDb();
     const notificationId = generateNotificationId();
     const now = Date.now();
 
@@ -179,6 +180,7 @@ export async function getNotificationsByUser(
   limitCount: number = 50
 ): Promise<Notification[]> {
   try {
+    const db = await getDb();
     const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
     // Query only by recipientId, then sort in memory
     const q = query(
@@ -202,6 +204,7 @@ export async function getNotificationsByUser(
  */
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
   try {
+    const db = await getDb();
     const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
     const q = query(
       notificationsRef,
@@ -225,7 +228,7 @@ export function subscribeToNotifications(
   userId: string,
   callback: (notifications: Notification[]) => void
 ): Unsubscribe {
-  const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
+  const notificationsRef = collection(dbSync, NOTIFICATIONS_COLLECTION);
   // Query only by recipientId, then sort in memory to avoid composite index requirement
   const q = query(
     notificationsRef,
@@ -251,7 +254,7 @@ export function subscribeToUnreadCount(
   userId: string,
   callback: (count: number) => void
 ): Unsubscribe {
-  const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
+  const notificationsRef = collection(dbSync, NOTIFICATIONS_COLLECTION);
   const q = query(
     notificationsRef,
     where('recipientId', '==', userId),
@@ -276,6 +279,7 @@ export function subscribeToUnreadCount(
  */
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   try {
+    const db = await getDb();
     const notificationRef = doc(db, NOTIFICATIONS_COLLECTION, notificationId);
     await updateDoc(notificationRef, { isRead: true });
     console.log(`[Notification] Marked ${notificationId} as read`);
@@ -290,6 +294,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
  */
 export async function markAllNotificationsAsRead(userId: string): Promise<void> {
   try {
+    const db = await getDb();
     const notificationsRef = collection(db, NOTIFICATIONS_COLLECTION);
     const q = query(
       notificationsRef,
@@ -318,6 +323,7 @@ export async function markAllNotificationsAsRead(userId: string): Promise<void> 
  */
 export async function getNotification(notificationId: string): Promise<Notification | null> {
   try {
+    const db = await getDb();
     const notificationRef = doc(db, NOTIFICATIONS_COLLECTION, notificationId);
     const docSnap = await getDoc(notificationRef);
 

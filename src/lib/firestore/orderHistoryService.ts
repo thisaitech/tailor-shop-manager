@@ -8,7 +8,7 @@ import {
   Timestamp,
   orderBy,
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { getDb } from '@/lib/firebase';
 import type { AssignedUser, OrderStatus } from './newOrderService';
 
 const ORDER_HISTORY_COLLECTION = 'orderHistory';
@@ -32,6 +32,7 @@ export async function addOrderHistory(
   metadata?: Record<string, any>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const historyId = `history_${orderId}_${Date.now()}`;
     const now = Timestamp.now();
 
@@ -56,6 +57,7 @@ export async function addOrderHistory(
 
 export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntry[]> {
   try {
+    const db = await getDb();
     const q = query(
       collection(db, ORDER_HISTORY_COLLECTION),
       where('orderId', '==', orderId),
@@ -71,6 +73,7 @@ export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntr
 
 export async function getUserActionHistory(userId: string): Promise<OrderHistoryEntry[]> {
   try {
+    const db = await getDb();
     const q = query(
       collection(db, ORDER_HISTORY_COLLECTION),
       where('performedBy.userId', '==', userId),

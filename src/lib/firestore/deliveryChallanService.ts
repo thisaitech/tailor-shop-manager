@@ -7,7 +7,7 @@ import {
   where,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 
 const DELIVERY_CHALLAN_COLLECTION = 'deliveryChallans';
 
@@ -36,6 +36,7 @@ export interface DeliveryChallan {
  */
 async function generateDCNumber(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const dcRef = collection(db, DELIVERY_CHALLAN_COLLECTION);
     const q = query(dcRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -63,6 +64,7 @@ export async function createDeliveryChallan(
   adminId: string
 ): Promise<DeliveryChallan> {
   try {
+    const db = await getDb();
     const dcNo = await generateDCNumber(companyId);
 
     const newDC: DeliveryChallan = {
@@ -119,6 +121,7 @@ export async function createDeliveryChallan(
  */
 export async function getDeliveryChallansByCompany(companyId: string): Promise<DeliveryChallan[]> {
   try {
+    const db = await getDb();
     const dcRef = collection(db, DELIVERY_CHALLAN_COLLECTION);
     // Note: If you need orderBy, create composite index for companyId + createdAt
     const q = query(

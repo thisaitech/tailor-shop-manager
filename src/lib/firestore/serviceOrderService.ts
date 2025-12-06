@@ -13,7 +13,7 @@ import {
   onSnapshot,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb, db as dbSync } from '@/lib/firebase';
 import { ServiceOrder, EmbeddedAllotment, ServiceOrderStatus, StitchingAllotmentType, OrderHistoryEntry } from '@/lib/types';
 import {
   createOrderAssignmentNotification,
@@ -34,6 +34,7 @@ const SERVICE_ORDERS_COLLECTION = 'newOrder';
  */
 export async function generateServiceOrderId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(ordersRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -128,6 +129,7 @@ export async function addServiceOrder(
   adminId: string
 ): Promise<ServiceOrderWithCompany> {
   try {
+    const db = await getDb();
     const orderId = await generateServiceOrderId(companyId);
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
 
@@ -169,6 +171,7 @@ export async function addServiceOrder(
  */
 export async function getServiceOrdersByCompany(companyId: string): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(ordersRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -202,7 +205,8 @@ export function subscribeToServiceOrders(
   onUpdate: (orders: ServiceOrderWithCompany[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+  // Subscription functions need synchronous db access for onSnapshot
+  const ordersRef = collection(dbSync, SERVICE_ORDERS_COLLECTION);
   const q = query(ordersRef, where('companyId', '==', companyId));
 
   return onSnapshot(
@@ -240,6 +244,7 @@ export function subscribeToServiceOrders(
  */
 export async function getServiceOrderById(orderId: string): Promise<ServiceOrderWithCompany | null> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -270,6 +275,7 @@ export async function updateServiceOrder(
   orderData: Partial<Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
 
     await updateDoc(orderRef, {
@@ -289,6 +295,7 @@ export async function updateServiceOrder(
  */
 export async function deleteServiceOrder(orderId: string): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     await deleteDoc(orderRef);
     console.log('Service order deleted successfully:', orderId);
@@ -306,6 +313,7 @@ export async function updateServiceOrderStatus(
   status: ServiceOrder['orderStatus']
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
 
     await updateDoc(orderRef, {
@@ -329,6 +337,7 @@ export async function addEmbeddedAllotment(
   allotment: EmbeddedAllotment
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, serviceOrderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -363,6 +372,7 @@ export async function updateEmbeddedAllotment(
   updates: Partial<EmbeddedAllotment>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, serviceOrderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -414,6 +424,7 @@ export async function deleteEmbeddedAllotment(
   allotmentId: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, serviceOrderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -458,6 +469,7 @@ export async function addOrderHistory(
   metadata?: Record<string, any>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const historyId = `HIST_${orderId}_${Date.now()}`;
     const historyRef = doc(db, ORDER_HISTORY_COLLECTION, historyId);
 
@@ -486,6 +498,7 @@ export async function addOrderHistory(
  */
 export async function getOrderHistoryByOrderId(orderId: string): Promise<OrderHistoryEntry[]> {
   try {
+    const db = await getDb();
     const historyRef = collection(db, ORDER_HISTORY_COLLECTION);
     const q = query(historyRef, where('orderId', '==', orderId));
     const snapshot = await getDocs(q);
@@ -511,6 +524,7 @@ export async function getOrderHistoryByOrderId(orderId: string): Promise<OrderHi
  */
 export async function generateJobWorkNo(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(ordersRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -548,6 +562,7 @@ export async function assignOrder(
   jobWorkCost?: number
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -626,6 +641,7 @@ export async function acceptOrder(
   acceptedByName: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -688,6 +704,7 @@ export async function rejectOrder(
   reason: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -709,7 +726,7 @@ export async function rejectOrder(
     // Also update the corresponding OrderAllotment status
     // Find allotments for this service order and update their status to 'rejected'
     try {
-      const allotmentsRef = collection(db, 'orderAllotment');
+      const allotmentsRef = collection(db, 'orderAllotment'); // Using sync db here as it's within a try-catch
       // Use simple query and filter in JavaScript - Firestore inequality queries don't match missing fields
       const allotmentQuery = query(allotmentsRef, where('serviceOrderNo', '==', orderId));
       const allotmentSnapshot = await getDocs(allotmentQuery);
@@ -779,6 +796,7 @@ export async function createDeliveryChallan(
   createdByName: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -824,6 +842,7 @@ export async function approveDeliveryChallan(
   approvedByName: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -865,6 +884,7 @@ export async function markOrderReady(
   completedByName: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -907,6 +927,7 @@ export async function markJobCompleted(
   completedByName: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -965,6 +986,7 @@ export async function recordGoodsReceipt(
   receivedByName: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -1009,6 +1031,7 @@ export async function markOrderDelivered(
   paymentStatus?: 'pending' | 'partial' | 'completed'
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -1062,6 +1085,7 @@ export async function reassignOrder(
   jobWorkCost?: number
 ): Promise<void> {
   try {
+    const db = await getDb();
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
     const orderDoc = await getDoc(orderRef);
 
@@ -1147,6 +1171,7 @@ export async function reassignOrder(
  */
 export async function getOrdersByVendor(vendorId: string): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     // Query by assignedTo only to avoid composite index requirement
     const q = query(
@@ -1183,6 +1208,7 @@ export async function getOrdersByVendor(vendorId: string): Promise<ServiceOrderW
  */
 export async function getOrdersByEmployee(employeeId: string): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     // Query by assignedTo only to avoid composite index requirement
     const q = query(
@@ -1222,7 +1248,7 @@ export function subscribeToEmployeeOrders(
   onUpdate: (orders: ServiceOrderWithCompany[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+  const ordersRef = collection(dbSync, SERVICE_ORDERS_COLLECTION);
   const q = query(ordersRef, where('assignedTo', '==', employeeId));
 
   return onSnapshot(
@@ -1265,7 +1291,7 @@ export function subscribeToVendorOrders(
   onUpdate: (orders: ServiceOrderWithCompany[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
+  const ordersRef = collection(dbSync, SERVICE_ORDERS_COLLECTION);
   const q = query(ordersRef, where('assignedTo', '==', vendorId));
 
   return onSnapshot(
@@ -1308,6 +1334,7 @@ export async function getOrdersByStatus(
   status: ServiceOrderStatus
 ): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(
       ordersRef,
@@ -1339,6 +1366,7 @@ export async function getOrdersByStatus(
  */
 export async function getOrdersWaitingForDC(companyId: string): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(
       ordersRef,
@@ -1378,6 +1406,7 @@ export async function getVendorOrdersPendingDC(companyId: string): Promise<Servi
  */
 export async function getOrdersPendingGoodsReceipt(companyId: string): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(
       ordersRef,
@@ -1409,6 +1438,7 @@ export async function getOrdersPendingGoodsReceipt(companyId: string): Promise<S
  */
 export async function getRejectedOrders(companyId: string): Promise<ServiceOrderWithCompany[]> {
   try {
+    const db = await getDb();
     const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
     const q = query(
       ordersRef,

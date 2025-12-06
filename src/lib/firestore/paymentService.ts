@@ -7,7 +7,7 @@ import {
   where,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 
 const PAYMENT_COLLECTION = 'payments';
 
@@ -46,6 +46,7 @@ export interface Payment {
  */
 async function generatePaymentNumber(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const payRef = collection(db, PAYMENT_COLLECTION);
     const q = query(payRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -78,6 +79,7 @@ export async function createPayment(
   adminId: string
 ): Promise<Payment> {
   try {
+    const db = await getDb();
     const paymentNo = await generatePaymentNumber(companyId);
 
     // Calculate balance amount
@@ -126,6 +128,7 @@ export async function createPayment(
  */
 export async function getPaymentsByCompany(companyId: string): Promise<Payment[]> {
   try {
+    const db = await getDb();
     const payRef = collection(db, PAYMENT_COLLECTION);
     const q = query(
       payRef,

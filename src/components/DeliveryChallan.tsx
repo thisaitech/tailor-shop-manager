@@ -45,9 +45,12 @@ import {
 interface DeliveryChallanProps {
   onBack: () => void;
   initialOrderId?: string; // Pre-select this order and open dialog
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
-export function DeliveryChallan({ onBack, initialOrderId }: DeliveryChallanProps) {
+export function DeliveryChallan({ onBack, initialOrderId, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: DeliveryChallanProps) {
   const { user } = useAuth();
   const [challans, setChallans] = useState<DeliveryChallanType[]>([]);
   const [ordersWaitingForDC, setOrdersWaitingForDC] = useState<ServiceOrderWithCompany[]>([]);
@@ -70,6 +73,29 @@ export function DeliveryChallan({ onBack, initialOrderId }: DeliveryChallanProps
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 6;
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    const hasOpenDialog = showDialog || showFilters;
+    onInternalViewChange?.(hasOpenDialog);
+  }, [showDialog, showFilters, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      // Close dialogs in priority order
+      if (showDialog) {
+        setShowDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showFilters) {
+        setShowFilters(false);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showDialog, showFilters, onCloseInternalViewHandled]);
 
   // Load data
   useEffect(() => {

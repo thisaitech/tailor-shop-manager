@@ -33,7 +33,8 @@
       "Bash(./gradlew clean:*)",
       "Bash(./gradlew assembleRelease:*)",
       "Bash(grep:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npx firebase deploy:*)"
     ],
     "deny": [],
     "ask": []

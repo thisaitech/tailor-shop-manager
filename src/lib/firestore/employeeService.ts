@@ -9,7 +9,7 @@ import {
   deleteDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { Employee } from '@/lib/types';
 import { sendTailorCredentialsEmail } from '@/lib/emailService';
 import {
@@ -27,6 +27,7 @@ const EMPLOYEES_COLLECTION = 'employees';
  */
 async function generateEmployeeId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
     const q = query(employeesRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -95,6 +96,7 @@ export async function findEmployeeByContactNumber(
   excludeEmployeeId?: string
 ): Promise<EmployeeWithCompany | null> {
   try {
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
     const q = query(
       employeesRef,
@@ -133,6 +135,7 @@ export async function findEmployeeByEmail(
   excludeEmployeeId?: string
 ): Promise<EmployeeWithCompany | null> {
   try {
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
     const q = query(
       employeesRef,
@@ -169,6 +172,7 @@ export async function findEmployeeByWhatsAppNumber(
   companyDocId: string
 ): Promise<EmployeeWithCompany | null> {
   try {
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
     const q = query(
       employeesRef,
@@ -246,6 +250,7 @@ export async function addEmployee(
     };
 
     // Save to Firestore
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await setDoc(employeeRef, employee);
 
@@ -293,6 +298,7 @@ export async function updateEmployee(
   employeeData: Partial<Employee>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await updateDoc(employeeRef, {
       ...employeeData,
@@ -314,6 +320,7 @@ export async function getEmployeesByCompany(
   companyDocId: string
 ): Promise<EmployeeWithCompany[]> {
   try {
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
     const q = query(employeesRef, where('companyDocId', '==', companyDocId));
     const snapshot = await getDocs(q);
@@ -334,6 +341,7 @@ export async function getEnabledEmployeesByCompany(
   companyDocId: string
 ): Promise<EmployeeWithCompany[]> {
   try {
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
     const q = query(
       employeesRef,
@@ -356,6 +364,7 @@ export async function getEnabledEmployeesByCompany(
  */
 export async function getEmployee(employeeId: string): Promise<EmployeeWithCompany | null> {
   try {
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     const docSnap = await getDoc(employeeRef);
 
@@ -375,6 +384,7 @@ export async function getEmployee(employeeId: string): Promise<EmployeeWithCompa
  */
 export async function deleteEmployee(employeeId: string): Promise<void> {
   try {
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await deleteDoc(employeeRef);
     console.log('Employee deleted successfully:', employeeId);
@@ -394,6 +404,7 @@ export async function toggleEmployeeStatus(
   isActive: boolean
 ): Promise<void> {
   try {
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await updateDoc(employeeRef, {
       isActive,
@@ -415,6 +426,7 @@ export async function resetEmployeePassword(employeeId: string): Promise<string>
   try {
     const plainPassword = generateEmployeePassword();
     const encryptedPassword = await encryptEmployeePassword(plainPassword);
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await updateDoc(employeeRef, {
       password: encryptedPassword,
@@ -442,6 +454,7 @@ export async function changeEmployeePassword(
 ): Promise<void> {
   try {
     // Get current employee data
+    const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     const employeeDoc = await getDoc(employeeRef);
 
@@ -508,6 +521,7 @@ export async function verifyEmployeeCredentials(
 
     console.log('[Employee Auth] Verifying credentials for:', trimmedContact);
 
+    const db = await getDb();
     const employeesRef = collection(db, EMPLOYEES_COLLECTION);
 
     // First, find employee by contact number only

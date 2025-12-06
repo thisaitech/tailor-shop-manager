@@ -8,7 +8,7 @@ import {
   CACHE_SIZE_UNLIMITED,
   Firestore,
 } from 'firebase/firestore';
-import { getAuth, Auth } from 'firebase/auth';
+import { getAuth as firebaseGetAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Firebase configuration
@@ -92,7 +92,7 @@ async function initializeFirebaseAsync(): Promise<void> {
       }
     }
 
-    auth = getAuth(app);
+    auth = firebaseGetAuth(app);
     storage = getStorage(app);
     firebaseInitialized = true;
     console.log('✅ Firebase initialized successfully');
@@ -123,6 +123,31 @@ export async function waitForFirebase(): Promise<void> {
  */
 export function isFirebaseReady(): boolean {
   return firebaseInitialized;
+}
+
+/**
+ * Get Firestore instance - ensures Firebase is initialized first
+ * Use this instead of importing db directly in services
+ */
+export async function getDb(): Promise<Firestore> {
+  await waitForFirebase();
+  return db;
+}
+
+/**
+ * Get Auth instance - ensures Firebase is initialized first
+ */
+export async function getAuthInstance(): Promise<Auth> {
+  await waitForFirebase();
+  return auth;
+}
+
+/**
+ * Get Storage instance - ensures Firebase is initialized first
+ */
+export async function getStorageInstance(): Promise<FirebaseStorage> {
+  await waitForFirebase();
+  return storage;
 }
 
 /**

@@ -142,16 +142,31 @@ export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all'
     onInternalViewChange?.(selectedCustomer !== null || order !== null);
   };
 
-  // Notify parent when internal detail views change
+  // Notify parent when internal detail views or dialogs change
   useEffect(() => {
     const hasDetailView = selectedCustomer !== null || selectedServiceOrder !== null;
-    onInternalViewChange?.(hasDetailView);
-  }, [selectedCustomer, selectedServiceOrder, onInternalViewChange]);
+    const hasOpenDialog = showOrderAllotmentForm || showServiceOrderForm || showCustomerForm;
+    onInternalViewChange?.(hasDetailView || hasOpenDialog);
+  }, [selectedCustomer, selectedServiceOrder, showOrderAllotmentForm, showServiceOrderForm, showCustomerForm, onInternalViewChange]);
 
   // Handle close internal view request from parent (e.g., back button press)
   useEffect(() => {
     if (closeInternalView) {
-      if (selectedServiceOrder) {
+      // Close dialogs first (in priority order)
+      if (showOrderAllotmentForm) {
+        setShowOrderAllotmentForm(false);
+        setInitialServiceOrderId(undefined);
+        setReassignOrder(null);
+        onCloseInternalViewHandled?.();
+      } else if (showServiceOrderForm) {
+        setShowServiceOrderForm(false);
+        onCloseInternalViewHandled?.();
+      } else if (showCustomerForm) {
+        setShowCustomerForm(false);
+        setEditingCustomer(null);
+        setCustomerFormFromOrder(false);
+        onCloseInternalViewHandled?.();
+      } else if (selectedServiceOrder) {
         setSelectedServiceOrderInternal(null);
         onCloseInternalViewHandled?.();
       } else if (selectedCustomer) {
@@ -159,7 +174,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all'
         onCloseInternalViewHandled?.();
       }
     }
-  }, [closeInternalView, selectedServiceOrder, selectedCustomer, onCloseInternalViewHandled]);
+  }, [closeInternalView, showOrderAllotmentForm, showServiceOrderForm, showCustomerForm, selectedServiceOrder, selectedCustomer, onCloseInternalViewHandled]);
 
   // Get admin ID from logged-in employee or user
   const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';

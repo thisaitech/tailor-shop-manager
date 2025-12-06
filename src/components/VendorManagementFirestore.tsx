@@ -88,9 +88,12 @@ const ITEMS_PER_PAGE = 6;
 
 interface VendorManagementProps {
   onBack: () => void;
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
-export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
+export function VendorManagementFirestore({ onBack, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: VendorManagementProps) {
   const { user } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +137,35 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
   useEffect(() => {
     loadVendors();
   }, [user]);
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    const hasOpenDialog = showDialog || showFilterModal || showPasswordDialog || deleteVendorId !== null;
+    onInternalViewChange?.(hasOpenDialog);
+  }, [showDialog, showFilterModal, showPasswordDialog, deleteVendorId, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      // Close dialogs in priority order
+      if (showPasswordDialog) {
+        setShowPasswordDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (deleteVendorId !== null) {
+        setDeleteVendorId(null);
+        onCloseInternalViewHandled?.();
+      } else if (showDialog) {
+        setShowDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showFilterModal) {
+        setShowFilterModal(false);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showDialog, showFilterModal, showPasswordDialog, deleteVendorId, onCloseInternalViewHandled]);
 
   const loadVendors = async () => {
     if (!user?.id) return;

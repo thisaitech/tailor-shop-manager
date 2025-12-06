@@ -13,7 +13,7 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { Customer } from '@/lib/types';
 
 const CUSTOMERS_COLLECTION = 'newcustomers';
@@ -24,6 +24,7 @@ const CUSTOMERS_COLLECTION = 'newcustomers';
  */
 export async function generateCustomerId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     console.log('[customerService] ==========================================');
     console.log('[customerService] Generating customer ID for companyId:', companyId);
     console.log('[customerService] Collection name:', CUSTOMERS_COLLECTION);
@@ -90,6 +91,7 @@ export async function findCustomerByPhone(
   excludeCustomerId?: string
 ): Promise<CustomerWithCompany | null> {
   try {
+    const db = await getDb();
     const customersRef = collection(db, CUSTOMERS_COLLECTION);
     const q = query(
       customersRef,
@@ -135,6 +137,7 @@ export async function findCustomerByEmail(
   excludeCustomerId?: string
 ): Promise<CustomerWithCompany | null> {
   try {
+    const db = await getDb();
     const customersRef = collection(db, CUSTOMERS_COLLECTION);
     const q = query(
       customersRef,
@@ -196,6 +199,7 @@ export async function addCustomer(
   adminId: string
 ): Promise<CustomerWithCompany> {
   try {
+    const db = await getDb();
     const customerId = await generateCustomerId(companyId);
     const customerRef = doc(db, CUSTOMERS_COLLECTION, customerId);
 
@@ -230,6 +234,7 @@ export async function addCustomer(
  */
 export async function getCustomersByCompany(companyId: string): Promise<CustomerWithCompany[]> {
   try {
+    const db = await getDb();
     const customersRef = collection(db, CUSTOMERS_COLLECTION);
     const q = query(customersRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -257,6 +262,7 @@ export async function getCustomersByCompany(companyId: string): Promise<Customer
  */
 export async function getCustomerById(customerId: string): Promise<CustomerWithCompany | null> {
   try {
+    const db = await getDb();
     const customerRef = doc(db, CUSTOMERS_COLLECTION, customerId);
     const customerDoc = await getDoc(customerRef);
 
@@ -285,6 +291,7 @@ export async function updateCustomer(
   customerData: Partial<Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const customerRef = doc(db, CUSTOMERS_COLLECTION, customerId);
 
     // Remove undefined fields before saving to Firestore
@@ -307,6 +314,7 @@ export async function updateCustomer(
  */
 export async function deleteCustomer(customerId: string): Promise<void> {
   try {
+    const db = await getDb();
     const customerRef = doc(db, CUSTOMERS_COLLECTION, customerId);
     await deleteDoc(customerRef);
     console.log('Customer deleted successfully:', customerId);
@@ -322,6 +330,7 @@ export async function deleteCustomer(customerId: string): Promise<void> {
  */
 export async function getRecentCustomers(companyId: string): Promise<CustomerWithCompany[]> {
   try {
+    const db = await getDb();
     const customersRef = collection(db, CUSTOMERS_COLLECTION);
     const q = query(
       customersRef,
@@ -358,6 +367,7 @@ export async function getRecentCustomers(companyId: string): Promise<CustomerWit
  */
 export async function searchCustomers(companyId: string, searchText: string): Promise<CustomerWithCompany[]> {
   try {
+    const db = await getDb();
     const text = (searchText || '').trim().toLowerCase();
     if (!text) return [];
 

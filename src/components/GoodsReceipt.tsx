@@ -49,9 +49,12 @@ import {
 
 interface GoodsReceiptProps {
   onBack: () => void;
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
-export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
+export function GoodsReceipt({ onBack, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: GoodsReceiptProps) {
   const { user } = useAuth();
   const [receipts, setReceipts] = useState<GoodsReceiptType[]>([]);
   const [deliveryChallans, setDeliveryChallans] = useState<DeliveryChallan[]>([]);
@@ -76,6 +79,29 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 6;
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    const hasOpenDialog = showDialog || showFilters;
+    onInternalViewChange?.(hasOpenDialog);
+  }, [showDialog, showFilters, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      // Close dialogs in priority order
+      if (showDialog) {
+        setShowDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showFilters) {
+        setShowFilters(false);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showDialog, showFilters, onCloseInternalViewHandled]);
 
   // Load data
   useEffect(() => {

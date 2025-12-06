@@ -14,7 +14,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { getDb, getStorageInstance } from '@/lib/firebase';
 
 const DESIGN_CATEGORIES_COLLECTION = 'designCategories';
 
@@ -59,6 +59,7 @@ export interface DesignCategory {
  */
 async function generateCategoryId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const categoriesRef = collection(db, DESIGN_CATEGORIES_COLLECTION);
     const q = query(categoriesRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -89,6 +90,7 @@ async function generateCategoryId(companyId: string): Promise<string> {
  */
 async function generateDesignCode(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     // Count all images across all categories for this company
     const categoriesRef = collection(db, DESIGN_CATEGORIES_COLLECTION);
     const q = query(categoriesRef, where('companyId', '==', companyId));
@@ -118,6 +120,7 @@ export async function createDesignCategory(
   adminId: string
 ): Promise<DesignCategory> {
   try {
+    const db = await getDb();
     const categoryId = await generateCategoryId(companyId);
 
     const newCategory: DesignCategory = {
@@ -152,6 +155,7 @@ export async function createDesignCategory(
  */
 export async function getDesignCategoriesByCompany(companyId: string): Promise<DesignCategory[]> {
   try {
+    const db = await getDb();
     const categoriesRef = collection(db, DESIGN_CATEGORIES_COLLECTION);
     const q = query(categoriesRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -182,6 +186,7 @@ export async function getDesignCategoriesByCompany(companyId: string): Promise<D
  */
 export async function getDesignCategory(categoryId: string): Promise<DesignCategory | null> {
   try {
+    const db = await getDb();
     const categoryDoc = await getDoc(doc(db, DESIGN_CATEGORIES_COLLECTION, categoryId));
 
     if (!categoryDoc.exists()) {
@@ -213,6 +218,7 @@ export async function updateDesignCategory(
   name: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[designCategoryService] Updating category ${categoryId}`);
 
     await updateDoc(doc(db, DESIGN_CATEGORIES_COLLECTION, categoryId), {
@@ -232,6 +238,8 @@ export async function updateDesignCategory(
  */
 export async function deleteDesignCategory(categoryId: string): Promise<void> {
   try {
+    const db = await getDb();
+    const storage = await getStorageInstance();
     console.log(`[designCategoryService] Deleting category ${categoryId}`);
 
     // Get category to find images
@@ -269,6 +277,8 @@ export async function uploadImageToCategory(
   companyId: string
 ): Promise<DesignImage> {
   try {
+    const db = await getDb();
+    const storage = await getStorageInstance();
     // Generate design code
     const designCode = await generateDesignCode(companyId);
 
@@ -319,6 +329,8 @@ export async function deleteImageFromCategory(
   image: DesignImage
 ): Promise<void> {
   try {
+    const db = await getDb();
+    const storage = await getStorageInstance();
     console.log(`[designCategoryService] Deleting image ${image.id} from category ${categoryId}`);
 
     // Delete from storage

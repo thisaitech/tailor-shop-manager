@@ -9,7 +9,7 @@ import {
   deleteDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { Vendor } from '@/lib/types';
 import { sendTailorCredentialsEmail } from '@/lib/emailService';
 import {
@@ -100,6 +100,7 @@ export async function findVendorByContactNumber(
   excludeVendorId?: string
 ): Promise<Vendor | null> {
   try {
+    const db = await getDb();
     const vendorsRef = collection(db, VENDORS_COLLECTION);
     const q = query(
       vendorsRef,
@@ -138,6 +139,7 @@ export async function findVendorByEmail(
   excludeVendorId?: string
 ): Promise<Vendor | null> {
   try {
+    const db = await getDb();
     const vendorsRef = collection(db, VENDORS_COLLECTION);
     const q = query(
       vendorsRef,
@@ -169,6 +171,7 @@ export async function findVendorByEmail(
  */
 async function generateTailorCode(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const vendorsRef = collection(db, VENDORS_COLLECTION);
     const q = query(vendorsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -233,6 +236,7 @@ export async function addVendor(
     };
 
     // Save to Firestore
+    const db = await getDb();
     const vendorRef = doc(db, VENDORS_COLLECTION, tailorCode);
     await setDoc(vendorRef, vendor);
 
@@ -270,6 +274,7 @@ export async function updateVendor(
   vendorData: Partial<Vendor>
 ): Promise<void> {
   try {
+    const db = await getDb();
     const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
     await updateDoc(vendorRef, {
       ...vendorData,
@@ -291,6 +296,7 @@ export async function getVendorsByCompany(
   companyDocId: string
 ): Promise<Vendor[]> {
   try {
+    const db = await getDb();
     const vendorsRef = collection(db, VENDORS_COLLECTION);
     const q = query(vendorsRef, where('companyDocId', '==', companyDocId));
     const snapshot = await getDocs(q);
@@ -309,6 +315,7 @@ export async function getVendorsByCompany(
  */
 export async function getVendor(vendorId: string): Promise<Vendor | null> {
   try {
+    const db = await getDb();
     const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
     const docSnap = await getDoc(vendorRef);
 
@@ -328,6 +335,7 @@ export async function getVendor(vendorId: string): Promise<Vendor | null> {
  */
 export async function deleteVendor(vendorId: string): Promise<void> {
   try {
+    const db = await getDb();
     const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
     await deleteDoc(vendorRef);
     console.log('Vendor deleted successfully:', vendorId);
@@ -368,6 +376,7 @@ export async function changeVendorPassword(
     const now = Date.now();
 
     // Update password and history
+    const db = await getDb();
     const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
     await updateDoc(vendorRef, {
       password: encryptedPassword,
@@ -414,6 +423,7 @@ export async function authenticateVendor(
 
     console.log('[Vendor Auth] Authenticating vendor:', trimmedContact);
 
+    const db = await getDb();
     const vendorsRef = collection(db, VENDORS_COLLECTION);
     const q = query(vendorsRef, where('contactNumber', '==', trimmedContact));
     const snapshot = await getDocs(q);

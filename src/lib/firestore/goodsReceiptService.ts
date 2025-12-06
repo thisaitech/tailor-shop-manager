@@ -7,7 +7,7 @@ import {
   where,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 
 const GOODS_RECEIPT_COLLECTION = 'goodsReceipts';
 
@@ -39,6 +39,7 @@ export interface GoodsReceipt {
  */
 async function generateGRNNumber(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const grnRef = collection(db, GOODS_RECEIPT_COLLECTION);
     const q = query(grnRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -66,6 +67,7 @@ export async function createGoodsReceipt(
   adminId: string
 ): Promise<GoodsReceipt> {
   try {
+    const db = await getDb();
     const grnNo = await generateGRNNumber(companyId);
 
     const newGRN: GoodsReceipt = {
@@ -120,6 +122,7 @@ export async function createGoodsReceipt(
  */
 export async function getGoodsReceiptsByCompany(companyId: string): Promise<GoodsReceipt[]> {
   try {
+    const db = await getDb();
     const grnRef = collection(db, GOODS_RECEIPT_COLLECTION);
     const q = query(
       grnRef,
@@ -162,6 +165,7 @@ export async function getGoodsReceiptsByCompany(companyId: string): Promise<Good
  */
 export async function getUsedDCNumbers(companyId: string): Promise<string[]> {
   try {
+    const db = await getDb();
     const grnRef = collection(db, GOODS_RECEIPT_COLLECTION);
     const q = query(grnRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);

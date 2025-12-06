@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { AdvancePayment } from '@/lib/types';
 import { updateServiceOrderStatus } from './serviceOrderService';
 
@@ -23,6 +23,7 @@ const ADVANCE_PAYMENTS_COLLECTION = 'advancePayments';
  */
 export async function generateProformaInvoiceId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     console.log('[advancePaymentService] ==========================================');
     console.log('[advancePaymentService] Generating proforma invoice ID for companyId:', companyId);
     console.log('[advancePaymentService] Collection name:', ADVANCE_PAYMENTS_COLLECTION);
@@ -74,6 +75,7 @@ export async function generateProformaInvoiceId(companyId: string): Promise<stri
  */
 async function generateInvoiceNumber(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     console.log('[advancePaymentService] Generating invoice number for companyId:', companyId);
 
     const paymentsRef = collection(db, ADVANCE_PAYMENTS_COLLECTION);
@@ -118,6 +120,7 @@ export async function addAdvancePayment(
   adminId: string
 ): Promise<AdvancePayment> {
   try {
+    const db = await getDb();
     // Generate both invoice numbers in parallel for efficiency
     const [proformaInvoiceId, invoiceNo] = await Promise.all([
       generateProformaInvoiceId(companyId),
@@ -163,6 +166,7 @@ export async function addAdvancePayment(
  */
 export async function getAdvancePaymentsByCompany(companyId: string): Promise<AdvancePayment[]> {
   try {
+    const db = await getDb();
     const paymentsRef = collection(db, ADVANCE_PAYMENTS_COLLECTION);
     const q = query(paymentsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -189,6 +193,7 @@ export async function getAdvancePaymentsByCompany(companyId: string): Promise<Ad
  */
 export async function getAdvancePayment(paymentId: string): Promise<AdvancePayment | null> {
   try {
+    const db = await getDb();
     const paymentDoc = await getDoc(doc(db, ADVANCE_PAYMENTS_COLLECTION, paymentId));
 
     if (!paymentDoc.exists()) {
@@ -216,6 +221,7 @@ export async function updateAdvancePayment(
   paymentData: Partial<Omit<AdvancePayment, 'id' | 'proformaInvoiceNo' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[advancePaymentService] Updating advance payment ${paymentId}`);
 
     await updateDoc(doc(db, ADVANCE_PAYMENTS_COLLECTION, paymentId), {
@@ -235,6 +241,7 @@ export async function updateAdvancePayment(
  */
 export async function deleteAdvancePayment(paymentId: string): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[advancePaymentService] Deleting advance payment ${paymentId}`);
 
     await deleteDoc(doc(db, ADVANCE_PAYMENTS_COLLECTION, paymentId));
@@ -251,6 +258,7 @@ export async function deleteAdvancePayment(paymentId: string): Promise<void> {
  */
 export async function getAdvancePaymentsByServiceOrder(serviceOrderNo: string): Promise<AdvancePayment[]> {
   try {
+    const db = await getDb();
     const paymentsRef = collection(db, ADVANCE_PAYMENTS_COLLECTION);
     const q = query(paymentsRef, where('serviceOrderNo', '==', serviceOrderNo));
     const snapshot = await getDocs(q);
@@ -277,6 +285,7 @@ export async function getAdvancePaymentsByServiceOrder(serviceOrderNo: string): 
  */
 export async function getAdvancePaymentsByJobWork(jobWorkNo: string): Promise<AdvancePayment[]> {
   try {
+    const db = await getDb();
     const paymentsRef = collection(db, ADVANCE_PAYMENTS_COLLECTION);
     const q = query(paymentsRef, where('jobWorkNo', '==', jobWorkNo));
     const snapshot = await getDocs(q);

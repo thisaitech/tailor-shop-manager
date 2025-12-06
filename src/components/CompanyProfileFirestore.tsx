@@ -13,6 +13,9 @@ import { toast } from 'sonner';
 
 interface CompanyProfileFirestoreProps {
   onBack: () => void;
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
 // Validation functions
@@ -53,11 +56,29 @@ const indianStates = [
 
 const indianRegions = ['North', 'South', 'East', 'West', 'Central', 'Northeast'];
 
-export function CompanyProfileFirestore({ onBack }: CompanyProfileFirestoreProps) {
+export function CompanyProfileFirestore({ onBack, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: CompanyProfileFirestoreProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    onInternalViewChange?.(showEditDialog);
+  }, [showEditDialog, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      if (showEditDialog) {
+        setShowEditDialog(false);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showEditDialog, onCloseInternalViewHandled]);
   const [editSection, setEditSection] = useState<'company' | 'address' | 'bank'>('company');
   const [companyData, setCompanyData] = useState<CompanyProfile | null>(null);
   const [formData, setFormData] = useState<Partial<CompanyProfile>>({

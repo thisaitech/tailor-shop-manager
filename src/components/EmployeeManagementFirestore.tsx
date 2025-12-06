@@ -94,9 +94,12 @@ const DEFAULT_CITY = 'Tirunelveli';
 
 interface EmployeeManagementFirestoreProps {
   onBack: () => void;
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
-export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirestoreProps) {
+export function EmployeeManagementFirestore({ onBack, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: EmployeeManagementFirestoreProps) {
   const { user } = useAuth();
   const [employees, setEmployees] = useState<EmployeeWithCompany[]>([]);
   const [companyId, setCompanyId] = useState<string>('');
@@ -168,6 +171,39 @@ export function EmployeeManagementFirestore({ onBack }: EmployeeManagementFirest
 
     loadData();
   }, [user?.id]);
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    const hasOpenDialog = showDialog || showFilterModal || showPasswordDialog || showDuplicateDialog || deleteEmployeeId !== null;
+    onInternalViewChange?.(hasOpenDialog);
+  }, [showDialog, showFilterModal, showPasswordDialog, showDuplicateDialog, deleteEmployeeId, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      // Close dialogs in priority order
+      if (showPasswordDialog) {
+        setShowPasswordDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showDuplicateDialog) {
+        setShowDuplicateDialog(false);
+        setDuplicateEmployee(null);
+        onCloseInternalViewHandled?.();
+      } else if (deleteEmployeeId !== null) {
+        setDeleteEmployeeId(null);
+        onCloseInternalViewHandled?.();
+      } else if (showDialog) {
+        setShowDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (showFilterModal) {
+        setShowFilterModal(false);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showDialog, showFilterModal, showPasswordDialog, showDuplicateDialog, deleteEmployeeId, onCloseInternalViewHandled]);
 
   // Date filter logic
   const getDateRange = (filter: DateFilter): { start: Date; end: Date } | null => {

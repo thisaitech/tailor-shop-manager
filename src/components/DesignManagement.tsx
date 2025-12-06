@@ -53,9 +53,12 @@ import { getCompanyProfile } from '@/lib/firestore/companyService';
 
 interface DesignManagementProps {
   onBack: () => void;
+  closeInternalView?: boolean;
+  onCloseInternalViewHandled?: () => void;
+  onInternalViewChange?: (hasInternalView: boolean) => void;
 }
 
-export function DesignManagement({ onBack }: DesignManagementProps) {
+export function DesignManagement({ onBack, closeInternalView, onCloseInternalViewHandled, onInternalViewChange }: DesignManagementProps) {
   const { user } = useAuth();
   const [categories, setCategories] = useState<DesignCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,35 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
 
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Track if any dialog is open and notify parent
+  useEffect(() => {
+    const hasOpenDialog = showCategoryDialog || deleteCategoryId !== null || deleteImage !== null || selectedCategory !== null;
+    onInternalViewChange?.(hasOpenDialog);
+  }, [showCategoryDialog, deleteCategoryId, deleteImage, selectedCategory, onInternalViewChange]);
+
+  // Handle close internal view signal from parent (back button)
+  useEffect(() => {
+    if (closeInternalView) {
+      // Close dialogs in priority order
+      if (deleteImage) {
+        setDeleteImage(null);
+        onCloseInternalViewHandled?.();
+      } else if (deleteCategoryId !== null) {
+        setDeleteCategoryId(null);
+        onCloseInternalViewHandled?.();
+      } else if (showCategoryDialog) {
+        setShowCategoryDialog(false);
+        onCloseInternalViewHandled?.();
+      } else if (selectedCategory !== null) {
+        setSelectedCategory(null);
+        onCloseInternalViewHandled?.();
+      } else {
+        // No dialogs open, signal handled
+        onCloseInternalViewHandled?.();
+      }
+    }
+  }, [closeInternalView, showCategoryDialog, deleteCategoryId, deleteImage, selectedCategory, onCloseInternalViewHandled]);
 
   // Load categories
   useEffect(() => {

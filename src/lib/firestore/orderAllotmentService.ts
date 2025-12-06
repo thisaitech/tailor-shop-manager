@@ -12,7 +12,7 @@ import {
   Timestamp,
   deleteField,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
 import { OrderAllotment, ServiceOrderStatus, EmbeddedAllotment } from '@/lib/types';
 import { updateServiceOrderStatus, addEmbeddedAllotment, updateEmbeddedAllotment, deleteEmbeddedAllotment } from './serviceOrderService';
 
@@ -24,6 +24,7 @@ const ORDER_ALLOTMENTS_COLLECTION = 'orderAllotment';
  */
 async function generateJobWorkId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(allotmentsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -44,6 +45,7 @@ export async function addOrderAllotment(
   adminId: string
 ): Promise<OrderAllotment> {
   try {
+    const db = await getDb();
     const jobWorkId = await generateJobWorkId(companyId);
 
     // Create initial history entry
@@ -139,6 +141,7 @@ export async function addOrderAllotment(
  */
 export async function getOrderAllotmentsByCompany(companyId: string): Promise<OrderAllotment[]> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(allotmentsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -165,6 +168,7 @@ export async function getOrderAllotmentsByCompany(companyId: string): Promise<Or
  */
 export async function getOrderAllotment(allotmentId: string): Promise<OrderAllotment | null> {
   try {
+    const db = await getDb();
     const allotmentDoc = await getDoc(doc(db, ORDER_ALLOTMENTS_COLLECTION, allotmentId));
 
     if (!allotmentDoc.exists()) {
@@ -192,6 +196,7 @@ export async function updateOrderAllotment(
   allotmentData: Partial<Omit<OrderAllotment, 'id' | 'createdAt' | 'updatedAt'>>
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Updating order allotment ${allotmentId}`);
 
     // Get the current allotment to find serviceOrderNo
@@ -232,6 +237,7 @@ export async function updateOrderAllotmentStatus(
   newOrderStatus: 'open' | 'in-progress' | 'closed'
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} status to ${newOrderStatus}`);
 
     // Get the current allotment to find serviceOrderNo
@@ -286,6 +292,7 @@ export async function updateOrderAllotmentWithServiceStatus(
   serviceOrderStatus: ServiceOrderStatus
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Updating order allotment ${allotmentId} - orderStatus: ${newOrderStatus}, serviceOrderStatus: ${serviceOrderStatus}`);
 
     // Get the current allotment to find serviceOrderNo
@@ -334,6 +341,7 @@ export async function updateOrderAllotmentWithServiceStatus(
  */
 async function generateStitchedId(companyId: string): Promise<string> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(
       allotmentsRef,
@@ -360,6 +368,7 @@ export async function updateVendorOrderStatus(
   performedBy?: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Updating vendor order ${allotmentId} status to ${status}`);
 
     // Get the order allotment to access serviceOrderNo and companyId
@@ -464,6 +473,7 @@ export async function reassignStitchedOrder(
   performedBy?: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Reassigning stitched order ${allotmentId}`);
 
     // Get current order data to preserve in history
@@ -579,6 +589,7 @@ export async function rejectOrderAllotment(
   rejectedBy?: string
 ): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Rejecting order allotment ${allotmentId}`);
 
     // Get current order data
@@ -641,6 +652,7 @@ export async function rejectOrderAllotment(
  */
 export async function deleteOrderAllotment(allotmentId: string): Promise<void> {
   try {
+    const db = await getDb();
     console.log(`[orderAllotmentService] Deleting order allotment ${allotmentId}`);
 
     // Get the allotment to find serviceOrderNo before deleting
@@ -671,6 +683,7 @@ export async function deleteOrderAllotment(allotmentId: string): Promise<void> {
  */
 export async function getOrderAllotmentsByServiceOrder(serviceOrderNo: string): Promise<OrderAllotment[]> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(allotmentsRef, where('serviceOrderNo', '==', serviceOrderNo));
     const snapshot = await getDocs(q);
@@ -697,6 +710,7 @@ export async function getOrderAllotmentsByServiceOrder(serviceOrderNo: string): 
  */
 export async function getOrderAllotmentsByTailor(employeeId: string): Promise<OrderAllotment[]> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(allotmentsRef, where('assignedTo', '==', employeeId));
     const snapshot = await getDocs(q);
@@ -724,6 +738,7 @@ export async function getOrderAllotmentsByTailor(employeeId: string): Promise<Or
  */
 export async function getOrderAllotmentsByEmployee(employeeId: string): Promise<OrderAllotment[]> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(
       allotmentsRef,
@@ -756,6 +771,7 @@ export async function getOrderAllotmentsByEmployee(employeeId: string): Promise<
  */
 export async function getOrderAllotmentsByVendor(vendorId: string): Promise<OrderAllotment[]> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     // Query for vendor allotments where assignedTo matches the vendor ID
     const q = query(
@@ -789,6 +805,7 @@ export async function getOrderAllotmentsByVendor(vendorId: string): Promise<Orde
  */
 export async function getStitchedOrdersByCompany(companyId: string): Promise<OrderAllotment[]> {
   try {
+    const db = await getDb();
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(
       allotmentsRef,

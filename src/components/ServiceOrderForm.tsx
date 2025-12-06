@@ -1240,7 +1240,7 @@ export function ServiceOrderForm({
         onInteractOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-3 py-2 border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+        <DialogHeader className="px-3 py-2 pt-[max(2rem,env(safe-area-inset-top,24px))] border-b flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
           <DialogTitle className="flex items-center gap-2.5 text-white text-base">
             {/* Back/Close Button */}
             <button
@@ -2148,7 +2148,7 @@ export function ServiceOrderForm({
           </div>
 
           {/* Footer with action buttons */}
-          <div className="flex justify-between items-center gap-3 px-4 py-2 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+          <div className="flex justify-between items-center gap-3 px-4 py-3 pb-[max(1.5rem,env(safe-area-inset-bottom,20px))] border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
             <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-white hover:text-white/80 hover:bg-white/10">
               {t('cancel')}
             </Button>
@@ -2310,7 +2310,7 @@ export function ServiceOrderForm({
             </div>
 
             {/* Footer with action buttons */}
-            <div className="flex justify-between items-center gap-3 px-4 py-2 border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
+            <div className="flex justify-between items-center gap-3 px-4 py-3 pb-[max(1.5rem,env(safe-area-inset-bottom,20px))] border-t flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
               <Button
                 type="button"
                 variant="ghost"

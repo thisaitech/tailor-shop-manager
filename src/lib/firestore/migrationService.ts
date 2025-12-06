@@ -9,7 +9,7 @@ import {
   writeBatch,
   setDoc,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { getDb } from '@/lib/firebase';
 
 const ORDER_ALLOTMENTS_COLLECTION = 'orderAllotment';
 const NEW_ORDERS_COLLECTION = 'newOrders';
@@ -25,6 +25,7 @@ export async function deleteStitchedOrdersFromOrderAllotment(): Promise<{
   errors: Array<{ orderId: string; error: string }>;
 }> {
   try {
+    const db = await getDb();
     console.log('[MigrationService] Starting cleanup: Deleting stitched orders from orderAllotment collection...');
 
     const q = query(
@@ -88,6 +89,7 @@ export async function migrateOrderAllotmentsToNewOrders(): Promise<{
   errors: Array<{ orderId: string; error: string }>;
 }> {
   try {
+    const db = await getDb();
     console.log(
       '[MigrationService] Starting migration: Migrating non-stitched orders from orderAllotment to newOrders...'
     );
@@ -191,6 +193,7 @@ export async function getCollectionStats(): Promise<{
   newOrdersCount: number;
 }> {
   try {
+    const db = await getDb();
     const allAllotments = await getDocs(collection(db, ORDER_ALLOTMENTS_COLLECTION));
     const stitched = await getDocs(
       query(collection(db, ORDER_ALLOTMENTS_COLLECTION), where('status', '==', 'stitched'))
