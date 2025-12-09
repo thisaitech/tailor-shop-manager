@@ -164,15 +164,17 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
           }}
           onClick={() => onStatClick && onStatClick(stat.filter)}
         >
-          <div className="flex flex-col items-center justify-center text-center gap-1 sm:gap-2">
-            <div className={`${stat.bgColor} ${stat.color} p-1.5 sm:p-2 rounded-lg flex-shrink-0 shadow-sm`}>
-              <stat.icon size={16} className="sm:size-5" weight="duotone" />
-            </div>
-            <div className="w-full min-w-0">
-              <p className="text-xl sm:text-3xl font-bold text-foreground mb-0.5">
+          <div className="flex flex-col items-center justify-center text-center gap-2 sm:gap-3">
+            <div className="flex items-center justify-center gap-5 sm:gap-6 w-full">
+              <div className={`${stat.bgColor} ${stat.color} p-2 sm:p-2.5 rounded-lg flex-shrink-0 shadow-md`}>
+                <stat.icon size={18} className="sm:size-6" weight="duotone" />
+              </div>
+              <p className="text-2xl sm:text-4xl font-extrabold text-foreground tracking-tight">
                 {stat.value}
               </p>
-              <p className="text-[8px] sm:text-[10px] font-medium text-muted-foreground line-clamp-2 leading-tight">
+            </div>
+            <div className="w-full min-w-0 px-1">
+              <p className="text-[9px] sm:text-xs font-bold text-foreground line-clamp-2 leading-snug">
                 {stat.label}
               </p>
             </div>

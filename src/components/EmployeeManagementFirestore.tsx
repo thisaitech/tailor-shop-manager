@@ -432,11 +432,11 @@ export function EmployeeManagementFirestore({ onBack, closeInternalView, onClose
         handleCloseDialog();
       } else {
         // Add new employee
-        const newEmployee = await addEmployee(user.id, companyId, user.id, formData as any, companyName);
-        setEmployees([...employees, newEmployee]);
+        const result = await addEmployee(user.id, companyId, user.id, formData as any, companyName);
+        setEmployees([...employees, result]);
 
-        // Show password dialog
-        setNewEmployeePassword(newEmployee.password);
+        // Show password dialog with plain password
+        setNewEmployeePassword(result.plainPassword);
         setShowPasswordDialog(true);
 
         // Show success message with email notification status
@@ -481,11 +481,12 @@ export function EmployeeManagementFirestore({ onBack, closeInternalView, onClose
 
     try {
       // Force create new employee even with duplicate contact number
-      const newEmployee = await addEmployee(user.id, companyId, user.id, formData);
+      const newEmployeeResult = await addEmployee(user.id, companyId, user.id, formData);
+      const newEmployee = newEmployeeResult;
       setEmployees([...employees, newEmployee]);
 
-      // Show password dialog
-      setNewEmployeePassword(newEmployee.password);
+      // Show password dialog with plain password
+      setNewEmployeePassword(newEmployeeResult.plainPassword);
       setShowPasswordDialog(true);
       toast.success('Employee added successfully!');
       setShowDuplicateDialog(false);

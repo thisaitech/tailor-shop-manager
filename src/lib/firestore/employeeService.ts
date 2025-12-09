@@ -17,6 +17,8 @@ import {
   decryptPassword as secureDecrypt,
   generateSecurePassword,
   isEncrypted,
+  hashPassword,
+  verifyPassword,
 } from '@/lib/crypto';
 
 const EMPLOYEES_COLLECTION = 'employees';
@@ -40,11 +42,13 @@ async function generateEmployeeId(companyId: string): Promise<string> {
 }
 
 /**
- * Generate secure random password for employee using Web Crypto API
- * Format: 12 characters with uppercase, lowercase, numbers, special chars
+ * Generate secure random 6-digit password for employee
+ * Format: 6 digits (000000-999999)
  */
 export function generateEmployeePassword(): string {
-  return generateSecurePassword(12);
+  // Generate 6 random digits
+  const digits = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(digits, digit => (digit % 10).toString()).join('');
 }
 
 /**
@@ -55,11 +59,56 @@ async function encryptEmployeePassword(password: string): Promise<string> {
 }
 
 /**
+ * Check if password is hashed (stored as JSON with hash and salt)
+ */
+function isPasswordHashed(password: string): boolean {
+  try {
+    const parsed = JSON.parse(password);
+    return parsed && typeof parsed.hash === 'string' && typeof parsed.salt === 'string';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Verify password - supports plain text, encrypted, and hashed passwords
+ */
+async function verifyEmployeePassword(storedPassword: string, inputPassword: string): Promise<boolean> {
+  try {
+    if (!storedPassword) return false;
+
+    // Check if password is hashed (JSON format)
+    if (isPasswordHashed(storedPassword)) {
+      const { hash, salt } = JSON.parse(storedPassword);
+      return await verifyPassword(inputPassword, hash, salt);
+    }
+
+    // Check if password is encrypted
+    if (isEncrypted(storedPassword)) {
+      const decrypted = await secureDecrypt(storedPassword);
+      return decrypted === inputPassword;
+    }
+
+    // Plain text password
+    return storedPassword === inputPassword;
+  } catch (error) {
+    console.error('[Employee Auth] Failed to verify password:', error);
+    return false;
+  }
+}
+
+/**
  * Decrypt password - supports both new AES encryption and legacy plain text
+ * @deprecated Use verifyEmployeePassword instead for password verification
  */
 async function decryptEmployeePassword(encryptedPassword: string): Promise<string | null> {
   try {
     if (!encryptedPassword) return null;
+
+    // Check if it's hashed (JSON format) - cannot decrypt, return null
+    if (isPasswordHashed(encryptedPassword)) {
+      return null;
+    }
 
     // Check if it's encrypted with new format
     if (isEncrypted(encryptedPassword)) {
@@ -207,15 +256,13 @@ export async function addEmployee(
   createdBy: string,
   employeeData: Omit<Employee, 'id' | 'employeeCode' | 'companyId' | 'companyDocId' | 'createdBy' | 'createdAt' | 'updatedAt'>,
   companyName?: string
-): Promise<EmployeeWithCompany> {
+): Promise<EmployeeWithCompany & { plainPassword: string }> {
   try {
     // Generate employee ID and password
     const employeeId = await generateEmployeeId(companyId);
     const plainPassword = generateEmployeePassword();
 
-    // Encrypt password before storing
-    const encryptedPassword = await encryptEmployeePassword(plainPassword);
-
+    // Store plain password (not encrypted/hashed) for initial passwords
     const employee: EmployeeWithCompany = {
       id: employeeId,
       employeeCode: employeeId,
@@ -244,7 +291,7 @@ export async function addEmployee(
       companyId,
       companyDocId,
       createdBy,
-      password: encryptedPassword, // Store encrypted password
+      password: plainPassword, // Store plain password (not encrypted/hashed)
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -256,7 +303,7 @@ export async function addEmployee(
 
     console.log('[Employee Service] Employee added successfully:', employeeId);
 
-    // Send credentials email with PLAIN password (not encrypted)
+    // Send credentials email with PLAIN password
     if (employeeData.email) {
       console.log('[Employee Service] Sending credentials email to employee...');
       try {
@@ -281,7 +328,7 @@ export async function addEmployee(
       console.warn('[Employee Service] ⚠️ Employee created but no email provided. Credentials not sent.');
     }
 
-    return employee;
+    return { ...employee, plainPassword };
   } catch (error: any) {
     console.error('[Employee Service] Error adding employee:', error);
     throw new Error(error?.message || 'Failed to add employee. Please try again.');
@@ -424,12 +471,12 @@ export async function toggleEmployeeStatus(
  */
 export async function resetEmployeePassword(employeeId: string): Promise<string> {
   try {
+    // Generate new password (store as plain text, not encrypted/hashed)
     const plainPassword = generateEmployeePassword();
-    const encryptedPassword = await encryptEmployeePassword(plainPassword);
     const db = await getDb();
     const employeeRef = doc(db, EMPLOYEES_COLLECTION, employeeId);
     await updateDoc(employeeRef, {
-      password: encryptedPassword,
+      password: plainPassword, // Store plain password (not encrypted/hashed)
       firstLogin: true, // Force password change on next login
       updatedAt: Date.now(),
     });
@@ -464,30 +511,31 @@ export async function changeEmployeePassword(
 
     const employeeData = employeeDoc.data() as EmployeeWithCompany;
 
-    // Verify old password
-    const decryptedOldPassword = await decryptEmployeePassword(employeeData.password);
-    if (decryptedOldPassword === null || decryptedOldPassword !== oldPassword) {
+    // Verify old password (supports plain text, encrypted, and hashed)
+    const isPasswordValid = await verifyEmployeePassword(employeeData.password, oldPassword);
+    if (!isPasswordValid) {
       throw new Error('Current password is incorrect');
     }
 
     // Initialize password history if it doesn't exist
     const passwordHistory = employeeData.passwordHistory || [];
 
-    // Encrypt new password
-    const encryptedNewPassword = await encryptEmployeePassword(newPassword);
+    // Hash new password (employees update their own passwords, so hash them)
+    const { hash, salt } = await hashPassword(newPassword);
+    const hashedPassword = JSON.stringify({ hash, salt });
 
-    // Add old encrypted password to history (for audit trail)
+    // Add old password to history (for audit trail)
     passwordHistory.push(employeeData.password);
 
-    // Update with new encrypted password and history
+    // Update with new hashed password and history
     await updateDoc(employeeRef, {
-      password: encryptedNewPassword,
+      password: hashedPassword,
       passwordHistory: passwordHistory,
       firstLogin: false,
       updatedAt: Date.now(),
     });
 
-    console.log(`[Employee Service] Password changed for employee ${employeeId}. Password added to history.`);
+    console.log(`[Employee Service] Password changed for employee ${employeeId}. Password hashed and added to history.`);
   } catch (error) {
     console.error('Error changing employee password:', error);
     throw new Error('Failed to change password. Please try again.');
@@ -547,14 +595,9 @@ export async function verifyEmployeeCredentials(
       role: employeeData.role
     });
 
-    // Decrypt and verify password (supports both encrypted and legacy plain text)
-    const decryptedPassword = await decryptEmployeePassword(employeeData.password);
-    if (decryptedPassword === null) {
-      console.error('[Employee Auth] Failed to decrypt password for employee:', employeeData.id);
-      return { success: false, error: 'system_error', message: 'Authentication error. Please contact support.' };
-    }
-
-    if (decryptedPassword !== trimmedPassword) {
+    // Verify password (supports plain text, encrypted, and hashed passwords)
+    const isPasswordValid = await verifyEmployeePassword(employeeData.password, trimmedPassword);
+    if (!isPasswordValid) {
       console.log('[Employee Auth] Invalid password for employee:', employeeData.id);
       return { success: false, error: 'invalid_password', message: 'Invalid password' };
     }

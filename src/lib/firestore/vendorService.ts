@@ -17,16 +17,20 @@ import {
   decryptPassword as secureDecrypt,
   generateSecurePassword,
   isEncrypted,
+  hashPassword,
+  verifyPassword,
 } from '@/lib/crypto';
 
 const VENDORS_COLLECTION = 'vendors';
 
 /**
- * Generate a secure random password using Web Crypto API
- * Format: 12 characters with uppercase, lowercase, numbers, special chars
+ * Generate a secure random 6-digit password
+ * Format: 6 digits (000000-999999)
  */
 function generatePassword(): string {
-  return generateSecurePassword(12);
+  // Generate 6 random digits
+  const digits = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(digits, digit => (digit % 10).toString()).join('');
 }
 
 /**
@@ -202,9 +206,8 @@ export async function addVendor(
     // Generate tailor code
     const tailorCode = await generateTailorCode(companyId);
 
-    // Generate auto password with secure encryption
+    // Generate auto password (store as plain text, not encrypted/hashed)
     const autoPassword = generatePassword();
-    const encryptedPassword = await encryptPasswordSecure(autoPassword);
     const now = Date.now();
 
     const vendor: Vendor = {
@@ -224,8 +227,8 @@ export async function addVendor(
       contactNumber: vendorData.contactNumber,
       whatsappNumber: vendorData.whatsappNumber || '',
       email: vendorData.email,
-      password: encryptedPassword,
-      passwordHistory: [{ password: encryptedPassword, changedAt: now }],
+      password: autoPassword, // Store plain password (not encrypted/hashed)
+      passwordHistory: [{ password: autoPassword, changedAt: now }],
       isFirstLogin: true,
       lastPasswordChange: now,
       companyId,
@@ -351,6 +354,45 @@ export async function deleteVendor(vendorId: string): Promise<void> {
  * @param currentPassword - Current password (plain text)
  * @param newPassword - New password (plain text)
  */
+/**
+ * Check if password is hashed (stored as JSON with hash and salt)
+ */
+function isPasswordHashed(password: string): boolean {
+  try {
+    const parsed = JSON.parse(password);
+    return parsed && typeof parsed.hash === 'string' && typeof parsed.salt === 'string';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Verify vendor password - supports plain text, encrypted, and hashed passwords
+ */
+async function verifyVendorPassword(storedPassword: string, inputPassword: string): Promise<boolean> {
+  try {
+    if (!storedPassword) return false;
+
+    // Check if password is hashed (JSON format)
+    if (isPasswordHashed(storedPassword)) {
+      const { hash, salt } = JSON.parse(storedPassword);
+      return await verifyPassword(inputPassword, hash, salt);
+    }
+
+    // Check if password is encrypted
+    if (isEncrypted(storedPassword)) {
+      const decrypted = await secureDecrypt(storedPassword);
+      return decrypted === inputPassword;
+    }
+
+    // Plain text password
+    return storedPassword === inputPassword;
+  } catch (error) {
+    console.error('[Vendor Auth] Failed to verify password:', error);
+    return false;
+  }
+}
+
 export async function changeVendorPassword(
   vendorId: string,
   currentPassword: string,
@@ -362,27 +404,25 @@ export async function changeVendorPassword(
       throw new Error('Vendor not found');
     }
 
-    // Verify current password using async decryption
-    const decryptedPassword = await decryptPasswordAsync(vendor.password);
-    if (decryptedPassword === null) {
-      throw new Error('Unable to verify current password. Please contact support.');
-    }
-    if (decryptedPassword !== currentPassword) {
+    // Verify current password (supports plain text, encrypted, and hashed)
+    const isPasswordValid = await verifyVendorPassword(vendor.password, currentPassword);
+    if (!isPasswordValid) {
       throw new Error('Current password is incorrect');
     }
 
-    // Encrypt new password with secure encryption
-    const encryptedPassword = await encryptPasswordSecure(newPassword);
+    // Hash new password (vendors update their own passwords, so hash them)
+    const { hash, salt } = await hashPassword(newPassword);
+    const hashedPassword = JSON.stringify({ hash, salt });
     const now = Date.now();
 
     // Update password and history
     const db = await getDb();
     const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
     await updateDoc(vendorRef, {
-      password: encryptedPassword,
+      password: hashedPassword,
       passwordHistory: [
         ...vendor.passwordHistory,
-        { password: encryptedPassword, changedAt: now }
+        { password: hashedPassword, changedAt: now }
       ],
       isFirstLogin: false,
       lastPasswordChange: now,
@@ -442,21 +482,15 @@ export async function authenticateVendor(
       return { success: false, error: 'account_inactive', message: 'Your account is not active. Please contact the administrator.' };
     }
 
-    // Verify password using async decryption (supports both new AES and legacy base64)
-    const decryptedPassword = await decryptPasswordAsync(vendor.password);
-
-    if (decryptedPassword === null) {
-      console.error('[Vendor Auth] Failed to decrypt password for vendor:', vendor.tailorCode);
-      return { success: false, error: 'decryption_error', message: 'Authentication error. Please contact support.' };
+    // Verify password (supports plain text, encrypted, and hashed passwords)
+    const isPasswordValid = await verifyVendorPassword(vendor.password, trimmedPassword);
+    if (!isPasswordValid) {
+      console.log('[Vendor Auth] Invalid password for vendor:', vendor.tailorCode);
+      return { success: false, error: 'invalid_password', message: 'Invalid password' };
     }
 
-    if (decryptedPassword === trimmedPassword) {
-      console.log('[Vendor Auth] Authentication successful for vendor:', vendor.tailorCode);
-      return { success: true, vendor };
-    }
-
-    console.log('[Vendor Auth] Invalid password for vendor:', vendor.tailorCode);
-    return { success: false, error: 'invalid_password', message: 'Invalid password' };
+    console.log('[Vendor Auth] Authentication successful for vendor:', vendor.tailorCode);
+    return { success: true, vendor };
   } catch (error) {
     console.error('[Vendor Auth] Error authenticating vendor:', error);
     return { success: false, error: 'system_error', message: 'System error. Please try again.' };
