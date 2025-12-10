@@ -803,7 +803,7 @@ export function VendorManagementFirestore({ onBack, closeInternalView, onCloseIn
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 min-h-0">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 min-h-0 pt-[max(1rem,env(safe-area-inset-top,24px))] pb-[max(4rem,env(safe-area-inset-bottom,60px))]">
               {/* Basic Details Tab */}
               <TabsContent value="basic" className="mt-0 space-y-6 h-full">
                 <div className="space-y-6">

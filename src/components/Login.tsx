@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useStorage } from '@/hooks/use-storage';
-import { User, Customer, Vendor } from '@/lib/types';
+import { User, Customer, Vendor, Admin } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,11 +13,13 @@ import { toast } from 'sonner';
 // DebugPanel removed for production
 import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { VendorChangePasswordDialog } from './VendorChangePasswordDialog';
+import { AdminChangePasswordDialog } from './AdminChangePasswordDialog';
 import { decryptPassword } from '@/lib/firestore/vendorService';
 import { InlineLoader } from './Loader';
+import type { AdminWithCompany } from '@/lib/firestore/adminService';
 
 export function Login() {
-  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange } = useAuth();
+  const { login, updatePassword, addUser, resetUsers, getAllUsers, employee, vendor, setEmployeeAfterPasswordChange, setVendorAfterPasswordChange, setAdminAfterPasswordChange } = useAuth();
   const [customers, setCustomers] = useStorage<Customer[]>('customers', []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -25,11 +27,13 @@ export function Login() {
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
   const [showEmployeePasswordSetup, setShowEmployeePasswordSetup] = useState(false);
   const [showVendorPasswordSetup, setShowVendorPasswordSetup] = useState(false);
+  const [showAdminPasswordSetup, setShowAdminPasswordSetup] = useState(false);
   const [showCustomerRegistration, setShowCustomerRegistration] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [tempEmployee, setTempEmployee] = useState<any>(null); // Temporary employee storage for first login
   const [tempVendor, setTempVendor] = useState<Vendor | null>(null); // Temporary vendor storage for first login
+  const [tempAdmin, setTempAdmin] = useState<AdminWithCompany | null>(null); // Temporary admin storage for first login
 
   const [customerForm, setCustomerForm] = useState({
     name: '',
@@ -62,8 +66,13 @@ export function Login() {
     if (result.success) {
       console.log('[Login] Login successful');
       if (result.needsPasswordSetup) {
-        console.log('[Login] Password setup needed. isEmployee:', result.isEmployee, 'isVendor:', result.isVendor);
-        if (result.isEmployee) {
+        console.log('[Login] Password setup needed. isEmployee:', result.isEmployee, 'isVendor:', result.isVendor, 'isAdmin:', result.isAdmin);
+        if (result.isAdmin) {
+          console.log('[Login] ✅ Setting showAdminPasswordSetup to TRUE');
+          console.log('[Login] Admin data from login:', result.adminData);
+          setTempAdmin(result.adminData || null); // Store admin data temporarily
+          setShowAdminPasswordSetup(true);
+        } else if (result.isEmployee) {
           console.log('[Login] ✅ Setting showEmployeePasswordSetup to TRUE');
           console.log('[Login] Employee data from login:', result.employeeData);
           setTempEmployee(result.employeeData); // Store employee data temporarily
@@ -74,7 +83,7 @@ export function Login() {
           setTempVendor(result.vendorData || null); // Store vendor data temporarily
           setShowVendorPasswordSetup(true);
         } else {
-          console.log('[Login] Setting showPasswordSetup to TRUE (non-employee/non-vendor)');
+          console.log('[Login] Setting showPasswordSetup to TRUE (non-employee/non-vendor/non-admin)');
           setShowPasswordSetup(true);
         }
       } else {
@@ -463,6 +472,32 @@ export function Login() {
           );
         }
         console.log('[Login] ❌ NOT rendering VendorChangePasswordDialog');
+        return null;
+      })()}
+
+      {/* Admin First Login Password Change */}
+      {(() => {
+        console.log('[Login] Modal render check - showAdminPasswordSetup:', showAdminPasswordSetup);
+        console.log('[Login] Modal render check - tempAdmin:', tempAdmin);
+        if (showAdminPasswordSetup && tempAdmin) {
+          console.log('[Login] ✅ RENDERING AdminChangePasswordDialog');
+          return (
+            <AdminChangePasswordDialog
+              adminId={tempAdmin.id}
+              adminName={tempAdmin.name}
+              currentPassword={tempAdmin.password}
+              onSuccess={() => {
+                console.log('[Login] Admin password change successful - redirecting to dashboard');
+                setShowAdminPasswordSetup(false);
+                // Set the admin in auth context to redirect to dashboard
+                setAdminAfterPasswordChange({ ...tempAdmin, isFirstLogin: false });
+                setTempAdmin(null); // Clear temp storage
+                toast.success('Password changed successfully! Welcome to your dashboard.');
+              }}
+            />
+          );
+        }
+        console.log('[Login] ❌ NOT rendering AdminChangePasswordDialog');
         return null;
       })()}
 

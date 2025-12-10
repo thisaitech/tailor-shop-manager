@@ -1331,7 +1331,7 @@ export function ServiceOrderForm({
         {/* Step 1: Order Form */}
         {currentStep === 1 && (
         <form onSubmit={handleStep1Submit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background pt-[max(1rem,env(safe-area-inset-top,24px))] pb-[max(4rem,env(safe-area-inset-bottom,60px))]">
 
             {/* Customer Selection with Search */}
             <div className="space-y-3">
@@ -2162,7 +2162,7 @@ export function ServiceOrderForm({
         {/* Step 2: Advance Payment */}
         {currentStep === 2 && createdOrderData && (
           <div className="flex flex-col flex-1 min-h-0">
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pt-[max(1rem,env(safe-area-inset-top,24px))] pb-[max(4rem,env(safe-area-inset-bottom,60px))]">
               {/* Order Summary Card */}
               <div className="bg-muted/30 rounded-xl p-5 border space-y-4">
                 <h3 className="text-sm font-semibold text-muted-foreground">Order Summary</h3>

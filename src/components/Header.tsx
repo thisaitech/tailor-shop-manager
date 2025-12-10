@@ -18,6 +18,7 @@ interface HeaderProps {
   onProfileClick?: () => void;
   onEmployeeClick?: () => void;
   onVendorClick?: () => void;
+  onAdminClick?: () => void;
   onDesignClick?: () => void;
   onPaymentClick?: () => void;
   onDeliveryChallanClick?: () => void;
@@ -29,19 +30,23 @@ interface HeaderProps {
   showBackButton?: boolean;
 }
 
-export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick, onBackClick, showBackButton }: HeaderProps) {
-  const { user, employee, vendor, logout } = useAuth();
+export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onAdminClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick, onBackClick, showBackButton }: HeaderProps) {
+  const { user, employee, vendor, admin, logout } = useAuth();
   const { t } = useLanguage();
   const isMobile = useIsMobile();
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Get current user ID based on user type
   const getCurrentUserId = (): string | null => {
+    if (admin) return admin.id;
     if (user?.role === 'owner') return user.id;
     if (employee) return employee.id;
     if (vendor) return vendor.id;
     return null;
   };
+
+  // Check if current user is an admin (from admins collection or owner role)
+  const isAdminUser = user?.role === 'owner' || admin !== null;
 
   const userId = getCurrentUserId();
   const prevNotificationsRef = useRef<Notification[]>([]);
@@ -93,8 +98,14 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
   };
 
   return (
-    <header className="border-b backdrop-blur-md sticky top-0 z-50 shadow-lg" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', borderColor: 'rgba(196, 181, 253, 0.3)' }}>
-      <div className="container mx-auto px-4 py-4">
+    <header 
+      className="border-b backdrop-blur-md sticky top-0 z-50 shadow-lg pt-[max(1.25rem,env(safe-area-inset-top,24px))]" 
+      style={{ 
+        background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)', 
+        borderColor: 'rgba(196, 181, 253, 0.3)'
+      }}
+    >
+      <div className="container mx-auto px-4 pt-3 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Mobile Back Button */}
@@ -115,7 +126,8 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
             <div>
               <h1 className="text-2xl font-bold text-white">{t('appName')}</h1>
               <p className="text-xs text-purple-100 hidden sm:block">
-                {user?.role === 'owner' && 'Owner Dashboard'}
+                {admin && 'Admin Dashboard'}
+                {!admin && user?.role === 'owner' && 'Owner Dashboard'}
                 {user?.role === 'tailor' && 'Tailor Portal'}
                 {user?.role === 'customer' && 'Customer Portal'}
                 {employee && 'Employee Portal'}
@@ -142,13 +154,14 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
               </Button>
             )}
             <LanguageSwitcher />
-            {user?.role === 'owner' && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
+            {isAdminUser && onProfileClick && onEmployeeClick && onVendorClick && onDesignClick ? (
               <AdminMenu
                 onDashboardClick={onDashboardClick}
                 onCustomersClick={onCustomersClick}
                 onProfileClick={onProfileClick}
                 onEmployeeClick={onEmployeeClick}
                 onVendorClick={onVendorClick}
+                onAdminClick={onAdminClick}
                 onDesignClick={onDesignClick}
                 onPaymentClick={onPaymentClick}
                 onDeliveryChallanClick={onDeliveryChallanClick}

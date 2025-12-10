@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { List, User, Users, UsersThree, SignOut, Storefront, Scissors, CurrencyInr, Truck, Package } from '@phosphor-icons/react';
+import { List, User, Users, UsersThree, SignOut, Storefront, Scissors, CurrencyInr, Truck, Package, ShieldCheck } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface AdminMenuProps {
@@ -21,6 +21,7 @@ interface AdminMenuProps {
   onPaymentClick?: () => void;
   onDeliveryChallanClick?: () => void;
   onGoodsReceiptClick?: () => void;
+  onAdminClick?: () => void;
 }
 
 export function AdminMenu({
@@ -33,6 +34,7 @@ export function AdminMenu({
   onPaymentClick,
   onDeliveryChallanClick,
   onGoodsReceiptClick,
+  onAdminClick,
 }: AdminMenuProps) {
   const { logout } = useAuth();
   const [open, setOpen] = useState(false);
@@ -66,7 +68,7 @@ export function AdminMenu({
           <span className="hidden sm:inline">Menu</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48 bg-purple-50 border border-purple-200 shadow-lg">
+      <DropdownMenuContent align="end" disableAutoFocus className="w-48 bg-purple-50 border border-purple-200 shadow-lg">
         {onDashboardClick && (
           <DropdownMenuItem onClick={() => { onDashboardClick(); setOpen(false); }} className="cursor-pointer">
             <Package size={18} className="mr-2" />
@@ -87,6 +89,12 @@ export function AdminMenu({
           <Users size={18} className="mr-2" />
           Employees
         </DropdownMenuItem>
+        {onAdminClick && (
+          <DropdownMenuItem onClick={() => { onAdminClick(); setOpen(false); }} className="cursor-pointer">
+            <ShieldCheck size={18} className="mr-2" />
+            Admins
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => { onVendorClick(); setOpen(false); }} className="cursor-pointer">
           <Storefront size={18} className="mr-2" />
           Job Work Tailor

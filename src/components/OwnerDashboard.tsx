@@ -76,7 +76,7 @@ interface OwnerDashboardProps {
 
 export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all', onFilterChange, onTabChange, onInternalViewChange, closeInternalView, onCloseInternalViewHandled, onEmployeeClick, onNavigateToDeliveryChallan, onNavigateToPayment }: OwnerDashboardProps) {
   const { t } = useLanguage();
-  const { user, employee } = useAuth();
+  const { user, employee, admin } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
   const [orderAllotments, setOrderAllotments] = useState<OrderAllotment[]>([]);
@@ -176,8 +176,8 @@ export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all'
     }
   }, [closeInternalView, showOrderAllotmentForm, showServiceOrderForm, showCustomerForm, selectedServiceOrder, selectedCustomer, onCloseInternalViewHandled]);
 
-  // Get admin ID from logged-in employee or user
-  const adminId = employee?.id || user?.id || 'DEFAULT_ADMIN';
+  // Get admin ID from logged-in admin, employee or user
+  const adminId = admin?.id || employee?.id || user?.id || 'DEFAULT_ADMIN';
 
   // Load customers, service orders, employees, vendors, and allotments from Firestore
   useEffect(() => {
@@ -187,21 +187,22 @@ export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all'
       try {
         setLoading(true);
 
-        if (!user?.id) {
+        const currentUserId = admin?.companyDocId || user?.id;
+        if (!currentUserId) {
           console.error('[OwnerDashboard] No user ID found');
           setLoading(false);
           return;
         }
 
         // Get company profile to get the real company ID
-        const company = await getCompanyProfile(user.id);
+        const company = await getCompanyProfile(currentUserId);
         if (!company) {
-          console.error('[OwnerDashboard] No company profile found for user:', user.id);
+          console.error('[OwnerDashboard] No company profile found for user:', currentUserId);
           setLoading(false);
           return;
         }
 
-        const realCompanyId = employee?.companyId || company.id;
+        const realCompanyId = admin?.companyId || employee?.companyId || company.id;
         setCompanyId(realCompanyId);
         console.log('[OwnerDashboard] Loading data for company:', realCompanyId);
         console.log('[OwnerDashboard] Company profile ID:', company.id);
@@ -222,8 +223,8 @@ export function OwnerDashboard({ initialTab = 'dashboard', initialFilter = 'all'
         const [customersData, allotmentsData, employeesData, vendorsData] = await Promise.all([
           getCustomersByCompany(realCompanyId),
           getOrderAllotmentsByCompany(realCompanyId),
-          getEmployeesByCompany(user.id),
-          getVendorsByCompany(user.id),
+          getEmployeesByCompany(currentUserId),
+          getVendorsByCompany(currentUserId),
         ]);
 
         // Set all state at once after parallel fetch completes

@@ -569,7 +569,7 @@ export interface Vendor {
 // NOTIFICATION TYPES
 // ==========================================
 
-export type NotificationType = 
+export type NotificationType =
   | 'order_assigned'
   | 'order_accepted'
   | 'order_rejected'
@@ -580,6 +580,42 @@ export type NotificationType =
   | 'order_reassigned'
   | 'dc_created'
   | 'general';
+
+// ==========================================
+// ADMIN TYPES
+// ==========================================
+
+export type AdminRole = 'super_admin' | 'admin';
+
+export interface Admin {
+  id: string; // Auto-generated admin code (ADMIN001, ADMIN002, etc.)
+  adminCode: string; // Same as id, for display
+  name: string; // max 40 chars
+  aliasName?: string; // max 40 chars
+  gender: 'male' | 'female';
+  profilePicture?: string; // URL or base64 string for profile picture
+  email: string; // Email address (mandatory)
+  contactNumber: string; // max 15 digits, used as login ID
+  whatsappNumber?: string; // max 15 digits
+  address1?: string; // max 40 chars
+  address2?: string; // max 40 chars
+  city?: string;
+  pincode?: string; // 6 digits
+  region?: string;
+  state?: string;
+  country?: string;
+  role: AdminRole; // super_admin has all permissions, admin is regular admin
+  password: string; // Encrypted password for login
+  passwordHistory: Array<{ password: string; changedAt: number }>; // Password change history
+  isFirstLogin: boolean; // Flag to force password change on first login
+  lastPasswordChange: number; // Timestamp of last password change
+  isActive: boolean; // Whether admin account is active
+  companyId: string; // Company unique ID
+  companyDocId: string; // Firestore document ID of company
+  createdBy: string; // Admin user ID who created this admin (or 'system' for first admin)
+  createdAt: number;
+  updatedAt: number;
+}
 
 export interface Notification {
   id: string;

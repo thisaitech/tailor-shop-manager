@@ -34,7 +34,19 @@
       "Bash(./gradlew assembleRelease:*)",
       "Bash(grep:*)",
       "Bash(dir:*)",
-      "Bash(npx firebase deploy:*)"
+      "Bash(npx firebase deploy:*)",
+      "Bash(cp:*)",
+      "Bash(npm ls:*)",
+      "Bash(java -version:*)",
+      "Bash(/usr/libexec/java_home:*)",
+      "Bash(brew list:*)",
+      "Bash(brew install:*)",
+      "Bash(curl:*)",
+      "Bash(/tmp/jdk17/Contents/Home/bin/java:*)",
+      "Bash(export JAVA_HOME=/tmp/jdk17/Contents/Home)",
+      "Bash(tar:*)",
+      "Bash(/tmp/jdk21/Contents/Home/bin/java:*)",
+      "Bash(export JAVA_HOME=/tmp/jdk21/Contents/Home)"
     ],
     "deny": [],
     "ask": []

@@ -18,10 +18,10 @@ const TailorDashboardFirestore = lazy(() => import('@/components/TailorDashboard
 const CustomerDashboard = lazy(() => import('@/components/CustomerDashboard').then(m => ({ default: m.CustomerDashboard })));
 const JobWorkTailorDashboard = lazy(() => import('@/components/JobWorkTailorDashboard').then(m => ({ default: m.JobWorkTailorDashboard })));
 const InstallPrompt = lazy(() => import('@/components/InstallPrompt').then(m => ({ default: m.InstallPrompt })));
-const SeedData = lazy(() => import('@/components/SeedData').then(m => ({ default: m.SeedData })));
 const CompanyProfile = lazy(() => import('@/components/CompanyProfileFirestore').then(m => ({ default: m.CompanyProfileFirestore })));
 const EmployeeManagement = lazy(() => import('@/components/EmployeeManagementFirestore').then(m => ({ default: m.EmployeeManagementFirestore })));
 const VendorManagement = lazy(() => import('@/components/VendorManagementFirestore').then(m => ({ default: m.VendorManagementFirestore })));
+const AdminManagement = lazy(() => import('@/components/AdminManagement').then(m => ({ default: m.AdminManagement })));
 const EmployeeProfile = lazy(() => import('@/components/EmployeeProfile').then(m => ({ default: m.EmployeeProfile })));
 const EmployeeDashboard = lazy(() => import('@/components/EmployeeDashboard').then(m => ({ default: m.EmployeeDashboard })));
 const TailorProfile = lazy(() => import('@/components/TailorProfile').then(m => ({ default: m.TailorProfile })));
@@ -38,7 +38,7 @@ const DevKeyboard = isDev
   ? lazy(() => import('@/components/DevKeyboard').then(m => ({ default: m.DevKeyboard })))
   : () => null;
 
-type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
+type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'admins' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
 type EmployeeView = 'dashboard' | 'profile' | 'notifications';
 type VendorView = 'dashboard' | 'profile' | 'notifications';
 
@@ -52,7 +52,7 @@ type NavigationEntry = {
 };
 
 function AppContent() {
-  const { user, employee, vendor, isAuthenticated, isLoading } = useAuth();
+  const { user, employee, vendor, admin, isAuthenticated, isLoading, isStorageReady } = useAuth();
   const [adminView, setAdminView] = useState<AdminView>('dashboard');
   const [dashboardTab, setDashboardTab] = useState<string>('dashboard');
   const [dashboardKey, setDashboardKey] = useState(0); // Key to force remount and reset dashboard state
@@ -84,11 +84,18 @@ function AppContent() {
   // Mobile app features
   usePreventDefaultTouchBehaviors();
 
+  // Check if current user is an admin (from admins collection or owner role)
+  const isAdminUser = user?.role === 'owner' || admin !== null;
+
+  // Root user phone number - only this user can create new admins/shops
+  const ROOT_USER_PHONE = '9486229273';
+  const isRootUser = user?.phone === ROOT_USER_PHONE || user?.username === ROOT_USER_PHONE;
+
   // Push current state to navigation history
   const pushNavigationHistory = useCallback(() => {
     const currentState: NavigationEntry = {};
 
-    if (user?.role === 'owner') {
+    if (isAdminUser) {
       currentState.adminView = adminView;
       currentState.dashboardTab = dashboardTab;
       currentState.dashboardFilter = dashboardFilter;
@@ -100,15 +107,15 @@ function AppContent() {
 
     navigationHistory.current.push(currentState);
     console.log('[Navigation] Pushed state:', currentState, 'History length:', navigationHistory.current.length);
-  }, [user, employee, vendor, adminView, dashboardTab, dashboardFilter, employeeView, vendorView]);
+  }, [isAdminUser, employee, vendor, adminView, dashboardTab, dashboardFilter, employeeView, vendorView]);
 
   // Handle hardware back button (Android)
   const handleHardwareBack = useCallback(() => {
     // Return true if we handled the back press, false to allow default behavior (minimize app)
     console.log('[BackButton] Handler called. History length:', navigationHistory.current.length);
 
-    // For admin users
-    if (user?.role === 'owner') {
+    // For admin users (both owner role and admin from admins collection)
+    if (isAdminUser) {
       // First check if there's an internal detail view open (customer view, order view)
       if (adminView === 'dashboard' && hasOwnerInternalView) {
         console.log('[BackButton] Going back from owner internal detail view');
@@ -190,16 +197,16 @@ function AppContent() {
 
     // Not handled - allow default back behavior (exit app or go to previous page)
     return false;
-  }, [user, employee, vendor, adminView, dashboardTab, dashboardFilter, hasOwnerInternalView, hasAdminViewInternalDialog, employeeView, employeeInternalView, vendorView, vendorInternalView]);
+  }, [isAdminUser, employee, vendor, adminView, dashboardTab, dashboardFilter, hasOwnerInternalView, hasAdminViewInternalDialog, employeeView, employeeInternalView, vendorView, vendorInternalView]);
 
   useHardwareBackButton(handleHardwareBack);
 
   // Show loader during initial app loading
-  if (isLoading) {
+  if (isLoading || !isStorageReady) {
     return <AppLoader />;
   }
 
-  if (!isAuthenticated || (!user && !employee && !vendor)) {
+  if (!isAuthenticated || (!user && !employee && !vendor && !admin)) {
     return <Login />;
   }
 
@@ -243,6 +250,10 @@ function AppContent() {
     setAdminView('vendors');
   };
 
+  const handleAdminClick = () => {
+    setAdminView('admins');
+  };
+
   const handleDesignClick = () => {
     setAdminView('designs');
   };
@@ -283,7 +294,7 @@ function AppContent() {
 
   // Notification handlers for all user types
   const handleNotificationsClick = () => {
-    if (user?.role === 'owner') {
+    if (isAdminUser) {
       setAdminView('notifications');
     } else if (employee) {
       setEmployeeView('notifications');
@@ -293,7 +304,7 @@ function AppContent() {
   };
 
   const handleNotificationsBack = () => {
-    if (user?.role === 'owner') {
+    if (isAdminUser) {
       setAdminView('dashboard');
     } else if (employee) {
       setEmployeeView('dashboard');
@@ -304,25 +315,36 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6">
+      {/* Status bar area above header - matches header gradient */}
+      <div 
+        className="fixed top-0 left-0 right-0 z-[-1] pointer-events-none"
+        style={{ 
+          height: 'env(safe-area-inset-top, 24px)',
+          minHeight: '24px',
+          background: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #8b5cf6 100%)'
+        }}
+      />
+      
       {/* Network status banner */}
       <NetworkStatus />
       
       <Header
-        onDashboardClick={user?.role === 'owner' ? handleDashboardClick : undefined}
-        onCustomersClick={user?.role === 'owner' ? handleCustomersClick : undefined}
-        onProfileClick={user?.role === 'owner' ? handleProfileClick : undefined}
-        onEmployeeClick={user?.role === 'owner' ? handleEmployeeClick : undefined}
-        onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}
-        onDesignClick={user?.role === 'owner' ? handleDesignClick : undefined}
-        onPaymentClick={user?.role === 'owner' ? handlePaymentClick : undefined}
-        onDeliveryChallanClick={user?.role === 'owner' ? handleDeliveryChallanClick : undefined}
-        onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
+        onDashboardClick={isAdminUser ? handleDashboardClick : undefined}
+        onCustomersClick={isAdminUser ? handleCustomersClick : undefined}
+        onProfileClick={isAdminUser ? handleProfileClick : undefined}
+        onEmployeeClick={isAdminUser ? handleEmployeeClick : undefined}
+        onVendorClick={isAdminUser ? handleVendorClick : undefined}
+        onAdminClick={isRootUser ? handleAdminClick : undefined}
+        onDesignClick={isAdminUser ? handleDesignClick : undefined}
+        onPaymentClick={isAdminUser ? handlePaymentClick : undefined}
+        onDeliveryChallanClick={isAdminUser ? handleDeliveryChallanClick : undefined}
+        onGoodsReceiptClick={isAdminUser ? handleGoodsReceiptClick : undefined}
         onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
         onVendorProfileClick={vendor ? handleVendorProfileClick : undefined}
         onNotificationsClick={handleNotificationsClick}
         showBackButton={
           // Show back button if on any non-root view
-          (user?.role === 'owner' && (adminView !== 'dashboard' || dashboardTab !== 'dashboard' || dashboardFilter !== 'all' || hasOwnerInternalView)) ||
+          (isAdminUser && (adminView !== 'dashboard' || dashboardTab !== 'dashboard' || dashboardFilter !== 'all' || hasOwnerInternalView)) ||
           (!!employee && (employeeView !== 'dashboard' || employeeInternalView !== 'dashboard')) ||
           (!!vendor && (vendorView !== 'dashboard' || vendorInternalView !== 'dashboard'))
         }
@@ -331,7 +353,7 @@ function AppContent() {
       
       {/* Wrap lazy-loaded components with Suspense for better loading UX */}
       <Suspense fallback={<AppLoader />}>
-        {user?.role === 'owner' && adminView === 'dashboard' && (
+        {isAdminUser && adminView === 'dashboard' && (
           <OwnerDashboard
             key={dashboardKey}
             initialTab={dashboardTab}
@@ -354,7 +376,7 @@ function AppContent() {
             }}
           />
         )}
-        {user?.role === 'owner' && adminView === 'profile' && (
+        {isAdminUser && adminView === 'profile' && (
           <CompanyProfile
             onBack={handleBackToDashboard}
             closeInternalView={closeAdminViewInternalDialog}
@@ -365,7 +387,7 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'employees' && (
+        {isAdminUser && adminView === 'employees' && (
           <EmployeeManagement
             onBack={handleBackToDashboard}
             closeInternalView={closeAdminViewInternalDialog}
@@ -376,7 +398,7 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'vendors' && (
+        {isAdminUser && adminView === 'vendors' && (
           <VendorManagement
             onBack={handleBackToDashboard}
             closeInternalView={closeAdminViewInternalDialog}
@@ -387,7 +409,10 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'designs' && (
+        {isRootUser && adminView === 'admins' && (
+          <AdminManagement onBack={handleBackToDashboard} />
+        )}
+        {isAdminUser && adminView === 'designs' && (
           <DesignManagement
             onBack={handleBackToDashboard}
             closeInternalView={closeAdminViewInternalDialog}
@@ -398,7 +423,7 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'payment' && (
+        {isAdminUser && adminView === 'payment' && (
           <Payment
             onBack={() => {
               setSelectedOrderForPayment(undefined); // Clear the selected order on back
@@ -413,7 +438,7 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'delivery-challan' && (
+        {isAdminUser && adminView === 'delivery-challan' && (
           <DeliveryChallan
             onBack={() => {
               setSelectedOrderForDC(undefined); // Clear the selected order on back
@@ -428,7 +453,7 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'goods-receipt' && (
+        {isAdminUser && adminView === 'goods-receipt' && (
           <GoodsReceipt
             onBack={handleBackToDashboard}
             closeInternalView={closeAdminViewInternalDialog}
@@ -439,7 +464,7 @@ function AppContent() {
             onInternalViewChange={setHasAdminViewInternalDialog}
           />
         )}
-        {user?.role === 'owner' && adminView === 'notifications' && (
+        {isAdminUser && adminView === 'notifications' && (
           <NotificationsPage onBack={handleNotificationsBack} />
         )}
         {user?.role === 'tailor' && <TailorDashboard />}
@@ -471,9 +496,7 @@ function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <Suspense fallback={null}>
-          <SeedData />
-        </Suspense>
+        {/* Seed data is handled by the auth provider to guarantee it is ready before login */}
         <AppContent />
         <Toaster />
         {/* 🔧 DEV ONLY: Fake mobile keyboard for testing keyboard responsiveness */}

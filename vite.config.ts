@@ -19,8 +19,12 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(projectRoot, 'src')
-    }
+      '@': resolve(projectRoot, 'src'),
+      // Force single React instance to prevent hook errors
+      'react': resolve(projectRoot, 'node_modules/react'),
+      'react-dom': resolve(projectRoot, 'node_modules/react-dom'),
+    },
+    dedupe: ['react', 'react-dom'],
   },
   build: {
     // Output directory for Capacitor

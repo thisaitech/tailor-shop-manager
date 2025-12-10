@@ -126,7 +126,7 @@ export function OrderForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="space-y-6 overflow-y-auto pr-2 flex-1">
+          <div className="space-y-6 overflow-y-auto pr-2 flex-1 pt-[max(1rem,env(safe-area-inset-top,24px))] pb-[max(4rem,env(safe-area-inset-bottom,60px))]">
             <div className="space-y-2">
               <Label htmlFor="customer">{t('customer')} *</Label>
               <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>

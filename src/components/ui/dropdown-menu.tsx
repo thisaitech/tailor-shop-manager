@@ -1,6 +1,6 @@
 "use client"
 
-import { ComponentProps } from "react"
+import { ComponentProps, FocusEvent } from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import CheckIcon from "lucide-react/dist/esm/icons/check"
 import ChevronRightIcon from "lucide-react/dist/esm/icons/chevron-right"
@@ -36,8 +36,18 @@ function DropdownMenuTrigger({
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  disableAutoFocus = false,
+  onOpenAutoFocus,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+  disableAutoFocus?: boolean
+}) {
+  const handleOpenAutoFocus = (event: FocusEvent<HTMLDivElement>) => {
+    if (disableAutoFocus) {
+      event.preventDefault();
+    }
+    onOpenAutoFocus?.(event);
+  };
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
@@ -48,6 +58,7 @@ function DropdownMenuContent({
           className
         )}
         {...props}
+        onOpenAutoFocus={handleOpenAutoFocus}
       />
     </DropdownMenuPrimitive.Portal>
   )

@@ -470,7 +470,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
           </div>
 
           {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 pb-4 keyboard-aware-scroll">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 pb-4 keyboard-aware-scroll pt-[max(1rem,env(safe-area-inset-top,24px))] pb-[max(4rem,env(safe-area-inset-bottom,60px))]">
               {/* Basic Details Tab */}
               {activeTab === 'basic' && (
                 <div className="space-y-6">
