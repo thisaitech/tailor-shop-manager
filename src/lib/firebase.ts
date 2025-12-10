@@ -7,6 +7,12 @@ import {
   persistentMultipleTabManager,
   CACHE_SIZE_UNLIMITED,
   Firestore,
+  collection,
+  getDocs,
+  limit,
+  query,
+  enableNetwork,
+  waitForPendingWrites,
 } from 'firebase/firestore';
 import { getAuth as firebaseGetAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
@@ -35,6 +41,53 @@ let offlinePersistenceEnabled = false;
 // Track Firebase initialization status
 let firebaseInitialized = false;
 let firebaseInitPromise: Promise<void> | null = null;
+
+// Detect if running in Capacitor/native app
+const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+const isNativePlatform = isCapacitor && (window as any).Capacitor?.isNativePlatform?.();
+
+/**
+ * Test Firestore connection readiness by performing a warmup query
+ * This ensures the connection is actually established before proceeding
+ * CRITICAL for mobile apps on cold start - the first query often fails without this
+ */
+async function testFirestoreConnection(firestore: Firestore, maxRetries = 5): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 [Firebase] Connection warmup attempt ${attempt}/${maxRetries}...`);
+
+      // Ensure network is enabled
+      await enableNetwork(firestore);
+
+      // Small delay before first attempt on mobile to let the network stack initialize
+      if (attempt === 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Do a lightweight test query to verify connection
+      // Query a collection that should exist (employees is used for auth)
+      const testQuery = query(collection(firestore, 'employees'), limit(1));
+      const startTime = Date.now();
+      await getDocs(testQuery);
+      const duration = Date.now() - startTime;
+
+      console.log(`✅ [Firebase] Connection warmup successful (${duration}ms)`);
+      return true;
+    } catch (error: any) {
+      console.warn(`⚠️ [Firebase] Connection warmup attempt ${attempt} failed:`, error.message);
+
+      if (attempt < maxRetries) {
+        // Wait before retry with exponential backoff (more aggressive for mobile)
+        const delay = Math.min(800 * Math.pow(1.5, attempt - 1), 3000);
+        console.log(`⏳ [Firebase] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  console.warn('⚠️ [Firebase] Connection warmup failed after all retries, proceeding anyway');
+  return false;
+}
 
 /**
  * Initialize Firebase and wait for all async setup to complete
@@ -94,6 +147,15 @@ async function initializeFirebaseAsync(): Promise<void> {
 
     auth = firebaseGetAuth(app);
     storage = getStorage(app);
+
+    // CRITICAL: Perform connection warmup on native mobile platforms
+    // This ensures Firestore connection is actually established before first use
+    // Without this, the first query on app cold start may fail
+    if (isNativePlatform) {
+      console.log('📱 [Firebase] Native platform detected, performing connection warmup...');
+      await testFirestoreConnection(db, 3);
+    }
+
     firebaseInitialized = true;
     console.log('✅ Firebase initialized successfully');
   } catch (error) {

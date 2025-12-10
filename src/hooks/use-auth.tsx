@@ -68,6 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[Auth] Firebase not ready, waiting...');
       try {
         await waitForFirebase();
+        // Additional small delay on first login to ensure connection is stable
+        await new Promise(resolve => setTimeout(resolve, 200));
         console.log('[Auth] Firebase now ready, proceeding with login');
       } catch (error) {
         console.error('[Auth] Firebase initialization failed:', error);
