@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { OrderDetailsDialog } from '@/components/OrderDetailsDialog';
+import { EmployeeOrderDetailsDialog } from '@/components/EmployeeOrderDetailsDialog';
 import { TailorProfile } from '@/components/TailorProfile';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusChangeConfirmDialog, StatusChangeType } from '@/components/StatusChangeConfirmDialog';
@@ -288,8 +288,11 @@ export function TailorDashboardFirestore() {
   };
 
   const handleViewOrderDetails = (order: ServiceOrderWithCompany) => {
-    setSelectedOrder(order);
-    setShowOrderDetails(true);
+    // Delay so DropdownMenu can close first (Radix focus conflict otherwise blocks dialog)
+    window.setTimeout(() => {
+      setSelectedOrder(order);
+      setShowOrderDetails(true);
+    }, 50);
   };
 
   // Initiate "Mark as Ready" - Show WhatsApp dialog first
@@ -722,7 +725,13 @@ export function TailorDashboardFirestore() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewOrderDetails(order); }} className="font-medium">
+                        <DropdownMenuItem
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            handleViewOrderDetails(order);
+                          }}
+                          className="font-medium"
+                        >
                           <Eye size={18} className="mr-2" weight="bold" />
                           View Details
                         </DropdownMenuItem>
@@ -841,14 +850,17 @@ export function TailorDashboardFirestore() {
         )}
       </div>
 
-      {/* Order Details Dialog */}
+      {/* Employee Order Details — no payment/pricing */}
       {selectedOrder && (
-        <OrderDetailsDialog
-          allotment={selectedOrder}
+        <EmployeeOrderDetailsDialog
+          serviceOrder={selectedOrder}
           open={showOrderDetails}
           onClose={() => {
             setShowOrderDetails(false);
             setSelectedOrder(null);
+          }}
+          onStatusUpdated={(updated) => {
+            setSelectedOrder((prev) => (prev ? { ...prev, ...updated } : prev));
           }}
         />
       )}

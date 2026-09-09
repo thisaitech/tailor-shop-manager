@@ -34,17 +34,13 @@ export interface DeliveryChallan {
  * Generate auto-incrementing DC number
  * Format: DC001, DC002, etc.
  */
-async function generateDCNumber(companyId: string): Promise<string> {
+async function generateDCNumber(companyId: string, prefix = 'DC', digits = 3): Promise<string> {
   try {
-    const dcRef = collection(db, DELIVERY_CHALLAN_COLLECTION);
-    const q = query(dcRef, where('companyId', '==', companyId));
-    const snapshot = await getDocs(q);
-
-    const count = snapshot.size + 1;
-    return `DC${count.toString().padStart(3, '0')}`;
+    const { generateNextNumber } = await import('@/lib/firestore/numberSeriesService');
+    return await generateNextNumber(companyId, prefix, digits, 'dc');
   } catch (error) {
     console.error('[deliveryChallanService] Error generating DC number:', error);
-    return `DC${Date.now().toString().slice(-3)}`;
+    return `${prefix}${Date.now().toString().slice(-digits)}`;
   }
 }
 

@@ -19,6 +19,7 @@ interface HeaderProps {
   onVendorClick?: () => void;
   onDesignClick?: () => void;
   onPaymentClick?: () => void;
+  onReportsClick?: () => void;
   onDeliveryChallanClick?: () => void;
   onGoodsReceiptClick?: () => void;
   onEmployeeProfileClick?: () => void;
@@ -26,7 +27,7 @@ interface HeaderProps {
   onNotificationsClick?: () => void;
 }
 
-export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick }: HeaderProps) {
+export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onEmployeeClick, onVendorClick, onDesignClick, onPaymentClick, onReportsClick, onDeliveryChallanClick, onGoodsReceiptClick, onEmployeeProfileClick, onVendorProfileClick, onNotificationsClick }: HeaderProps) {
   const { user, employee, vendor, logout } = useAuth();
   const { t } = useLanguage();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -134,6 +135,7 @@ export function Header({ onDashboardClick, onCustomersClick, onProfileClick, onE
                 onVendorClick={onVendorClick}
                 onDesignClick={onDesignClick}
                 onPaymentClick={onPaymentClick}
+                onReportsClick={onReportsClick}
                 onDeliveryChallanClick={onDeliveryChallanClick}
                 onGoodsReceiptClick={onGoodsReceiptClick}
               />

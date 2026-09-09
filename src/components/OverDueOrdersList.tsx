@@ -203,16 +203,10 @@ export function OverDueOrdersList({ serviceOrders, orderAllotments, onBack }: Ov
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Over Due Orders</h1>
-            <p className="text-sm text-muted-foreground">{overdueOrders.length} total orders</p>
-          </div>
-        </div>
+      <div className="flex items-center">
+        <Button variant="ghost" size="icon" onClick={onBack}>
+          <ArrowLeft size={20} />
+        </Button>
       </div>
 
       {/* Search and Filters */}

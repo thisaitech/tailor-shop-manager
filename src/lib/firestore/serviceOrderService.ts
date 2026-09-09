@@ -30,31 +30,19 @@ const SERVICE_ORDERS_COLLECTION = 'newOrder';
 
 /**
  * Generate auto-incrementing service order ID
- * Format: SO0001, SO0002, etc.
+ * Format: SO0001, SO0002, etc. (prefix/digits can come from number series)
  */
-export async function generateServiceOrderId(companyId: string): Promise<string> {
+export async function generateServiceOrderId(
+  companyId: string,
+  prefix = 'SO',
+  digits = 4
+): Promise<string> {
   try {
-    const ordersRef = collection(db, SERVICE_ORDERS_COLLECTION);
-    const q = query(ordersRef, where('companyId', '==', companyId));
-    const snapshot = await getDocs(q);
-
-    // Get all existing IDs and find the highest number
-    const existingIds = snapshot.docs.map(doc => doc.id);
-    let maxNum = 0;
-
-    existingIds.forEach(id => {
-      const match = id.match(/^SO(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    });
-
-    const count = maxNum + 1;
-    return `SO${count.toString().padStart(4, '0')}`;
+    const { generateNextNumber } = await import('@/lib/firestore/numberSeriesService');
+    return await generateNextNumber(companyId, prefix, digits, 'serviceOrder');
   } catch (error) {
     console.error('Error generating service order ID:', error);
-    return `SO${Date.now()}`;
+    return `${prefix}${Date.now()}`;
   }
 }
 
@@ -128,7 +116,17 @@ export async function addServiceOrder(
   adminId: string
 ): Promise<ServiceOrderWithCompany> {
   try {
-    const orderId = await generateServiceOrderId(companyId);
+    const preferredId = (orderData.orderNumber || '').trim().toUpperCase();
+    let orderId: string;
+    if (preferredId) {
+      const existing = await getDoc(doc(db, SERVICE_ORDERS_COLLECTION, preferredId));
+      if (existing.exists()) {
+        throw new Error(`Order number ${preferredId} already exists`);
+      }
+      orderId = preferredId;
+    } else {
+      orderId = await generateServiceOrderId(companyId);
+    }
     const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
 
     // Sanitize measurements to remove large image data
@@ -317,6 +315,30 @@ export async function updateServiceOrderStatus(
   } catch (error) {
     console.error('Error updating service order status:', error);
     throw new Error('Failed to update service order status');
+  }
+}
+
+/**
+ * Cancel a service order (owner action)
+ */
+export async function cancelServiceOrder(
+  orderId: string,
+  reason?: string
+): Promise<void> {
+  try {
+    const orderRef = doc(db, SERVICE_ORDERS_COLLECTION, orderId);
+
+    await updateDoc(orderRef, {
+      orderStatus: 'cancelled',
+      cancelledDate: Date.now(),
+      ...(reason ? { cancellationReason: reason } : {}),
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`Service order ${orderId} cancelled`);
+  } catch (error) {
+    console.error('Error cancelling service order:', error);
+    throw new Error('Failed to cancel service order');
   }
 }
 
@@ -857,7 +879,7 @@ export async function approveDeliveryChallan(
 }
 
 /**
- * Mark order as ready (for employees - ready to deliver)
+ * Mark order as finished (work completed, ready for delivery handover)
  */
 export async function markOrderReady(
   orderId: string,
@@ -876,7 +898,7 @@ export async function markOrderReady(
     const now = Date.now();
 
     await updateDoc(orderRef, {
-      orderStatus: 'ready',
+      orderStatus: 'finished',
       completedDate: now,
       updatedAt: serverTimestamp(),
     });
@@ -887,11 +909,11 @@ export async function markOrderReady(
       completedBy,
       completedByName,
       orderData.orderStatus as ServiceOrderStatus,
-      'ready',
+      'finished',
       { completedDate: now }
     );
 
-    console.log(`Order ${orderId} marked as ready`);
+    console.log(`Order ${orderId} marked as finished`);
   } catch (error) {
     console.error('Error marking order ready:', error);
     throw error;

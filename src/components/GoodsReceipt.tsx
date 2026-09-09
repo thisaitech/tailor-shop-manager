@@ -41,6 +41,7 @@ import {
   getDeliveryChallansByCompany,
 } from '@/lib/firestore/deliveryChallanService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
 import { 
   recordGoodsReceipt as updateOrderWithGoodsReceipt,
   getOrdersPendingGoodsReceipt,
@@ -501,6 +502,9 @@ export function GoodsReceipt({ onBack }: GoodsReceiptProps) {
             <DialogTitle>New Goods Receipt</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {companyId && (
+              <NumberSeriesSelect companyId={companyId} defaultPrefix="GRN" />
+            )}
             {/* GRN Date - Auto */}
             <div className="space-y-2">
               <Label>GRN Date</Label>

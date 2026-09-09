@@ -26,6 +26,7 @@ const DesignManagement = lazy(() => import('@/components/DesignManagement').then
 const DeliveryChallan = lazy(() => import('@/components/DeliveryChallan').then(m => ({ default: m.DeliveryChallan })));
 const GoodsReceipt = lazy(() => import('@/components/GoodsReceipt').then(m => ({ default: m.GoodsReceipt })));
 const Payment = lazy(() => import('@/components/Payment').then(m => ({ default: m.Payment })));
+const Reports = lazy(() => import('@/components/Reports').then(m => ({ default: m.Reports })));
 const NotificationsPage = lazy(() => import('@/components/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 
 // DevKeyboard is ONLY for development testing on desktop browsers
@@ -35,7 +36,7 @@ const DevKeyboard = isDev
   ? lazy(() => import('@/components/DevKeyboard').then(m => ({ default: m.DevKeyboard })))
   : () => null;
 
-type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'delivery-challan' | 'goods-receipt' | 'notifications';
+type AdminView = 'dashboard' | 'profile' | 'employees' | 'vendors' | 'designs' | 'payment' | 'reports' | 'delivery-challan' | 'goods-receipt' | 'notifications';
 type EmployeeView = 'dashboard' | 'profile' | 'notifications';
 type VendorView = 'dashboard' | 'profile' | 'notifications';
 
@@ -130,6 +131,10 @@ function AppContent() {
     setAdminView('payment');
   };
 
+  const handleReportsClick = () => {
+    setAdminView('reports');
+  };
+
   const handleDeliveryChallanClick = () => {
     setAdminView('delivery-challan');
   };
@@ -182,7 +187,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-6 native-scroll">
+    <div className="min-h-full bg-background pb-20 md:pb-6">
       {/* Network status banner */}
       <NetworkStatus />
       
@@ -194,6 +199,7 @@ function AppContent() {
         onVendorClick={user?.role === 'owner' ? handleVendorClick : undefined}
         onDesignClick={user?.role === 'owner' ? handleDesignClick : undefined}
         onPaymentClick={user?.role === 'owner' ? handlePaymentClick : undefined}
+        onReportsClick={user?.role === 'owner' ? handleReportsClick : undefined}
         onDeliveryChallanClick={user?.role === 'owner' ? handleDeliveryChallanClick : undefined}
         onGoodsReceiptClick={user?.role === 'owner' ? handleGoodsReceiptClick : undefined}
         onEmployeeProfileClick={employee ? handleEmployeeProfileClick : undefined}
@@ -229,6 +235,9 @@ function AppContent() {
             }} 
             initialOrderId={selectedOrderForPayment}
           />
+        )}
+        {user?.role === 'owner' && adminView === 'reports' && (
+          <Reports onBack={handleBackToDashboard} />
         )}
         {user?.role === 'owner' && adminView === 'delivery-challan' && (
           <DeliveryChallan 

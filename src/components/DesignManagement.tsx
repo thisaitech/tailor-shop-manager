@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type DragEvent } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,20 +36,38 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Trash, Image as ImageIcon, Upload, X, MagnifyingGlass, DotsThree, PencilSimple, FolderSimple, Spinner } from '@phosphor-icons/react';
+import {
+  ArrowLeft,
+  Plus,
+  Trash,
+  Image as ImageIcon,
+  Upload,
+  X,
+  MagnifyingGlass,
+  DotsThree,
+  PencilSimple,
+  FolderSimple,
+  Spinner,
+  FloppyDisk,
+  DotsSixVertical,
+  Dress,
+} from '@phosphor-icons/react';
 import {
   DesignCategory,
   DesignImage,
   DesignCategoryType,
   DESIGN_CATEGORY_OPTIONS,
+  StitchingStep,
   createDesignCategory,
   getDesignCategoriesByCompany,
   updateDesignCategory,
   deleteDesignCategory,
   uploadImageToCategory,
   deleteImageFromCategory,
+  updateCategoryStitchingSteps,
 } from '@/lib/firestore/designCategoryService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface DesignManagementProps {
   onBack: () => void;
@@ -86,10 +104,33 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Detail panel tabs + stitching process
+  const [detailTab, setDetailTab] = useState<'images' | 'stitching'>('images');
+  const [stitchingSteps, setStitchingSteps] = useState<StitchingStep[]>([]);
+  const [savingWorkflow, setSavingWorkflow] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [stepDialogOpen, setStepDialogOpen] = useState(false);
+  const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
+  const [stepName, setStepName] = useState('');
+  const [stepAmount, setStepAmount] = useState('');
+
   // Load categories
   useEffect(() => {
     loadData();
   }, [user]);
+
+  // Sync stitching steps when category selection changes
+  useEffect(() => {
+    if (!selectedCategory) {
+      setStitchingSteps([]);
+      setDetailTab('images');
+      return;
+    }
+    const steps = [...(selectedCategory.stitchingSteps || [])].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0)
+    );
+    setStitchingSteps(steps);
+  }, [selectedCategory?.id]);
 
   const loadData = async () => {
     if (!user?.id) return;
@@ -281,6 +322,121 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
 
   const handleSelectCategory = (category: DesignCategory) => {
     setSelectedCategory(category);
+  };
+
+  const approximateStitchingCost = stitchingSteps.reduce(
+    (sum, step) => sum + (Number(step.amount) || 0),
+    0
+  );
+
+  const openAddStepDialog = () => {
+    setEditingStepIndex(null);
+    setStepName('');
+    setStepAmount('');
+    setStepDialogOpen(true);
+  };
+
+  const openEditStepDialog = (index: number) => {
+    const step = stitchingSteps[index];
+    setEditingStepIndex(index);
+    setStepName(step.name);
+    setStepAmount(String(step.amount ?? ''));
+    setStepDialogOpen(true);
+  };
+
+  const handleSaveStepDialog = () => {
+    if (!stepName.trim()) {
+      toast.error('Please enter a step name');
+      return;
+    }
+    const amount = Number(stepAmount);
+    if (Number.isNaN(amount) || amount < 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    if (editingStepIndex !== null) {
+      setStitchingSteps(prev =>
+        prev.map((step, i) =>
+          i === editingStepIndex
+            ? { ...step, name: stepName.trim(), amount }
+            : step
+        )
+      );
+    } else {
+      const newStep: StitchingStep = {
+        id: `step_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name: stepName.trim(),
+        amount,
+        order: stitchingSteps.length + 1,
+      };
+      setStitchingSteps(prev => [...prev, newStep]);
+    }
+
+    setStepDialogOpen(false);
+    setEditingStepIndex(null);
+    setStepName('');
+    setStepAmount('');
+  };
+
+  const handleDeleteStep = (index: number) => {
+    setStitchingSteps(prev =>
+      prev.filter((_, i) => i !== index).map((step, i) => ({ ...step, order: i + 1 }))
+    );
+  };
+
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === index) return;
+    setStitchingSteps(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(dragIndex, 1);
+      next.splice(index, 0, moved);
+      return next.map((step, i) => ({ ...step, order: i + 1 }));
+    });
+    setDragIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+  };
+
+  const handleSaveWorkflow = async () => {
+    if (!selectedCategory) {
+      toast.error('Please select a category first');
+      return;
+    }
+
+    const invalid = stitchingSteps.find(s => !s.name.trim());
+    if (invalid) {
+      toast.error('All steps must have a name');
+      return;
+    }
+
+    setSavingWorkflow(true);
+    try {
+      await updateCategoryStitchingSteps(selectedCategory.id, stitchingSteps);
+      const updatedSteps = stitchingSteps.map((step, i) => ({ ...step, order: i + 1 }));
+      setStitchingSteps(updatedSteps);
+      setSelectedCategory(prev =>
+        prev ? { ...prev, stitchingSteps: updatedSteps } : null
+      );
+      setCategories(cats =>
+        cats.map(c =>
+          c.id === selectedCategory.id ? { ...c, stitchingSteps: updatedSteps } : c
+        )
+      );
+      toast.success('Stitching workflow saved');
+    } catch (error) {
+      console.error('Error saving stitching workflow:', error);
+      toast.error('Failed to save workflow');
+    } finally {
+      setSavingWorkflow(false);
+    }
   };
 
   const handleUploadClick = () => {
@@ -512,7 +668,7 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
           </div>
         </div>
 
-        {/* Images Grid */}
+        {/* Design Images + Stitching Process */}
         <div className="lg:col-span-2">
           <div
             className="rounded-xl border-2 overflow-hidden"
@@ -520,69 +676,222 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
               borderColor: 'rgba(196, 181, 253, 0.5)',
             }}
           >
-            {selectedCategory && (
-              <div
-                className="py-3 px-4 border-b flex items-center justify-between"
-                style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%)', borderColor: 'rgba(196, 181, 253, 0.5)' }}
-              >
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">
-                    Images: {selectedCategory.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">{selectedCategory.images.length} design(s)</p>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={handleUploadClick}
-                  disabled={uploading}
-                  className="bg-[#6A64F2] hover:bg-[#5b55e0]"
-                >
-                  <Upload size={16} className="mr-1" />
-                  {uploading ? 'Uploading...' : 'Upload'}
-                </Button>
-              </div>
-            )}
-            <div className="p-4" style={{ background: '#FAF8FF' }}>
-              {!selectedCategory ? (
+            {!selectedCategory ? (
+              <div className="p-4" style={{ background: '#FAF8FF' }}>
                 <div className="text-center py-12 text-muted-foreground">
                   <ImageIcon size={64} className="mx-auto mb-3 opacity-30" />
                   <p>Select a category to view images</p>
                 </div>
-              ) : selectedCategory.images.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ImageIcon size={64} className="mx-auto mb-3 opacity-30" />
-                  <p>No images in this category</p>
-                  <p className="text-sm mt-1">Click "Upload" to add designs</p>
+              </div>
+            ) : (
+              <Tabs
+                value={detailTab}
+                onValueChange={(v) => setDetailTab(v as 'images' | 'stitching')}
+                className="w-full"
+              >
+                <div
+                  className="px-4 pt-3 border-b"
+                  style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%)', borderColor: 'rgba(196, 181, 253, 0.5)' }}
+                >
+                  <TabsList className="h-auto bg-transparent p-0 gap-6">
+                    <TabsTrigger
+                      value="images"
+                      className="rounded-none border-b-2 border-transparent bg-transparent px-1 pb-3 pt-1 shadow-none data-[state=active]:border-[#6A64F2] data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-[#6A64F2]"
+                    >
+                      Design Images
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="stitching"
+                      className="rounded-none border-b-2 border-transparent bg-transparent px-1 pb-3 pt-1 shadow-none data-[state=active]:border-[#6A64F2] data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-[#6A64F2]"
+                    >
+                      Stitching Process
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {selectedCategory.images.map(image => (
-                    <div key={image.id} className="relative group">
-                      <div
-                        className="aspect-square rounded-xl overflow-hidden border-2"
-                        style={{ borderColor: '#6A64F2', background: '#fff' }}
-                      >
-                        <img
-                          src={image.url}
-                          alt={image.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => setDeleteImage({ categoryId: selectedCategory.id, image })}
-                      >
-                        <X size={12} />
-                      </Button>
-                      <p className="text-xs font-bold mt-1" style={{ color: '#6A64F2' }}>{image.designCode || 'N/A'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{image.name}</p>
+
+                <TabsContent value="images" className="mt-0">
+                  <div
+                    className="py-3 px-4 border-b flex items-center justify-between"
+                    style={{ background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%)', borderColor: 'rgba(196, 181, 253, 0.5)' }}
+                  >
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        Images: {selectedCategory.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">{selectedCategory.images.length} design(s)</p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    <Button
+                      size="sm"
+                      onClick={handleUploadClick}
+                      disabled={uploading}
+                      className="bg-[#6A64F2] hover:bg-[#5b55e0]"
+                    >
+                      <Upload size={16} className="mr-1" />
+                      {uploading ? 'Uploading...' : 'Upload'}
+                    </Button>
+                  </div>
+                  <div className="p-4" style={{ background: '#FAF8FF' }}>
+                    {selectedCategory.images.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <ImageIcon size={64} className="mx-auto mb-3 opacity-30" />
+                        <p>No images in this category</p>
+                        <p className="text-sm mt-1">Click "Upload" to add designs</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {selectedCategory.images.map(image => (
+                          <div key={image.id} className="relative group">
+                            <div
+                              className="aspect-square rounded-xl overflow-hidden border-2"
+                              style={{ borderColor: '#6A64F2', background: '#fff' }}
+                            >
+                              <img
+                                src={image.url}
+                                alt={image.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => setDeleteImage({ categoryId: selectedCategory.id, image })}
+                            >
+                              <X size={12} />
+                            </Button>
+                            <p className="text-xs font-bold mt-1" style={{ color: '#6A64F2' }}>{image.designCode || 'N/A'}</p>
+                            <p className="text-xs text-muted-foreground truncate">{image.name}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="stitching" className="mt-0">
+                  <div className="p-4 space-y-4" style={{ background: '#FAF8FF' }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <Dress size={22} className="text-red-500 mt-0.5 flex-shrink-0" weight="fill" />
+                        <h3 className="text-sm font-semibold text-gray-800">
+                          {selectedCategory.name} Stitching Process
+                        </h3>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" onClick={openAddStepDialog}>
+                        <Plus size={16} className="mr-1" />
+                        Add Step
+                      </Button>
+                    </div>
+
+                    <div className="rounded-xl border bg-white overflow-hidden">
+                      <div className="grid grid-cols-[32px_40px_1fr_110px_72px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/40">
+                        <span />
+                        <span className="text-center">#</span>
+                        <span>Step Name</span>
+                        <span>Amount (₹)</span>
+                        <span className="text-center">Actions</span>
+                      </div>
+
+                      {stitchingSteps.length === 0 ? (
+                        <div className="py-10 text-center text-sm text-muted-foreground">
+                          No stitching steps yet. Click &quot;Add Step&quot; to create the workflow.
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {stitchingSteps.map((step, index) => (
+                            <div
+                              key={step.id}
+                              draggable
+                              onDragStart={() => handleDragStart(index)}
+                              onDragOver={(e) => handleDragOver(e, index)}
+                              onDragEnd={handleDragEnd}
+                              className={`grid grid-cols-[32px_40px_1fr_110px_72px] gap-2 px-3 py-2.5 items-center bg-white hover:bg-violet-50/40 ${
+                                dragIndex === index ? 'opacity-70' : ''
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="cursor-grab active:cursor-grabbing text-muted-foreground flex items-center justify-center"
+                                aria-label="Drag to reorder"
+                              >
+                                <DotsSixVertical size={18} weight="bold" />
+                              </button>
+                              <div className="flex justify-center">
+                                <span className="h-7 w-7 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
+                                  {index + 1}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-900 truncate">{step.name}</p>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={step.amount}
+                                onChange={(e) => {
+                                  const value = Number(e.target.value);
+                                  setStitchingSteps(prev =>
+                                    prev.map((s, i) =>
+                                      i === index
+                                        ? { ...s, amount: Number.isNaN(value) ? 0 : value }
+                                        : s
+                                    )
+                                  );
+                                }}
+                                className="h-8 text-sm"
+                              />
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-[#6A64F2]"
+                                  onClick={() => openEditStepDialog(index)}
+                                >
+                                  <PencilSimple size={16} />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-500 hover:text-red-600"
+                                  onClick={() => handleDeleteStep(index)}
+                                >
+                                  <Trash size={16} />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      className="rounded-xl border border-dashed px-4 py-3 flex items-center justify-between"
+                      style={{
+                        background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 100%)',
+                        borderColor: 'rgba(139, 92, 246, 0.45)',
+                      }}
+                    >
+                      <span className="text-sm font-medium text-gray-800">Approximate Stitching Cost</span>
+                      <span className="text-xl font-bold text-[#6A64F2]">
+                        ₹{approximateStitchingCost.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        onClick={handleSaveWorkflow}
+                        disabled={savingWorkflow}
+                        className="bg-[#6A64F2] hover:bg-[#5b55e0]"
+                      >
+                        <FloppyDisk size={16} className="mr-1" />
+                        {savingWorkflow ? 'Saving...' : 'Save Workflow'}
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
           </div>
         </div>
       </div>
@@ -596,6 +905,47 @@ export function DesignManagement({ onBack }: DesignManagementProps) {
         className="hidden"
         onChange={handleFilesSelected}
       />
+
+      {/* Add / Edit Step Dialog */}
+      <Dialog open={stepDialogOpen} onOpenChange={setStepDialogOpen}>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingStepIndex !== null ? 'Edit Step' : 'Add Step'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="stepName">Step Name *</Label>
+              <Input
+                id="stepName"
+                value={stepName}
+                onChange={(e) => setStepName(e.target.value)}
+                placeholder="e.g., Cutting"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stepAmount">Amount (₹) *</Label>
+              <Input
+                id="stepAmount"
+                type="number"
+                min={0}
+                value={stepAmount}
+                onChange={(e) => setStepAmount(e.target.value)}
+                placeholder="e.g., 100"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStepDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveStepDialog} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
+              {editingStepIndex !== null ? 'Update' : 'Add'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Category Dialog */}
       <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>

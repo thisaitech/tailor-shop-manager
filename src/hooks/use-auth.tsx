@@ -56,6 +56,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[Auth] Found employee:', employee);
       console.log('[Auth] Employee firstLogin status:', employee.firstLogin);
 
+      // Seeded shop admin must open the owner dashboard, not employee UI
+      const isOwnerAdmin =
+        employee.id === 'ADMIN001' ||
+        employee.employeeCode === 'ADMIN001' ||
+        (String(employee.role).toLowerCase() === 'manager' &&
+          String(employee.designation || '')
+            .toLowerCase()
+            .includes('administrator'));
+
+      if (isOwnerAdmin) {
+        // Use stable SeedData owner id so company/customers (COMP0001) keep linking after refresh
+        const ownerUser: User = {
+          id: 'OWNER_THISAI',
+          username: employee.contactNumber,
+          password: trimmedPassword,
+          role: 'owner',
+          name: employee.name || 'Thisai Technologies Tailor',
+          phone: employee.contactNumber,
+          isActive: true,
+          hasSetupPassword: true,
+          createdAt: employee.createdAt || Date.now(),
+        };
+        console.log('[Auth] ADMIN001 / Administrator detected — logging in as owner');
+        setCurrentUser(ownerUser);
+        setCurrentEmployee(null);
+        setCurrentVendor(null);
+        return { success: true, isEmployee: false };
+      }
+
       if (employee.firstLogin) {
         console.log('[Auth] ✅ FIRST LOGIN DETECTED - NOT setting employee in storage yet');
         console.log('[Auth] Will set employee after password change');

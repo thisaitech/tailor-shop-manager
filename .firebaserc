@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "thisai-tailor-shop"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

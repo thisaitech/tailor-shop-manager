@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { List, User, Users, UsersThree, SignOut, Storefront, Scissors, CurrencyInr, Truck, Package } from '@phosphor-icons/react';
+import { List, User, Users, UsersThree, SignOut, Storefront, Scissors, CurrencyInr, Truck, Package, ChartBar } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 interface AdminMenuProps {
@@ -19,6 +19,7 @@ interface AdminMenuProps {
   onVendorClick: () => void;
   onDesignClick: () => void;
   onPaymentClick?: () => void;
+  onReportsClick?: () => void;
   onDeliveryChallanClick?: () => void;
   onGoodsReceiptClick?: () => void;
 }
@@ -31,6 +32,7 @@ export function AdminMenu({
   onVendorClick,
   onDesignClick,
   onPaymentClick,
+  onReportsClick,
   onDeliveryChallanClick,
   onGoodsReceiptClick,
 }: AdminMenuProps) {
@@ -85,6 +87,12 @@ export function AdminMenu({
           <DropdownMenuItem onClick={() => { onPaymentClick(); setOpen(false); }} className="cursor-pointer">
             <CurrencyInr size={18} className="mr-2" />
             Payment
+          </DropdownMenuItem>
+        )}
+        {onReportsClick && (
+          <DropdownMenuItem onClick={() => { onReportsClick(); setOpen(false); }} className="cursor-pointer">
+            <ChartBar size={18} className="mr-2" />
+            Reports
           </DropdownMenuItem>
         )}
         {onDeliveryChallanClick && (

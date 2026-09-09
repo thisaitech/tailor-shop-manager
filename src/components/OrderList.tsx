@@ -27,8 +27,8 @@ import { Customer, Tailor } from '@/lib/types';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
 // Display status type based on unified ServiceOrder.orderStatus
-type DisplayStatus = 'open' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'rejected' | 'ready' | 'job-completed' | 'received-note' | 'delivered';
-type ServiceOrderFilter = 'all' | 'open' | 'awaiting' | 'inprogress' | 'ready' | 'delivered' | 'overdue';
+type DisplayStatus = 'open' | 'awaiting' | 'waitingForDC' | 'inprogress' | 'rejected' | 'cancelled' | 'ready' | 'finished' | 'job-completed' | 'received-note' | 'delivered';
+type ServiceOrderFilter = 'all' | 'open' | 'awaiting' | 'inprogress' | 'ready' | 'finished' | 'delivered' | 'cancelled' | 'overdue';
 type DateFilter = 'all' | 'exact' | 'range';
 type DateFieldType = 'orderDate' | 'deliveryDate'; // Which date field to filter on
 
@@ -85,6 +85,8 @@ export function OrderList({
   const [serviceOrderFilter, setServiceOrderFilter] = useState<ServiceOrderFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [dateFieldType, setDateFieldType] = useState<DateFieldType>('orderDate'); // Order Date or Delivery Date
+  /** Web only: reveal next date filter step after user picks Order/Delivery Date */
+  const [webDateTypeChosen, setWebDateTypeChosen] = useState(false);
   const [exactDate, setExactDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -154,6 +156,8 @@ export function OrderList({
   const isServiceOrderOverdue = (order: ServiceOrder): boolean => {
     return !!(order.expectedDeliveryDate &&
            order.orderStatus !== 'delivered' &&
+           order.orderStatus !== 'finished' &&
+           order.orderStatus !== 'cancelled' &&
            isPast(new Date(order.expectedDeliveryDate)));
   };
 
@@ -179,8 +183,10 @@ export function OrderList({
           'open': ['open'],
           'awaiting': ['awaiting', 'waitingForDC'],
           'inprogress': ['inprogress'],
-          'ready': ['ready', 'job-completed', 'received-note'],
+          'ready': ['ready'],
+          'finished': ['finished'],
           'delivered': ['delivered'],
+          'cancelled': ['cancelled'],
         };
         const validStatuses = statusMap[serviceOrderFilter] || [serviceOrderFilter];
         matchesStatus = validStatuses.includes(o.orderStatus);
@@ -211,8 +217,10 @@ export function OrderList({
       'open': ['open'],
       'awaiting': ['awaiting', 'waitingForDC'],
       'inprogress': ['inprogress'],
-      'ready': ['ready', 'job-completed', 'received-note'],
+      'ready': ['ready'],
+      'finished': ['finished'],
       'delivered': ['delivered'],
+      'cancelled': ['cancelled'],
     };
     const validStatuses = statusMap[filter] || [filter];
     return (serviceOrders || []).filter(o => validStatuses.includes(o.orderStatus)).length;
@@ -224,7 +232,9 @@ export function OrderList({
     { value: 'awaiting', label: 'Awaiting' },
     { value: 'inprogress', label: 'In Progress' },
     { value: 'ready', label: 'Ready' },
+    { value: 'finished', label: 'Finished' },
     { value: 'delivered', label: 'Delivered' },
+    { value: 'cancelled', label: 'Cancelled' },
     { value: 'overdue', label: 'Overdue' },
   ];
 
@@ -239,183 +249,330 @@ export function OrderList({
     { value: 'deliveryDate', label: 'Delivery Date' },
   ];
 
-  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
-    <div className="space-y-4">
-      {/* Status Filter */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Status</label>
-        <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
-          {serviceOrderFilterOptions.map((option) => (
-            <Button
-              key={option.value}
-              variant={serviceOrderFilter === option.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                handleFilterChange(option.value);
-              }}
-              className={`text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-2.5 ${
-                option.value === 'overdue' && getServiceOrderFilterCount('overdue') > 0
-                  ? 'border-destructive text-destructive'
-                  : ''
-              }`}
-            >
-              {option.label} ({getServiceOrderFilterCount(option.value)})
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Date Field Type Selector */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date Type</label>
-        <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
-          {dateFieldOptions.map((option) => (
-            <Button
-              key={option.value}
-              variant={dateFieldType === option.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                setDateFieldType(option.value);
-                setCurrentPage(1);
-              }}
-              className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Date Filter */}
-      <div>
-        <label className="text-xs font-medium text-muted-foreground mb-2 block">
-          {dateFieldType === 'orderDate' ? 'Order Date' : 'Delivery Date'} Filter
-        </label>
-        {/* Date Filter Type Selection */}
-        <div className={`flex gap-1.5 mb-3 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
-          {dateFilterOptions.map((option) => (
-            <Button
-              key={option.value}
-              variant={dateFilter === option.value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                handleDateFilterChange(option.value);
-              }}
-              className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-
-        {/* Exact Date Picker */}
-        {dateFilter === 'exact' && (
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-foreground">Select Date</label>
-            <Input
-              type="date"
-              value={exactDate}
-              onChange={(e) => setExactDate(e.target.value)}
-              className={`h-10 text-sm ${inModal ? 'w-full' : ''}`}
-              placeholder="Select date"
-            />
-            {exactDate && (
-              <p className="text-xs text-muted-foreground">
-                Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} on {format(new Date(exactDate), 'MMM dd, yyyy')}
-              </p>
-            )}
-
-            {/* Apply Filter Button - Mobile */}
-            {inModal && exactDate && (
-              <Button
-                onClick={() => setShowFilterModal(false)}
-                className="w-full h-10 font-semibold text-sm"
-              >
-                Apply Filter
-              </Button>
-            )}
-
-            {/* Reset Filter Button - Mobile */}
-            {inModal && exactDate && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setExactDate('');
-                  handleDateFilterChange('all');
-                }}
-                className="w-full h-10 font-semibold text-sm"
-              >
-                Reset Filter
-              </Button>
-            )}
+  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => {
+    // Mobile modal: keep existing stacked layout unchanged
+    if (inModal) {
+      return (
+        <div className="space-y-4">
+          {/* Status Filter */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Status</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {serviceOrderFilterOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  variant={serviceOrderFilter === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    handleFilterChange(option.value);
+                  }}
+                  className={`text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-2.5 ${
+                    option.value === 'overdue' && getServiceOrderFilterCount('overdue') > 0
+                      ? 'border-destructive text-destructive'
+                      : option.value === 'cancelled' && getServiceOrderFilterCount('cancelled') > 0
+                        ? 'border-rose-500 text-rose-600'
+                        : ''
+                  }`}
+                >
+                  {option.label} ({getServiceOrderFilterCount(option.value)})
+                </Button>
+              ))}
+            </div>
           </div>
-        )}
 
-        {/* Date Range Picker */}
-        {dateFilter === 'range' && (
-          <div className="space-y-3">
-            <label className="text-xs font-medium text-foreground">Date Range Filter</label>
+          {/* Date Field Type Selector */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date Type</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {dateFieldOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  variant={dateFieldType === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setDateFieldType(option.value);
+                    setCurrentPage(1);
+                  }}
+                  className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </div>
 
-            {/* From Date - Full width on mobile */}
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground font-medium">From Date</label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-10 text-sm w-full"
-                placeholder="Select start date"
-              />
+          {/* Date Filter */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">
+              {dateFieldType === 'orderDate' ? 'Order Date' : 'Delivery Date'} Filter
+            </label>
+            <div className="flex gap-1.5 mb-3 flex-wrap">
+              {dateFilterOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  variant={dateFilter === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    handleDateFilterChange(option.value);
+                  }}
+                  className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+                >
+                  {option.label}
+                </Button>
+              ))}
             </div>
 
-            {/* To Date - Full width on mobile */}
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground font-medium">To Date</label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={startDate}
-                className="h-10 text-sm w-full"
-                placeholder="Select end date"
-              />
-            </div>
-
-            {startDate && endDate && (
-              <p className="text-xs text-muted-foreground">
-                Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
-              </p>
+            {dateFilter === 'exact' && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-foreground">Select Date</label>
+                <Input
+                  type="date"
+                  value={exactDate}
+                  onChange={(e) => setExactDate(e.target.value)}
+                  className="h-10 text-sm w-full"
+                  placeholder="Select date"
+                />
+                {exactDate && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} on {format(new Date(exactDate), 'MMM dd, yyyy')}
+                  </p>
+                )}
+                {exactDate && (
+                  <Button
+                    onClick={() => setShowFilterModal(false)}
+                    className="w-full h-10 font-semibold text-sm"
+                  >
+                    Apply Filter
+                  </Button>
+                )}
+                {exactDate && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setExactDate('');
+                      handleDateFilterChange('all');
+                    }}
+                    className="w-full h-10 font-semibold text-sm"
+                  >
+                    Reset Filter
+                  </Button>
+                )}
+              </div>
             )}
 
-            {/* Apply Filter Button - Mobile */}
-            {inModal && startDate && endDate && (
-              <Button
-                onClick={() => setShowFilterModal(false)}
-                className="w-full h-10 font-semibold text-sm"
-              >
-                Apply Filter
-              </Button>
-            )}
-
-            {/* Reset Filter Button - Mobile */}
-            {inModal && (startDate || endDate) && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setStartDate('');
-                  setEndDate('');
-                  handleDateFilterChange('all');
-                }}
-                className="w-full h-10 font-semibold text-sm"
-              >
-                Reset Filter
-              </Button>
+            {dateFilter === 'range' && (
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-foreground">Date Range Filter</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground font-medium">From Date</label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10 text-sm w-full"
+                    placeholder="Select start date"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground font-medium">To Date</label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate}
+                    className="h-10 text-sm w-full"
+                    placeholder="Select end date"
+                  />
+                </div>
+                {startDate && endDate && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing {filteredServiceOrders.length} order(s) with {dateFieldType === 'orderDate' ? 'order date' : 'delivery date'} from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
+                  </p>
+                )}
+                {startDate && endDate && (
+                  <Button
+                    onClick={() => setShowFilterModal(false)}
+                    className="w-full h-10 font-semibold text-sm"
+                  >
+                    Apply Filter
+                  </Button>
+                )}
+                {(startDate || endDate) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                      handleDateFilterChange('all');
+                    }}
+                    className="w-full h-10 font-semibold text-sm"
+                  >
+                    Reset Filter
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
+      );
+    }
+
+    // Web / desktop: horizontal progressive filters (status row + date steps)
+    return (
+      <div className="space-y-3">
+        {/* Status Filter */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Status</label>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+            {serviceOrderFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={serviceOrderFilter === option.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  handleFilterChange(option.value);
+                }}
+                className={`text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-2.5 ${
+                  option.value === 'overdue' && getServiceOrderFilterCount('overdue') > 0
+                    ? 'border-destructive text-destructive'
+                    : option.value === 'cancelled' && getServiceOrderFilterCount('cancelled') > 0
+                      ? 'border-rose-500 text-rose-600'
+                      : ''
+                }`}
+              >
+                {option.label} ({getServiceOrderFilterCount(option.value)})
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Date filters — progressive horizontal steps */}
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Step 1: Date Type */}
+          <div className="flex-shrink-0">
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date Type</label>
+            <div className="flex gap-1.5">
+              {dateFieldOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  variant={webDateTypeChosen && dateFieldType === option.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setDateFieldType(option.value);
+                    setWebDateTypeChosen(true);
+                    setDateFilter('all');
+                    setExactDate('');
+                    setStartDate('');
+                    setEndDate('');
+                    setCurrentPage(1);
+                  }}
+                  className="text-xs font-semibold whitespace-nowrap h-8 px-3"
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Step 2: All / Exact / Range — only after date type chosen */}
+          {webDateTypeChosen && (
+            <>
+              <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+              <div className="flex-shrink-0">
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">
+                  {dateFieldType === 'orderDate' ? 'Order Date' : 'Delivery Date'} Filter
+                </label>
+                <div className="flex gap-1.5">
+                  {dateFilterOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      variant={dateFilter === option.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        handleDateFilterChange(option.value);
+                        if (option.value === 'all') {
+                          setExactDate('');
+                          setStartDate('');
+                          setEndDate('');
+                        }
+                      }}
+                      className="text-xs font-semibold whitespace-nowrap h-8 px-3"
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Step 3a: Exact date field */}
+          {webDateTypeChosen && dateFilter === 'exact' && (
+            <>
+              <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+              <div className="flex-shrink-0 min-w-[180px]">
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Select Date</label>
+                <Input
+                  type="date"
+                  value={exactDate}
+                  onChange={(e) => setExactDate(e.target.value)}
+                  className="h-8 text-sm w-[180px]"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Step 3b: Date range fields */}
+          {webDateTypeChosen && dateFilter === 'range' && (
+            <>
+              <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+              <div className="flex-shrink-0">
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Date Range Filter</label>
+                <div className="flex items-end gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground font-medium">From Date</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="h-8 text-sm w-[150px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground font-medium">To Date</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      min={startDate}
+                      className="h-8 text-sm w-[150px]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Apply Filter — web, when date inputs are shown */}
+          {webDateTypeChosen && (dateFilter === 'exact' || dateFilter === 'range') && (
+            <Button
+              size="sm"
+              className="h-8 px-3 text-xs font-semibold ml-auto"
+              onClick={() => setCurrentPage(1)}
+              disabled={
+                dateFilter === 'exact'
+                  ? !exactDate
+                  : !(startDate && endDate)
+              }
+            >
+              <Funnel size={14} weight="bold" className="mr-1.5" />
+              Apply Filter
+            </Button>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Pagination component
   const Pagination = () => (
@@ -518,8 +675,12 @@ export function OrderList({
         return 'bg-blue-600 text-white dark:bg-blue-700';
       case 'rejected':
         return 'bg-red-600 text-white dark:bg-red-700';
+      case 'cancelled':
+        return 'bg-rose-700 text-white dark:bg-rose-800';
       case 'ready':
         return 'bg-indigo-600 text-white dark:bg-indigo-700';
+      case 'finished':
+        return 'bg-emerald-700 text-white dark:bg-emerald-800';
       case 'job-completed':
         return 'bg-orange-600 text-white dark:bg-orange-700';
       case 'received-note':
@@ -544,8 +705,12 @@ export function OrderList({
         return 'IN PROGRESS';
       case 'rejected':
         return 'REJECTED';
+      case 'cancelled':
+        return 'CANCELLED';
       case 'ready':
         return 'READY';
+      case 'finished':
+        return 'FINISHED';
       case 'job-completed':
         return 'JOB DONE';
       case 'received-note':
@@ -632,7 +797,7 @@ export function OrderList({
               {recentServiceOrders.map((serviceOrder, index) => (
                 <div
                   key={serviceOrder.id}
-                  className={`rounded-lg border hover:shadow-lg transition-all p-4 cursor-pointer flex-shrink-0 w-full h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
+                  className={`rounded-lg border hover:shadow-lg transition-all p-4 cursor-pointer flex-shrink-0 w-full min-h-[180px] flex flex-col justify-between shadow-sm animate-on-load animate-fade-slide-up stagger-${index + 1}`}
                   style={{
                     background: 'linear-gradient(135deg, #ffffff 0%, #faf8ff 100%)',
                     borderColor: 'rgba(167, 139, 250, 0.3)'
@@ -640,15 +805,15 @@ export function OrderList({
                   onClick={() => onSelectOrder?.(serviceOrder)}
                 >
                   {/* Order details */}
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    <div className="flex items-start justify-between mb-1">
-                      <p className="text-[10px] sm:text-xs font-bold text-purple-700">{serviceOrder.id}</p>
-                      <Badge variant="outline" className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-extrabold border-transparent ${getServiceOrderStatusColor(getDisplayStatus(serviceOrder))}`}>
+                  <div className="flex-1 flex flex-col gap-1">
+                    <div className="flex items-start justify-between gap-2 shrink-0">
+                      <p className="text-[10px] sm:text-xs font-bold text-purple-700 break-all">{serviceOrder.id}</p>
+                      <Badge variant="outline" className={`text-[8px] sm:text-[10px] px-1.5 py-0.5 font-extrabold border-transparent shrink-0 ${getServiceOrderStatusColor(getDisplayStatus(serviceOrder))}`}>
                         {getDisplayStatusLabel(getDisplayStatus(serviceOrder))}
                       </Badge>
                     </div>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate mb-2">{serviceOrder.customerName}</p>
-                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 mb-2 flex-wrap">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate leading-snug shrink-0">{serviceOrder.customerName}</p>
+                    <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-600 flex-wrap shrink-0">
                       <span className="truncate">{serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'}</span>
                       <span>•</span>
                       <span>{serviceOrder.orderQty} {serviceOrder.uom}</span>
@@ -658,7 +823,7 @@ export function OrderList({
 
                     {/* Design Images */}
                     {serviceOrder.designList && serviceOrder.designList.length > 0 && (
-                      <div className="flex gap-1 mb-2">
+                      <div className="flex gap-1 mt-1 shrink-0">
                         {serviceOrder.designList.slice(0, 3).map((image, imgIndex) => (
                           <img
                             key={imgIndex}
@@ -677,7 +842,7 @@ export function OrderList({
                   </div>
 
                   {/* Bottom row: Delivery Date */}
-                  <div className="flex items-center justify-between pt-2 border-t border-purple-200">
+                  <div className="flex items-center justify-between pt-2 mt-2 border-t border-purple-200 shrink-0">
                     <div className="text-left">
                       <p className="text-[8px] sm:text-[10px] text-gray-500 leading-tight">Delivery</p>
                       <p className="text-[10px] sm:text-xs font-semibold text-gray-800">{format(new Date(serviceOrder.expectedDeliveryDate), 'MMM dd')}</p>

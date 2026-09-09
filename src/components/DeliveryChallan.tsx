@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { ArrowLeft, Plus, Truck, MagnifyingGlass, Funnel, DotsThree, CaretLeft, CaretRight, X, Eye, Spinner } from '@phosphor-icons/react';
+import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
 import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import {
   DeliveryChallan as DeliveryChallanType,
@@ -496,6 +497,9 @@ export function DeliveryChallan({ onBack, initialOrderId }: DeliveryChallanProps
             <DialogTitle>New Delivery Challan</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {companyId && (
+              <NumberSeriesSelect companyId={companyId} defaultPrefix="DC" />
+            )}
             {/* DC Date - Auto */}
             <div className="space-y-2">
               <Label>DC Date</Label>

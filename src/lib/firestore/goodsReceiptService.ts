@@ -37,17 +37,13 @@ export interface GoodsReceipt {
  * Generate auto-incrementing GRN number
  * Format: GRN001, GRN002, etc.
  */
-async function generateGRNNumber(companyId: string): Promise<string> {
+async function generateGRNNumber(companyId: string, prefix = 'GRN', digits = 3): Promise<string> {
   try {
-    const grnRef = collection(db, GOODS_RECEIPT_COLLECTION);
-    const q = query(grnRef, where('companyId', '==', companyId));
-    const snapshot = await getDocs(q);
-
-    const count = snapshot.size + 1;
-    return `GRN${count.toString().padStart(3, '0')}`;
+    const { generateNextNumber } = await import('@/lib/firestore/numberSeriesService');
+    return await generateNextNumber(companyId, prefix, digits, 'grn');
   } catch (error) {
     console.error('[goodsReceiptService] Error generating GRN number:', error);
-    return `GRN${Date.now().toString().slice(-3)}`;
+    return `${prefix}${Date.now().toString().slice(-digits)}`;
   }
 }
 

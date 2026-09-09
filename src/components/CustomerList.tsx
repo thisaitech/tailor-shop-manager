@@ -36,8 +36,8 @@ import { startOfDay, endOfDay, subDays, subMonths, isWithinInterval, format } fr
 
 interface CustomerListProps {
   customers: Customer[];
-  onAddCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onUpdateCustomer?: (id: string, customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onAddCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void | Promise<void>;
+  onUpdateCustomer?: (id: string, customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void | Promise<void>;
   onDeleteCustomer?: (id: string) => void;
   onSelectCustomer?: (customer: Customer) => void;
   hideAddButton?: boolean;
@@ -79,9 +79,9 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
 
   const filteredCustomers = (customers || []).filter((c) => {
     const matchesSearch =
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.phone.includes(search) ||
-      c.place.toLowerCase().includes(search.toLowerCase());
+      (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.phone || '').includes(search) ||
+      (c.place || '').toLowerCase().includes(search.toLowerCase());
 
     const dateRange = getDateRange(dateFilter);
     const matchesDate = !dateRange || (c.createdAt && isWithinInterval(new Date(c.createdAt), dateRange));
@@ -138,16 +138,17 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
     }
   };
 
-  const handleFormClose = () => {
+  const handleFormClose = (open?: boolean) => {
+    if (open === true) return;
     setShowForm(false);
     setEditingCustomer(undefined);
   };
 
-  const handleSave = (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const handleSave = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingCustomer && onUpdateCustomer) {
-      onUpdateCustomer(editingCustomer.id, customerData);
+      await onUpdateCustomer(editingCustomer.id, customerData);
     } else {
-      onAddCustomer(customerData);
+      await onAddCustomer(customerData);
     }
   };
 
@@ -157,133 +158,217 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
     { value: 'range', label: 'Date Range' },
   ];
 
-  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
-    <div className="space-y-3">
-      {/* Filter Type Selection */}
-      <div className={`flex gap-1.5 ${inModal ? 'flex-wrap' : 'overflow-x-auto pb-1 scrollbar-hide'}`}>
-        {dateFilterOptions.map((option) => (
-          <Button
-            key={option.value}
-            variant={dateFilter === option.value ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => {
-              handleFilterChange(option.value);
-              if (inModal && option.value === 'all') setShowFilterModal(false);
-            }}
-            className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* Exact Date Picker */}
-      {dateFilter === 'exact' && (
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-foreground">Select Date</label>
-          <Input
-            type="date"
-            value={exactDate}
-            onChange={(e) => setExactDate(e.target.value)}
-            className={`h-10 text-sm ${inModal ? 'w-full' : ''}`}
-            placeholder="Select date"
-          />
-          {exactDate && (
-            <p className="text-xs text-muted-foreground">
-              Showing {filteredCustomers.length} customer(s) on {format(new Date(exactDate), 'MMM dd, yyyy')}
-            </p>
-          )}
-
-          {/* Apply Filter Button - Mobile */}
-          {inModal && exactDate && (
-            <Button
-              onClick={() => setShowFilterModal(false)}
-              className="w-full h-10 font-semibold text-sm"
-            >
-              Apply Filter
-            </Button>
-          )}
-
-          {/* Reset Filter Button - Mobile */}
-          {inModal && exactDate && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setExactDate('');
-                handleFilterChange('all');
-              }}
-              className="w-full h-10 font-semibold text-sm"
-            >
-              Reset Filter
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* Date Range Picker */}
-      {dateFilter === 'range' && (
+  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => {
+    // Mobile modal: keep stacked layout unchanged
+    if (inModal) {
+      return (
         <div className="space-y-3">
-          <label className="text-xs font-medium text-foreground">Date Range Filter</label>
-
-          {/* From Date - Full width on mobile */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-medium">From Date</label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="h-10 text-sm w-full"
-              placeholder="Select start date"
-            />
+          <div className="flex gap-1.5 flex-wrap">
+            {dateFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={dateFilter === option.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  handleFilterChange(option.value);
+                  if (option.value === 'all') {
+                    setExactDate('');
+                    setStartDate('');
+                    setEndDate('');
+                    setShowFilterModal(false);
+                  }
+                }}
+                className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+              >
+                {option.label}
+              </Button>
+            ))}
           </div>
 
-          {/* To Date - Full width on mobile */}
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground font-medium">To Date</label>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              min={startDate}
-              className="h-10 text-sm w-full"
-              placeholder="Select end date"
-            />
-          </div>
-
-          {startDate && endDate && (
-            <p className="text-xs text-muted-foreground">
-              Showing {filteredCustomers.length} customer(s) from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
-            </p>
+          {dateFilter === 'exact' && (
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">Select Date</label>
+              <Input
+                type="date"
+                value={exactDate}
+                onChange={(e) => setExactDate(e.target.value)}
+                className="h-10 text-sm w-full"
+                placeholder="Select date"
+              />
+              {exactDate && (
+                <p className="text-xs text-muted-foreground">
+                  Showing {filteredCustomers.length} customer(s) on {format(new Date(exactDate), 'MMM dd, yyyy')}
+                </p>
+              )}
+              {exactDate && (
+                <Button
+                  onClick={() => setShowFilterModal(false)}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Apply Filter
+                </Button>
+              )}
+              {exactDate && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setExactDate('');
+                    handleFilterChange('all');
+                  }}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Reset Filter
+                </Button>
+              )}
+            </div>
           )}
 
-          {/* Apply Filter Button - Mobile */}
-          {inModal && startDate && endDate && (
-            <Button
-              onClick={() => setShowFilterModal(false)}
-              className="w-full h-10 font-semibold text-sm"
-            >
-              Apply Filter
-            </Button>
-          )}
-
-          {/* Reset Filter Button - Mobile */}
-          {inModal && (startDate || endDate) && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setStartDate('');
-                setEndDate('');
-                handleFilterChange('all');
-              }}
-              className="w-full h-10 font-semibold text-sm"
-            >
-              Reset Filter
-            </Button>
+          {dateFilter === 'range' && (
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-foreground">Date Range Filter</label>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground font-medium">From Date</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-10 text-sm w-full"
+                  placeholder="Select start date"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground font-medium">To Date</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                  className="h-10 text-sm w-full"
+                  placeholder="Select end date"
+                />
+              </div>
+              {startDate && endDate && (
+                <p className="text-xs text-muted-foreground">
+                  Showing {filteredCustomers.length} customer(s) from {format(new Date(startDate), 'MMM dd')} to {format(new Date(endDate), 'MMM dd, yyyy')}
+                </p>
+              )}
+              {startDate && endDate && (
+                <Button
+                  onClick={() => setShowFilterModal(false)}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Apply Filter
+                </Button>
+              )}
+              {(startDate || endDate) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    handleFilterChange('all');
+                  }}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Reset Filter
+                </Button>
+              )}
+            </div>
           )}
         </div>
-      )}
-    </div>
-  );
+      );
+    }
+
+    // Web: horizontal progressive filter like home / employee page
+    return (
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex-shrink-0">
+          <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date</label>
+          <div className="flex gap-1.5">
+            {dateFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={dateFilter === option.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  handleFilterChange(option.value);
+                  if (option.value === 'all') {
+                    setExactDate('');
+                    setStartDate('');
+                    setEndDate('');
+                  }
+                }}
+                className="text-xs font-semibold whitespace-nowrap h-8 px-3"
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {dateFilter === 'exact' && (
+          <>
+            <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+            <div className="flex-shrink-0 min-w-[180px]">
+              <label className="text-xs font-medium text-muted-foreground mb-2 block">Select Date</label>
+              <Input
+                type="date"
+                value={exactDate}
+                onChange={(e) => setExactDate(e.target.value)}
+                className="h-8 text-sm w-[180px]"
+              />
+            </div>
+          </>
+        )}
+
+        {dateFilter === 'range' && (
+          <>
+            <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+            <div className="flex-shrink-0">
+              <label className="text-xs font-medium text-muted-foreground mb-2 block">Date Range Filter</label>
+              <div className="flex items-end gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground font-medium">From Date</label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-8 text-sm w-[150px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground font-medium">To Date</label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate}
+                    className="h-8 text-sm w-[150px]"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {(dateFilter === 'exact' || dateFilter === 'range') && (
+          <Button
+            size="sm"
+            className="h-8 px-3 text-xs font-semibold ml-auto"
+            onClick={() => setCurrentPage(1)}
+            disabled={
+              dateFilter === 'exact'
+                ? !exactDate
+                : !(startDate && endDate)
+            }
+          >
+            <Funnel size={14} weight="bold" className="mr-1.5" />
+            Apply Filter
+          </Button>
+        )}
+      </div>
+    );
+  };
 
   // Pagination component
   const Pagination = () => (
@@ -396,7 +481,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
       ) : (
         // Show Recent Customers when count > 0
         <div
-          className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 overflow-hidden rounded-xl border shadow-md"
+          className="p-3 sm:p-4 w-full max-w-full flex flex-col gap-4 rounded-xl border shadow-md"
           style={{
             background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
             borderColor: 'rgba(196, 181, 253, 0.5)'

@@ -2,10 +2,12 @@ import { useState, lazy, Suspense } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Scissors, ArrowLeft, Spinner, FileText, UserPlus } from '@phosphor-icons/react';
+import { Scissors, ArrowLeft, Spinner, FileText, UserPlus, XCircle, Package } from '@phosphor-icons/react';
 import { EmptyState } from './EmptyState';
 import { format } from 'date-fns';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
+import { updateServiceOrderStatus } from '@/lib/firestore/serviceOrderService';
+import { toast } from 'sonner';
 
 // Lazy load the dialog
 const ServiceOrderDetailsDialog = lazy(() =>
@@ -13,7 +15,7 @@ const ServiceOrderDetailsDialog = lazy(() =>
 );
 
 // Filter types for different views
-type FilterType = 'open' | 'awaiting' | 'inProgress' | 'receivedNote';
+type FilterType = 'open' | 'awaiting' | 'inProgress' | 'receivedNote' | 'cancelled' | 'finished' | 'delivered';
 
 interface ActiveOrdersListProps {
   serviceOrders: ServiceOrder[];
@@ -21,11 +23,27 @@ interface ActiveOrdersListProps {
   onBack: () => void;
   filterType?: FilterType;
   onJobAllotment?: (serviceOrderId: string) => void; // Callback for Job Allotment (Open Orders only)
+  onMovedToReady?: () => void; // After Finished → Ready to Delivery
 }
 
-export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filterType = 'open', onJobAllotment }: ActiveOrdersListProps) {
+export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filterType = 'open', onJobAllotment, onMovedToReady }: ActiveOrdersListProps) {
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [movingOrderId, setMovingOrderId] = useState<string | null>(null);
+
+  const handleReadyToDeliveryClick = async (order: ServiceOrder) => {
+    try {
+      setMovingOrderId(order.id);
+      await updateServiceOrderStatus(order.id, 'ready');
+      toast.success('Order moved to Ready to Delivery');
+      onMovedToReady?.();
+    } catch (error) {
+      console.error('Error moving order to ready:', error);
+      toast.error('Failed to move order to Ready to Delivery');
+    } finally {
+      setMovingOrderId(null);
+    }
+  };
 
   // Get title and icon based on filter type
   const getViewConfig = () => {
@@ -66,6 +84,33 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
           bgColor: '#cffafe',
           emptyMessage: 'No received notes',
         };
+      case 'cancelled':
+        return {
+          title: 'Cancelled Orders',
+          subtitle: 'Orders cancelled by owner',
+          icon: XCircle,
+          color: '#be123c', // rose
+          bgColor: '#ffe4e6',
+          emptyMessage: 'No cancelled orders',
+        };
+      case 'finished':
+        return {
+          title: 'Finished Orders',
+          subtitle: 'Finished products waiting for delivery',
+          icon: Package,
+          color: '#047857', // emerald
+          bgColor: '#d1fae5',
+          emptyMessage: 'No finished orders',
+        };
+      case 'delivered':
+        return {
+          title: 'Delivered Orders',
+          subtitle: 'Products handed over to customers',
+          icon: Package,
+          color: '#16a34a', // green
+          bgColor: '#dcfce7',
+          emptyMessage: 'No delivered orders',
+        };
       default:
         return {
           title: 'Orders',
@@ -99,6 +144,15 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
       case 'receivedNote':
         // Received Note - vendor orders where goods have been received (status === 'received-note')
         return serviceOrders.filter(o => o.orderStatus === 'received-note');
+
+      case 'cancelled':
+        return serviceOrders.filter(o => o.orderStatus === 'cancelled');
+
+      case 'finished':
+        return serviceOrders.filter(o => o.orderStatus === 'finished');
+
+      case 'delivered':
+        return serviceOrders.filter(o => o.orderStatus === 'delivered');
 
       default:
         return serviceOrders;
@@ -220,6 +274,30 @@ export function ActiveOrdersList({ serviceOrders, orderAllotments, onBack, filte
                           >
                             <UserPlus size={16} className="mr-1.5" weight="bold" />
                             Job Allotment
+                          </Button>
+                        )}
+                        {filterType === 'finished' && (
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReadyToDeliveryClick(order);
+                            }}
+                            disabled={movingOrderId === order.id}
+                            className="whitespace-nowrap shadow-sm py-2"
+                            style={{ background: '#0891b2', color: 'white' }}
+                          >
+                            {movingOrderId === order.id ? (
+                              <>
+                                <Spinner size={16} className="mr-1.5 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <Package size={16} className="mr-1.5" weight="bold" />
+                                Ready to Delivery
+                              </>
+                            )}
                           </Button>
                         )}
                         <Button

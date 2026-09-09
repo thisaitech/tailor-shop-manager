@@ -22,50 +22,13 @@ const CUSTOMERS_COLLECTION = 'newcustomers';
  * Generate auto-incrementing customer ID
  * Format: CUST0001, CUST0002, etc.
  */
-export async function generateCustomerId(companyId: string): Promise<string> {
+export async function generateCustomerId(companyId: string, prefix = 'CUST', digits = 4): Promise<string> {
   try {
-    console.log('[customerService] ==========================================');
-    console.log('[customerService] Generating customer ID for companyId:', companyId);
-    console.log('[customerService] Collection name:', CUSTOMERS_COLLECTION);
-
-    const customersRef = collection(db, CUSTOMERS_COLLECTION);
-    const q = query(customersRef, where('companyId', '==', companyId));
-    const snapshot = await getDocs(q);
-
-    console.log('[customerService] Total documents found:', snapshot.size);
-
-    // Log all documents for debugging
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      console.log(`[customerService] Document ID: ${doc.id}, companyId: ${data.companyId}`);
-    });
-
-    // Get all existing IDs and find the highest number
-    const existingIds = snapshot.docs.map(doc => doc.id);
-    console.log('[customerService] Existing customer IDs:', existingIds);
-
-    let maxNum = 0;
-
-    existingIds.forEach(id => {
-      const match = id.match(/^CUST(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        console.log(`[customerService] Found customer ${id} with number ${num}`);
-        if (num > maxNum) maxNum = num;
-      } else {
-        console.warn(`[customerService] Invalid customer ID format: ${id}`);
-      }
-    });
-
-    const count = maxNum + 1;
-    const newCode = `CUST${count.toString().padStart(4, '0')}`;
-    console.log(`[customerService] Max number found: ${maxNum}, Generated new code: ${newCode}`);
-    console.log('[customerService] ==========================================');
-
-    return newCode;
+    const { generateNextNumber } = await import('@/lib/firestore/numberSeriesService');
+    return await generateNextNumber(companyId, prefix, digits, 'customer');
   } catch (error) {
     console.error('[customerService] Error generating customer ID:', error);
-    return `CUST${Date.now().toString().slice(-4)}`;
+    return `${prefix}${Date.now().toString().slice(-digits)}`;
   }
 }
 
@@ -191,16 +154,27 @@ function removeUndefinedFields<T extends Record<string, unknown>>(obj: T): T {
 }
 
 export async function addCustomer(
-  customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>,
+  customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'> & { preferredId?: string },
   companyId: string,
   adminId: string
 ): Promise<CustomerWithCompany> {
   try {
-    const customerId = await generateCustomerId(companyId);
+    const preferredId = (customerData.preferredId || '').trim().toUpperCase();
+    let customerId: string;
+    if (preferredId) {
+      const existing = await getDoc(doc(db, CUSTOMERS_COLLECTION, preferredId));
+      if (existing.exists()) {
+        throw new Error(`Customer number ${preferredId} already exists`);
+      }
+      customerId = preferredId;
+    } else {
+      customerId = await generateCustomerId(companyId);
+    }
     const customerRef = doc(db, CUSTOMERS_COLLECTION, customerId);
 
+    const { preferredId: _preferredId, ...rest } = customerData;
     const newCustomer: CustomerWithCompany = {
-      ...customerData,
+      ...rest,
       id: customerId,
       companyId,
       adminId,
@@ -221,6 +195,9 @@ export async function addCustomer(
     return newCustomer;
   } catch (error) {
     console.error('Error adding customer:', error);
+    if (error instanceof Error && error.message.startsWith('Customer number')) {
+      throw error;
+    }
     throw new Error('Failed to add customer');
   }
 }
@@ -230,6 +207,10 @@ export async function addCustomer(
  */
 export async function getCustomersByCompany(companyId: string): Promise<CustomerWithCompany[]> {
   try {
+    if (!companyId) {
+      console.warn('[customerService] getCustomersByCompany called without companyId');
+      return [];
+    }
     const customersRef = collection(db, CUSTOMERS_COLLECTION);
     const q = query(customersRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -248,7 +229,7 @@ export async function getCustomersByCompany(companyId: string): Promise<Customer
     return customers;
   } catch (error) {
     console.error('Error fetching customers:', error);
-    throw new Error('Failed to fetch customers');
+    return [];
   }
 }
 

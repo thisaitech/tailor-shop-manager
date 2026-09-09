@@ -41,6 +41,14 @@ export interface DesignImage {
   uploadedAt: number;
 }
 
+/** Stitching workflow step for a design category */
+export interface StitchingStep {
+  id: string;
+  name: string;
+  amount: number;
+  order: number;
+}
+
 // Design Category interface
 export interface DesignCategory {
   id: string;
@@ -49,6 +57,7 @@ export interface DesignCategory {
   companyId: string;
   createdBy: string;
   images: DesignImage[];
+  stitchingSteps?: StitchingStep[];
   createdAt: number;
   updatedAt: number;
 }
@@ -127,6 +136,7 @@ export async function createDesignCategory(
       companyId,
       createdBy: adminId,
       images: [],
+      stitchingSteps: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -166,6 +176,7 @@ export async function getDesignCategoriesByCompany(companyId: string): Promise<D
           ...img,
           uploadedAt: img.uploadedAt instanceof Timestamp ? img.uploadedAt.toMillis() : img.uploadedAt,
         })),
+        stitchingSteps: Array.isArray(data.stitchingSteps) ? data.stitchingSteps : [],
       } as DesignCategory;
     });
 
@@ -198,6 +209,7 @@ export async function getDesignCategory(categoryId: string): Promise<DesignCateg
         ...img,
         uploadedAt: img.uploadedAt instanceof Timestamp ? img.uploadedAt.toMillis() : img.uploadedAt,
       })),
+      stitchingSteps: Array.isArray(data.stitchingSteps) ? data.stitchingSteps : [],
     } as DesignCategory;
   } catch (error) {
     console.error('[designCategoryService] Error getting category:', error);
@@ -355,6 +367,33 @@ export async function getImagesForCategory(categoryId: string): Promise<DesignIm
     return category?.images || [];
   } catch (error) {
     console.error('[designCategoryService] Error getting images for category:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save stitching process steps for a category
+ */
+export async function updateCategoryStitchingSteps(
+  categoryId: string,
+  stitchingSteps: StitchingStep[]
+): Promise<void> {
+  try {
+    const ordered = stitchingSteps.map((step, index) => ({
+      ...step,
+      order: index + 1,
+      amount: Number(step.amount) || 0,
+      name: step.name.trim(),
+    }));
+
+    await updateDoc(doc(db, DESIGN_CATEGORIES_COLLECTION, categoryId), {
+      stitchingSteps: ordered,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`[designCategoryService] Saved ${ordered.length} stitching steps for ${categoryId}`);
+  } catch (error) {
+    console.error('[designCategoryService] Error saving stitching steps:', error);
     throw error;
   }
 }

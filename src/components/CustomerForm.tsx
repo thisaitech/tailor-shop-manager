@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle, ArrowLeft } from '@phosphor-icons/react';
 import { generateCustomerId, findCustomerByPhone, findCustomerByEmail } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
@@ -134,7 +135,7 @@ type MeasurementCategory = keyof typeof MEASUREMENT_FIELDS;
 interface CustomerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  onSave: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void | Promise<void>;
   customer?: Customer;
 }
 
@@ -152,6 +153,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   const [gender, setGender] = useState<Gender | ''>('');
   const [phoneError, setPhoneError] = useState('');
   const [nextCustomerId, setNextCustomerId] = useState<string>('');
+  const [companyId, setCompanyId] = useState('');
 
   // Address details
   const [address1, setAddress1] = useState('');
@@ -164,6 +166,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   const [measurements, setMeasurements] = useState<Measurements>({});
   const [activeCategory, setActiveCategory] = useState<MeasurementCategory>('shirt');
   const [measurementUnit, setMeasurementUnit] = useState<'Inches' | 'Cms'>('Inches');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Fetch next customer ID
   useEffect(() => {
@@ -172,6 +175,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
         try {
           const company = await getCompanyProfile(user.id);
           if (company) {
+            setCompanyId(company.id);
             const nextId = await generateCustomerId(company.id);
             setNextCustomerId(nextId);
           }
@@ -280,6 +284,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setPhoneError('');
 
     // Validate required fields
@@ -320,11 +325,11 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       return;
     }
 
-    // Check email uniqueness (only if email is provided)
+    // Validate email uniqueness if provided
     if (email.trim()) {
       const emailCheck = await checkEmailExists(email.trim(), customer?.id);
       if (emailCheck.exists) {
-        toast.error(`Email already exists for customer: ${emailCheck.customerName || 'Unknown'}`);
+        toast.error(`Email already used by ${emailCheck.customerName || 'another customer'}`);
         setActiveTab('basic');
         return;
       }
@@ -337,23 +342,32 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       return;
     }
 
-    onSave({
-      name: name.trim(),
-      phone: formatDisplay(phoneRaw),
-      phoneNormalized: phoneNorm as any,
-      email: email.trim() || undefined,
-      gender,
-      place: place.trim() || 'Not specified',
-      address1: address1.trim() || undefined,
-      address2: address2.trim() || undefined,
-      state: state.trim() || undefined,
-      pincode: pincode.trim() || undefined,
-      country: 'India',
-      measurements,
-    });
+    setIsSaving(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        phone: formatDisplay(phoneRaw),
+        phoneNormalized: phoneNorm as any,
+        email: email.trim() || undefined,
+        gender,
+        place: place.trim() || 'Not specified',
+        address1: address1.trim() || undefined,
+        address2: address2.trim() || undefined,
+        state: state.trim() || undefined,
+        pincode: pincode.trim() || undefined,
+        country: 'India',
+        measurements,
+        preferredId: customer ? undefined : nextCustomerId,
+      } as Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>);
 
-    onOpenChange(false);
-    resetForm();
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error('[CustomerForm] Save failed:', error);
+      // Keep form open so user can retry
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const updateMeasurement = (category: keyof Measurements, field: string, value: string) => {
@@ -474,6 +488,13 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
               {/* Basic Details Tab */}
               {activeTab === 'basic' && (
                 <div className="space-y-6">
+                  {!customer && companyId && (
+                    <NumberSeriesSelect
+                      companyId={companyId}
+                      defaultPrefix="CUST"
+                      onSeriesChange={(_series, nextNumber) => setNextCustomerId(nextNumber)}
+                    />
+                  )}
                   {/* Customer Name */}
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm font-medium">Customer Name *</Label>
@@ -599,15 +620,36 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                   {/* Header with Unit selector on right */}
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium text-muted-foreground">Select Category</h3>
-                    <Select value={measurementUnit} onValueChange={(v) => setMeasurementUnit(v as 'Inches' | 'Cms')}>
-                      <SelectTrigger className="w-28 h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Inches">Inches</SelectItem>
-                        <SelectItem value="Cms">Cms</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div
+                      className="inline-flex rounded-full border border-primary p-0.5 bg-white"
+                      role="group"
+                      aria-label="Measurement unit"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setMeasurementUnit('Inches')}
+                        className={cn(
+                          'px-3.5 py-1.5 text-xs font-semibold rounded-full transition-colors',
+                          measurementUnit === 'Inches'
+                            ? 'bg-primary text-white'
+                            : 'bg-transparent text-primary'
+                        )}
+                      >
+                        Inches
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMeasurementUnit('Cms')}
+                        className={cn(
+                          'px-3.5 py-1.5 text-xs font-semibold rounded-full transition-colors',
+                          measurementUnit === 'Cms'
+                            ? 'bg-primary text-white'
+                            : 'bg-transparent text-primary'
+                        )}
+                      >
+                        Cms
+                      </button>
+                    </div>
                   </div>
 
                   {/* Category selector - Grid layout */}
@@ -825,8 +867,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                   Next
                 </Button>
               )}
-              <Button type="submit" size="sm" className="min-w-[100px] bg-white text-purple-700 hover:bg-white/90">
-                {customer ? t('save') : 'Create'}
+              <Button type="submit" size="sm" disabled={isSaving} className="min-w-[100px] bg-white text-purple-700 hover:bg-white/90">
+                {isSaving ? 'Saving...' : customer ? t('save') : 'Create'}
               </Button>
             </div>
           </div>

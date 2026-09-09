@@ -23,6 +23,9 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { reassignStitchedOrder } from '@/lib/firestore/orderAllotmentService';
 import { User, Buildings, Scissors, CalendarBlank, Check } from '@phosphor-icons/react';
+import { useAuth } from '@/hooks/use-auth';
+import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
 
 // Per-item assignment state
 interface DressItemAssignment {
@@ -60,6 +63,8 @@ export function OrderAllotmentForm({
   initialServiceOrderId,
 }: OrderAllotmentFormProps) {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const [companyId, setCompanyId] = useState('');
 
   // Order Allotment fields
   const [serviceOrderNo, setServiceOrderNo] = useState('');
@@ -73,6 +78,19 @@ export function OrderAllotmentForm({
   const [assignedTo, setAssignedTo] = useState('');
   const [materialCost, setMaterialCost] = useState(0);
   const [jobWorkCost, setJobWorkCost] = useState(0);
+
+  useEffect(() => {
+    const loadCompany = async () => {
+      if (!user?.id || !open) return;
+      try {
+        const company = await getCompanyProfile(user.id);
+        if (company?.id) setCompanyId(company.id);
+      } catch (error) {
+        console.error('[OrderAllotmentForm] Failed to load company:', error);
+      }
+    };
+    loadCompany();
+  }, [user?.id, open]);
 
   // Get eligible service orders (status: 'open' or 'allotment' - not yet fully allotted)
   const eligibleOrders = serviceOrders.filter(
@@ -379,6 +397,9 @@ export function OrderAllotmentForm({
         </div>
 
         <div className="px-5 space-y-4 py-4">
+          {companyId && !reassignOrder && (
+            <NumberSeriesSelect companyId={companyId} defaultPrefix="JOB" />
+          )}
           {/* Service Order Selection - Hide when opened from specific order */}
           {!initialServiceOrderId && !reassignOrder && (
             <div className="space-y-2">

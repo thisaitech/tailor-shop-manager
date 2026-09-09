@@ -43,6 +43,23 @@ const setAppHeight = () => {
 // Initial set
 setAppHeight();
 
+// Force #root to be the scroll container (fixes local Vite/preview where
+// document scroll is blocked but deployed hosting scrolls differently)
+const ensureRootScroll = () => {
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.style.height = '100%';
+  root.style.overflowY = 'auto';
+  root.style.overflowX = 'hidden';
+  (root.style as any).webkitOverflowScrolling = 'touch';
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.width = '100%';
+  document.body.style.height = '100%';
+};
+ensureRootScroll();
+
 // Only update on orientation change for native apps (not on keyboard open/close)
 if (isNativeApp) {
   let initialHeight = window.innerHeight;
@@ -52,6 +69,7 @@ if (isNativeApp) {
     const heightDiff = Math.abs(window.innerHeight - initialHeight);
     if (heightDiff > 150) {
       setAppHeight();
+      ensureRootScroll();
       initialHeight = window.innerHeight;
     }
   });
@@ -59,12 +77,16 @@ if (isNativeApp) {
   window.addEventListener('orientationchange', () => {
     setTimeout(() => {
       setAppHeight();
+      ensureRootScroll();
       initialHeight = window.innerHeight;
     }, 100);
   });
 } else {
   // For web, update on all resizes
-  window.addEventListener('resize', setAppHeight);
+  window.addEventListener('resize', () => {
+    setAppHeight();
+    ensureRootScroll();
+  });
 }
 
 // Initialize app

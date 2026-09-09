@@ -120,6 +120,77 @@ export async function getCompanyByCompanyId(companyId: string): Promise<CompanyP
 }
 
 /**
+ * Resolve a company profile for the logged-in owner/admin.
+ * Links a company to the user document if missing so customers can load/save.
+ */
+export async function resolveCompanyForUser(
+  userId: string,
+  options?: {
+    phone?: string;
+    name?: string;
+    employeeCompanyId?: string;
+  }
+): Promise<CompanyProfile> {
+  // 1. Profile already linked to this user
+  const existing = await getCompanyProfile(userId);
+  if (existing?.id) {
+    return existing;
+  }
+
+  // 2. Employee already has a companyId — link that company to this user
+  if (options?.employeeCompanyId) {
+    const byEmployeeCompany = await getCompanyByCompanyId(options.employeeCompanyId);
+    if (byEmployeeCompany?.id) {
+      return saveCompanyProfile(userId, byEmployeeCompany);
+    }
+  }
+
+  // 3. Seeded default company document (from seedAdminUser)
+  try {
+    const defaultRef = doc(db, COMPANIES_COLLECTION, 'default-company');
+    const defaultSnap = await getDoc(defaultRef);
+    if (defaultSnap.exists()) {
+      const data = defaultSnap.data() as CompanyProfile;
+      if (data?.id) {
+        return saveCompanyProfile(userId, data);
+      }
+    }
+  } catch (error) {
+    console.warn('[companyService] Could not read default-company:', error);
+  }
+
+  // 4. Match company by owner phone / contact number
+  const phone = (options?.phone || '').replace(/\D/g, '');
+  if (phone) {
+    try {
+      const companiesRef = collection(db, COMPANIES_COLLECTION);
+      const snapshot = await getDocs(companiesRef);
+      const match = snapshot.docs
+        .map((d) => d.data() as CompanyProfile)
+        .find((c) => {
+          const contact = (c.contactNumber || '').replace(/\D/g, '');
+          return contact && (contact === phone || contact.endsWith(phone) || phone.endsWith(contact));
+        });
+      if (match?.id) {
+        return saveCompanyProfile(userId, match);
+      }
+    } catch (error) {
+      console.warn('[companyService] Could not search companies by phone:', error);
+    }
+  }
+
+  // 5. Create a new company profile for this owner
+  return saveCompanyProfile(userId, {
+    companyName: options?.name || 'Tailor Shop',
+    contactNumber: options?.phone || '',
+    businessType: 'service',
+    productCategory: 'Tailoring',
+    state: 'Tamil Nadu',
+    country: 'India',
+  });
+}
+
+/**
  * Delete company profile
  * @param userId - User ID
  */

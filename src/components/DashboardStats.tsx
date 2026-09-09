@@ -8,7 +8,8 @@ import {
   HourglassMedium,
   Spinner,
   FileText,
-  ClipboardText
+  ClipboardText,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import { ServiceOrder, OrderAllotment } from '@/lib/types';
 
@@ -20,7 +21,9 @@ export type DashboardFilter =
   | 'waitingForDC'   // 2.5 Waiting for DC (vendor only) - accepted but no DC yet
   | 'inProgress'     // 3. In-Progress - accepted and working
   | 'rejected'       // 4. Rejected Orders
+  | 'cancelled'      // 4.5 Cancelled Orders
   | 'ready'          // 5. Ready to Delivery (Employee workflow)
+  | 'finished'       // 5.5 Finished product (work done, not handed over yet)
   | 'jobworkCompleted' // 6. Jobwork Completed (Vendor workflow)
   | 'receivedNote'   // 7. Received Note / Goods Receipt
   | 'delivered'      // 8. Delivered Orders
@@ -53,8 +56,14 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
   // 4. REJECTED ORDERS - Order rejected by Employee or Vendor
   const rejectedOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'rejected').length;
 
+  // 4.5 CANCELLED ORDERS - Cancelled by owner
+  const cancelledOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'cancelled').length;
+
   // 5. READY TO DELIVERY - Employee workflow completed (ready status)
   const readyToDelivery = (serviceOrders || []).filter((o) => o.orderStatus === 'ready').length;
+
+  // 5.5 FINISHED - Order work finished (finished product, not delivered yet)
+  const finishedOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'finished').length;
 
   // 6. JOBWORK COMPLETED - Vendor workflow, work completed but goods not received yet
   const jobworkCompleted = (serviceOrders || []).filter((o) => o.orderStatus === 'job-completed').length;
@@ -62,14 +71,22 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
   // 7. RECEIVED NOTE (Goods Receipt) - Vendor order goods received at shop
   const receivedNote = (serviceOrders || []).filter((o) => o.orderStatus === 'received-note').length;
 
-  // 8. DELIVERED ORDERS - Order completed and handed over to customer
+  // 8. DELIVERED ORDERS - Product handed over to customer
   const deliveredOrders = (serviceOrders || []).filter((o) => o.orderStatus === 'delivered').length;
 
-  // 9. OVERDUE ORDERS - Past due date but not delivered
+  // 9. OVERDUE ORDERS - Past due date but not finished/delivered
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const overdueOrders = (serviceOrders || []).filter((o) => {
-    if (o.orderStatus === 'delivered' || o.orderStatus === 'ready' || o.orderStatus === 'received-note') return false;
+    if (
+      o.orderStatus === 'delivered' ||
+      o.orderStatus === 'finished' ||
+      o.orderStatus === 'ready' ||
+      o.orderStatus === 'received-note' ||
+      o.orderStatus === 'cancelled'
+    ) {
+      return false;
+    }
     if (!o.expectedDeliveryDate) return false;
     const deliveryDate = new Date(o.expectedDeliveryDate);
     deliveryDate.setHours(0, 0, 0, 0);
@@ -118,6 +135,14 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
       filter: 'rejected' as const,
     },
     {
+      label: 'Cancelled Orders',
+      value: cancelledOrders,
+      icon: XCircle,
+      color: 'text-red-700',
+      bgColor: 'bg-red-100',
+      filter: 'cancelled' as const,
+    },
+    {
       label: 'Jobwork Completed',
       value: jobworkCompleted,
       icon: Truck,
@@ -134,12 +159,28 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
       filter: 'receivedNote' as const,
     },
     {
+      label: 'Finished',
+      value: finishedOrders,
+      icon: CheckCircle,
+      color: 'text-emerald-700',
+      bgColor: 'bg-emerald-100',
+      filter: 'finished' as const,
+    },
+    {
       label: 'Ready to Delivery',
       value: readyToDelivery,
       icon: Package,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-100',
       filter: 'ready' as const,
+    },
+    {
+      label: 'Delivered',
+      value: deliveredOrders,
+      icon: Truck,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+      filter: 'delivered' as const,
     },
     {
       label: 'Waiting for DC',
@@ -152,7 +193,7 @@ export function DashboardStats({ serviceOrders, orderAllotments, onStatClick }: 
   ];
 
   return (
-    <div className="grid grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2 sm:gap-3">
+    <div className="grid grid-cols-3 lg:grid-cols-5 xl:grid-cols-12 gap-2 sm:gap-3">
       {stats.map((stat, index) => (
         <Card
           key={index}

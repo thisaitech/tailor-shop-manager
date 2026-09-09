@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react';
-import { ServiceOrder, OrderAllotment, Customer } from '@/lib/types';
+import { ServiceOrder, OrderAllotment, Customer, ServiceOrderStatus } from '@/lib/types';
 import { useLanguage } from '@/hooks/use-language';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   ArrowLeft,
   Phone,
@@ -27,12 +35,26 @@ import {
 import { format, isPast } from 'date-fns';
 import { sendWhatsAppMessage } from '@/lib/utils';
 import { getOrderHistory, OrderHistoryEntry } from '@/lib/firestore/orderHistoryService';
+import { updateServiceOrder, cancelServiceOrder } from '@/lib/firestore/serviceOrderService';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface OrderViewProps {
   serviceOrder: ServiceOrder;
   orderAllotments?: OrderAllotment[];
   customer?: Customer;
   onBack: () => void;
+  onOrderUpdated?: (updates: Partial<ServiceOrder>) => void;
 }
 
 // Timeline stage interface
@@ -49,10 +71,72 @@ interface TimelineStage {
   color: string;
 }
 
-export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack }: OrderViewProps) {
+type ProcessStep = NonNullable<ServiceOrder['orderStitchingSteps']>[number];
+
+const DEFAULT_FINAL_STEPS: ProcessStep[] = [
+  { id: 'final_work_completed', name: 'Work Completed', amount: 0, order: 1, status: 'pending' },
+  { id: 'final_finished', name: 'Finished', amount: 0, order: 2, status: 'pending' },
+];
+
+const mergeFinalSteps = (saved?: ServiceOrder['orderFinalSteps']): ProcessStep[] =>
+  DEFAULT_FINAL_STEPS.map((defaultStep, index) => {
+    const existing = saved?.find(step => step.id === defaultStep.id);
+    return {
+      ...defaultStep,
+      ...(existing || {}),
+      id: defaultStep.id,
+      name: defaultStep.name,
+      order: index + 1,
+      amount: Number(existing?.amount) || 0,
+      status: existing?.status || 'pending',
+    };
+  });
+
+const getStepStatus = (steps: ProcessStep[], id: string) =>
+  steps.find(step => step.id === id)?.status || 'pending';
+
+/** Derive overall order status from process + final step statuses */
+const deriveOrderStatusFromSteps = (
+  process: ProcessStep[],
+  final: ProcessStep[],
+  current: ServiceOrderStatus
+): ServiceOrderStatus => {
+  // Keep cancelled / rejected as-is
+  if (current === 'cancelled' || current === 'rejected') return current;
+
+  const finished = getStepStatus(final, 'final_finished');
+  const workCompleted = getStepStatus(final, 'final_work_completed');
+
+  if (finished === 'completed') return 'finished';
+  if (workCompleted === 'completed') return 'inprogress';
+
+  const anyProcessStarted = process.some(step => step.status === 'completed');
+  if (anyProcessStarted) return 'inprogress';
+
+  // Don't override assignment / rejection flow when no process work has started
+  if (['awaiting', 'waitingForDC', 'rejected', 'job-completed', 'received-note'].includes(current)) {
+    return current;
+  }
+
+  return current === 'ready' || current === 'finished' || current === 'delivered' || current === 'inprogress'
+    ? 'open'
+    : current;
+};
+
+export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack, onOrderUpdated }: OrderViewProps) {
   const { t } = useLanguage();
   const [orderHistory, setOrderHistory] = useState<OrderHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [processSteps, setProcessSteps] = useState<ProcessStep[]>([]);
+  const [finalSteps, setFinalSteps] = useState<ProcessStep[]>(DEFAULT_FINAL_STEPS);
+  const [updatingStepId, setUpdatingStepId] = useState<string | null>(null);
+  const [pricing, setPricing] = useState({
+    stitchingCost: serviceOrder.stitchingCost || 0,
+    totalAmount: serviceOrder.totalAmount || serviceOrder.stitchingCost || 0,
+    balanceAmount: serviceOrder.balanceAmount,
+  });
+  const [orderStatus, setOrderStatus] = useState<ServiceOrderStatus>(serviceOrder.orderStatus);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
 
   // Fetch order history on mount
   useEffect(() => {
@@ -69,6 +153,246 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
     };
     fetchHistory();
   }, [serviceOrder.id]);
+
+  useEffect(() => {
+    setProcessSteps(
+      serviceOrder.orderStitchingSteps && serviceOrder.orderStitchingSteps.length > 0
+        ? serviceOrder.orderStitchingSteps
+        : [
+            {
+              id: 'default_stitching_process',
+              name: 'Stitching',
+              amount: serviceOrder.stitchingCost || 0,
+              order: 1,
+            },
+          ]
+    );
+  }, [serviceOrder.id, serviceOrder.orderStitchingSteps, serviceOrder.stitchingCost]);
+
+  useEffect(() => {
+    setFinalSteps(mergeFinalSteps(serviceOrder.orderFinalSteps));
+  }, [serviceOrder.id, serviceOrder.orderFinalSteps]);
+
+  useEffect(() => {
+    setPricing({
+      stitchingCost: serviceOrder.stitchingCost || 0,
+      totalAmount: serviceOrder.totalAmount || serviceOrder.stitchingCost || 0,
+      balanceAmount: serviceOrder.balanceAmount,
+    });
+  }, [
+    serviceOrder.id,
+    serviceOrder.stitchingCost,
+    serviceOrder.totalAmount,
+    serviceOrder.balanceAmount,
+  ]);
+
+  useEffect(() => {
+    setOrderStatus(serviceOrder.orderStatus);
+  }, [serviceOrder.id, serviceOrder.orderStatus]);
+
+  const buildPricingUpdate = (nextProcess: ProcessStep[], nextFinal: ProcessStep[]) => {
+    const stitchingCost = nextProcess.reduce((sum, step) => sum + (Number(step.amount) || 0), 0);
+    const finalTotal = nextFinal.reduce((sum, step) => sum + (Number(step.amount) || 0), 0);
+    const totalAmount = stitchingCost + finalTotal;
+    const advanceAmount = serviceOrder.advanceAmount || 0;
+    const balanceAmount =
+      serviceOrder.balanceAmount !== undefined || advanceAmount > 0
+        ? Math.max(0, totalAmount - advanceAmount)
+        : undefined;
+
+    return { stitchingCost, totalAmount, balanceAmount, advanceAmount };
+  };
+
+  const applyStepStatus = (
+    steps: ProcessStep[],
+    stepId: string,
+    status: 'pending' | 'in_progress' | 'completed'
+  ): ProcessStep[] => {
+    const now = Date.now();
+    return steps.map(step => {
+      if (step.id !== stepId) return step;
+      return {
+        ...step,
+        status,
+        startedAt:
+          status === 'in_progress' || status === 'completed'
+            ? step.startedAt || now
+            : undefined,
+        completedAt: status === 'completed' ? now : undefined,
+      };
+    });
+  };
+
+  const handleProcessStatusChange = async (
+    stepId: string,
+    status: 'pending' | 'in_progress' | 'completed'
+  ) => {
+    const updatedSteps = applyStepStatus(processSteps, stepId, status);
+    const nextOrderStatus = deriveOrderStatusFromSteps(updatedSteps, finalSteps, orderStatus);
+
+    try {
+      setUpdatingStepId(stepId);
+      const updates: Partial<ServiceOrder> = {
+        orderStitchingSteps: updatedSteps,
+        ...(nextOrderStatus !== orderStatus
+          ? {
+              orderStatus: nextOrderStatus,
+              ...(nextOrderStatus === 'inprogress' && !serviceOrder.acceptedDate
+                ? { acceptedDate: Date.now() }
+                : {}),
+              ...(nextOrderStatus === 'finished'
+                ? { completedDate: Date.now() }
+                : {}),
+              ...(nextOrderStatus === 'delivered' ? { deliveredDate: Date.now() } : {}),
+            }
+          : {}),
+      };
+      await updateServiceOrder(serviceOrder.id, updates);
+      setProcessSteps(updatedSteps);
+      if (nextOrderStatus !== orderStatus) {
+        setOrderStatus(nextOrderStatus);
+      }
+      onOrderUpdated?.(updates);
+      toast.success(
+        nextOrderStatus !== orderStatus
+          ? `Status updated to ${getStatusLabel(nextOrderStatus)}`
+          : 'Process status updated'
+      );
+    } catch (error) {
+      console.error('Failed to update process status:', error);
+      toast.error('Failed to update process status');
+    } finally {
+      setUpdatingStepId(null);
+    }
+  };
+
+  const handleFinalStatusChange = async (
+    stepId: string,
+    status: 'pending' | 'in_progress' | 'completed'
+  ) => {
+    const updatedSteps = applyStepStatus(finalSteps, stepId, status);
+    const nextOrderStatus = deriveOrderStatusFromSteps(processSteps, updatedSteps, orderStatus);
+
+    try {
+      setUpdatingStepId(stepId);
+      const updates: Partial<ServiceOrder> = {
+        orderFinalSteps: updatedSteps,
+        ...(nextOrderStatus !== orderStatus
+          ? {
+              orderStatus: nextOrderStatus,
+              ...(nextOrderStatus === 'inprogress' && !serviceOrder.acceptedDate
+                ? { acceptedDate: Date.now() }
+                : {}),
+              ...(nextOrderStatus === 'finished'
+                ? { completedDate: Date.now() }
+                : {}),
+              ...(nextOrderStatus === 'delivered' ? { deliveredDate: Date.now() } : {}),
+            }
+          : {}),
+      };
+      await updateServiceOrder(serviceOrder.id, updates);
+      setFinalSteps(updatedSteps);
+      if (nextOrderStatus !== orderStatus) {
+        setOrderStatus(nextOrderStatus);
+      }
+      onOrderUpdated?.(updates);
+      toast.success(
+        nextOrderStatus !== orderStatus
+          ? `Status updated to ${getStatusLabel(nextOrderStatus)}`
+          : 'Final step status updated'
+      );
+    } catch (error) {
+      console.error('Failed to update final step status:', error);
+      toast.error('Failed to update final step status');
+    } finally {
+      setUpdatingStepId(null);
+    }
+  };
+
+  const handleFinalAmountChange = async (stepId: string, amount: number) => {
+    const updatedSteps = finalSteps.map(step =>
+      step.id === stepId ? { ...step, amount: Number.isFinite(amount) ? amount : 0 } : step
+    );
+    const pricingUpdate = buildPricingUpdate(processSteps, updatedSteps);
+
+    try {
+      setUpdatingStepId(stepId);
+      const updates: Partial<ServiceOrder> = {
+        orderFinalSteps: updatedSteps,
+        stitchingCost: pricingUpdate.stitchingCost,
+        totalAmount: pricingUpdate.totalAmount,
+        ...(pricingUpdate.balanceAmount !== undefined
+          ? { balanceAmount: pricingUpdate.balanceAmount }
+          : {}),
+      };
+      await updateServiceOrder(serviceOrder.id, updates);
+      setFinalSteps(updatedSteps);
+      setPricing({
+        stitchingCost: pricingUpdate.stitchingCost,
+        totalAmount: pricingUpdate.totalAmount,
+        balanceAmount: pricingUpdate.balanceAmount,
+      });
+      onOrderUpdated?.(updates);
+      toast.success('Amount updated');
+    } catch (error) {
+      console.error('Failed to update final step amount:', error);
+      toast.error('Failed to update amount');
+    } finally {
+      setUpdatingStepId(null);
+    }
+  };
+
+  const handleProcessAmountChange = async (stepId: string, amount: number) => {
+    const updatedSteps = processSteps.map(step =>
+      step.id === stepId ? { ...step, amount: Number.isFinite(amount) ? amount : 0 } : step
+    );
+    const pricingUpdate = buildPricingUpdate(updatedSteps, finalSteps);
+
+    try {
+      setUpdatingStepId(stepId);
+      const updates: Partial<ServiceOrder> = {
+        orderStitchingSteps: updatedSteps,
+        stitchingCost: pricingUpdate.stitchingCost,
+        totalAmount: pricingUpdate.totalAmount,
+        ...(pricingUpdate.balanceAmount !== undefined
+          ? { balanceAmount: pricingUpdate.balanceAmount }
+          : {}),
+      };
+      await updateServiceOrder(serviceOrder.id, updates);
+      setProcessSteps(updatedSteps);
+      setPricing({
+        stitchingCost: pricingUpdate.stitchingCost,
+        totalAmount: pricingUpdate.totalAmount,
+        balanceAmount: pricingUpdate.balanceAmount,
+      });
+      onOrderUpdated?.(updates);
+      toast.success('Amount updated');
+    } catch (error) {
+      console.error('Failed to update process step amount:', error);
+      toast.error('Failed to update amount');
+    } finally {
+      setUpdatingStepId(null);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    try {
+      setCancellingOrder(true);
+      await cancelServiceOrder(serviceOrder.id);
+      const updates: Partial<ServiceOrder> = {
+        orderStatus: 'cancelled',
+        cancelledDate: Date.now(),
+      };
+      setOrderStatus('cancelled');
+      onOrderUpdated?.(updates);
+      toast.success('Order cancelled');
+    } catch (error) {
+      console.error('Failed to cancel order:', error);
+      toast.error('Failed to cancel order');
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
 
   // Build timeline from ServiceOrder data
   const buildTimeline = (): TimelineStage[] => {
@@ -272,8 +596,12 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
         return 'bg-blue-600 text-white';
       case 'rejected':
         return 'bg-red-600 text-white';
+      case 'cancelled':
+        return 'bg-rose-700 text-white';
       case 'ready':
         return 'bg-indigo-600 text-white';
+      case 'finished':
+        return 'bg-emerald-700 text-white';
       case 'job-completed':
         return 'bg-orange-600 text-white';
       case 'received-note':
@@ -297,8 +625,12 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
         return 'IN PROGRESS';
       case 'rejected':
         return 'REJECTED';
+      case 'cancelled':
+        return 'CANCELLED';
       case 'ready':
         return 'READY';
+      case 'finished':
+        return 'FINISHED';
       case 'job-completed':
         return 'JOB DONE';
       case 'received-note':
@@ -356,11 +688,14 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
   };
 
   const isOverdue = serviceOrder.expectedDeliveryDate &&
-    serviceOrder.orderStatus !== 'delivered' &&
+    orderStatus !== 'delivered' &&
+    orderStatus !== 'finished' &&
+    orderStatus !== 'cancelled' &&
     isPast(new Date(serviceOrder.expectedDeliveryDate));
 
-  // Use unified orderStatus directly
-  const displayStatus = serviceOrder.orderStatus;
+  // Use local order status so badge updates immediately when process status changes
+  const displayStatus = orderStatus;
+  const canCancelOrder = !['cancelled', 'delivered', 'rejected'].includes(orderStatus);
 
   // Get allotment info for this order (for backward compatibility)
   const allotment = orderAllotments.find(a => a.serviceOrderNo === serviceOrder.id && !a.reassigned);
@@ -409,8 +744,8 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
       >
         <div className="flex flex-col gap-3">
           {/* Order ID and Status */}
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Package size={20} weight="duotone" style={{ color: '#6A64F2' }} />
                 <p className="text-sm font-bold" style={{ color: '#6A64F2' }}>{serviceOrder.id}</p>
@@ -419,9 +754,43 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
                 {serviceOrder.orderCategory === 'male' ? 'Men' : serviceOrder.orderCategory === 'female' ? 'Women' : 'Kids'} • {serviceOrder.orderQty} {serviceOrder.uom}
               </p>
             </div>
-            <Badge className={`text-[10px] px-2 py-1 font-bold ${getStatusColor(displayStatus)}`}>
-              {getStatusLabel(displayStatus)}
-            </Badge>
+            <div className="flex items-center gap-2 shrink-0">
+              {canCancelOrder && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={cancellingOrder}
+                      className="h-7 px-2.5 text-[10px] font-bold border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      {cancellingOrder ? 'Cancelling...' : 'Cancel Order'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will mark order {serviceOrder.id} as cancelled. You can still view it, but work and delivery should stop.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleCancelOrder}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Yes, Cancel Order
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              <Badge className={`text-[10px] px-2 py-1 font-bold ${getStatusColor(displayStatus)}`}>
+                {getStatusLabel(displayStatus)}
+              </Badge>
+            </div>
           </div>
 
           {/* Dates */}
@@ -599,12 +968,81 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
                 </div>
               );
             })}
+
+            {/* Design preferences chosen at order placement */}
+            {(() => {
+              const chosenPreferences = (serviceOrder.designPreferences || []).filter(
+                preference => preference.value && preference.value.trim() !== ''
+              );
+              if (chosenPreferences.length === 0) return null;
+
+              return (
+                <div className="pt-3 border-t border-violet-200">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Design Preferences</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {chosenPreferences.map(preference => (
+                      <div
+                        key={preference.id}
+                        className="p-3 rounded-xl bg-white border border-violet-200"
+                      >
+                        <p className="text-xs text-purple-600 font-medium mb-1">
+                          {preference.label}
+                        </p>
+                        <p className="text-sm font-bold text-gray-800">{preference.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {serviceOrder.designNotes && (
+              <div className="pt-3 border-t border-violet-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Design Notes</h4>
+                <p className="text-sm text-gray-800 bg-white border border-violet-200 rounded-xl p-3">
+                  {serviceOrder.designNotes}
+                </p>
+              </div>
+            )}
+
+            {serviceOrder.fabricDetails && (
+              <div className="pt-3 border-t border-violet-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Fabric Details</h4>
+                <p className="text-sm text-gray-800 bg-white border border-violet-200 rounded-xl p-3">
+                  {serviceOrder.fabricDetails}
+                </p>
+              </div>
+            )}
+
+            {/* Selected design images */}
+            {serviceOrder.designList && serviceOrder.designList.length > 0 && (
+              <div className="pt-3 border-t border-violet-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Image size={16} weight="duotone" style={{ color: '#6A64F2' }} />
+                  Design Images ({serviceOrder.designList.length})
+                </h4>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {serviceOrder.designList.map((url, index) => (
+                    <img
+                      key={index}
+                      src={url}
+                      alt={`Design ${index + 1}`}
+                      className="w-full h-24 sm:h-32 object-cover rounded-lg border-2 cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ borderColor: '#6A64F2' }}
+                      onClick={() => window.open(url, '_blank')}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       )}
 
-      {/* Design Images Card */}
-      {serviceOrder.designList && serviceOrder.designList.length > 0 && (
+      {/* Design Images Card — only when no measurements card above */}
+      {!hasMeasurements &&
+        serviceOrder.designList &&
+        serviceOrder.designList.length > 0 && (
         <Card
           className="p-3 sm:p-4"
           style={{ backgroundColor: '#f3e8ff', borderColor: '#6A64F2' }}
@@ -629,6 +1067,42 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
         </Card>
       )}
 
+      {/* Preferences when measurements section is missing */}
+      {!hasMeasurements &&
+        (serviceOrder.designPreferences || []).some(
+          preference => preference.value && preference.value.trim() !== ''
+        ) && (
+        <Card
+          className="p-4 sm:p-5 border-2 rounded-xl"
+          style={{ backgroundColor: '#f8f5ff', borderColor: '#a78bfa' }}
+        >
+          <h3 className="text-base font-semibold mb-4" style={{ color: '#6A64F2' }}>
+            Design Preferences
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {(serviceOrder.designPreferences || [])
+              .filter(preference => preference.value && preference.value.trim() !== '')
+              .map(preference => (
+                <div
+                  key={preference.id}
+                  className="p-3 rounded-xl bg-white border border-violet-200"
+                >
+                  <p className="text-xs text-purple-600 font-medium mb-1">{preference.label}</p>
+                  <p className="text-sm font-bold text-gray-800">{preference.value}</p>
+                </div>
+              ))}
+          </div>
+          {serviceOrder.designNotes && (
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Design Notes</h4>
+              <p className="text-sm text-gray-800 bg-white border border-violet-200 rounded-xl p-3">
+                {serviceOrder.designNotes}
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Reference/Notes Card */}
       {serviceOrder.reference && (
         <Card
@@ -640,77 +1114,6 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
             Reference / Notes
           </h3>
           <p className="text-sm text-foreground">{serviceOrder.reference}</p>
-        </Card>
-      )}
-
-      {/* Assignment Info Card */}
-      {(serviceOrder.assignedTo || allotment) && (
-        <Card
-          className="p-3 sm:p-4"
-          style={{ backgroundColor: '#ecfdf5', borderColor: '#86efac' }}
-        >
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <User size={16} weight="duotone" className="text-green-600" />
-            Assignment Information
-          </h3>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[10px] text-muted-foreground">Assigned To</p>
-              <p className="text-sm font-semibold text-foreground">
-                {serviceOrder.assignedToName || allotment?.assignedName || 'Not Assigned'}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground">Assignment Type</p>
-              <p className="text-sm font-semibold text-foreground capitalize">
-                {serviceOrder.assignmentType || allotment?.stitchingAllotment || '-'}
-              </p>
-            </div>
-            {(serviceOrder.assignedDate || allotment?.assignedDate) && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Assigned Date</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {format(new Date(serviceOrder.assignedDate || allotment!.assignedDate!), 'MMM dd, yyyy')}
-                </p>
-              </div>
-            )}
-            {serviceOrder.acceptedDate && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Accepted Date</p>
-                <p className="text-sm font-semibold text-green-600">
-                  {format(new Date(serviceOrder.acceptedDate), 'MMM dd, yyyy')}
-                </p>
-              </div>
-            )}
-            {serviceOrder.jobWorkNo && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Job Work No</p>
-                <p className="text-sm font-semibold text-foreground">{serviceOrder.jobWorkNo}</p>
-              </div>
-            )}
-            {(serviceOrder.materialCost !== undefined && serviceOrder.materialCost > 0) && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Material Cost</p>
-                <p className="text-sm font-bold text-green-600">₹{serviceOrder.materialCost}</p>
-              </div>
-            )}
-            {(serviceOrder.jobWorkCost !== undefined && serviceOrder.jobWorkCost > 0) && (
-              <div>
-                <p className="text-[10px] text-muted-foreground">Job Work Cost</p>
-                <p className="text-sm font-bold text-green-600">₹{serviceOrder.jobWorkCost}</p>
-              </div>
-            )}
-            {serviceOrder.rejectedDate && (
-              <div className="col-span-2">
-                <p className="text-[10px] text-muted-foreground">Rejected On</p>
-                <p className="text-sm font-semibold text-red-600">
-                  {format(new Date(serviceOrder.rejectedDate), 'MMM dd, yyyy')}
-                  {serviceOrder.rejectionReason && ` - ${serviceOrder.rejectionReason}`}
-                </p>
-              </div>
-            )}
-          </div>
         </Card>
       )}
 
@@ -855,7 +1258,7 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
           >
             <p className="text-[10px] text-muted-foreground">Stitching Cost</p>
             <p className="text-lg font-bold" style={{ color: '#6A64F2' }}>
-              ₹{serviceOrder.stitchingCost || 0}
+              ₹{pricing.stitchingCost || 0}
             </p>
           </div>
 
@@ -865,7 +1268,7 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
           >
             <p className="text-[10px] text-muted-foreground">Total Amount</p>
             <p className="text-lg font-bold" style={{ color: '#6A64F2' }}>
-              ₹{serviceOrder.totalAmount || serviceOrder.stitchingCost || 0}
+              ₹{pricing.totalAmount || pricing.stitchingCost || 0}
             </p>
           </div>
 
@@ -881,21 +1284,21 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
             </div>
           )}
 
-          {serviceOrder.balanceAmount !== undefined && (
+          {pricing.balanceAmount !== undefined && (
             <div
               className="p-3 rounded-lg border text-center"
               style={{ backgroundColor: '#ffedd5', borderColor: '#fdba74' }}
             >
               <p className="text-[10px] text-muted-foreground">Balance</p>
               <p className="text-lg font-bold text-orange-600">
-                ₹{serviceOrder.balanceAmount}
+                ₹{pricing.balanceAmount}
               </p>
             </div>
           )}
         </div>
       </Card>
 
-      {/* Order History / Timeline Card */}
+      {/* Order Timeline */}
       <Card
         className="p-4 sm:p-5 border-2 rounded-xl"
         style={{ backgroundColor: '#f8f5ff', borderColor: '#a78bfa' }}
@@ -905,116 +1308,284 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
             <ClockCounterClockwise size={20} weight="duotone" />
             Order Timeline
           </h3>
-          {timeline.length > 0 && (
-            <Badge className="bg-purple-100 text-purple-700 text-xs">
-              Total: {calculateTotalDuration()}
-            </Badge>
-          )}
+          <Badge className="bg-purple-100 text-purple-700 text-xs">
+            Total Estimated Cost: ₹
+            {pricing.totalAmount ||
+              [...processSteps, ...finalSteps].reduce(
+                (sum, step) => sum + (Number(step.amount) || 0),
+                0
+              ) ||
+              0}
+          </Badge>
         </div>
 
-        {timeline.length === 0 ? (
-          <div className="text-center py-6 text-sm text-muted-foreground">
-            No timeline data available
-          </div>
-        ) : (
-          <div className="relative">
-            {/* Vertical Timeline Line */}
-            <div 
-              className="absolute left-[19px] top-6 bottom-6 w-0.5" 
-              style={{ backgroundColor: '#c4b5fd' }}
-            />
-
-            <div className="space-y-4">
-              {timeline.map((stage, index) => (
-                <div key={stage.id} className="relative flex gap-4">
-                  {/* Timeline Node */}
-                  <div className="relative z-10 flex-shrink-0">
-                    <div 
-                      className={`w-10 h-10 rounded-full border-2 flex items-center justify-center bg-white ${stage.color}`}
-                    >
-                      {stage.icon}
-                    </div>
-                  </div>
-
-                  {/* Content Card */}
-                  <div 
-                    className="flex-1 p-3 rounded-xl border"
-                    style={{ backgroundColor: 'white', borderColor: '#e9d5ff' }}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{stage.stage}</p>
-                        <Badge className={`mt-1 text-[10px] ${getStatusColor(stage.status)}`}>
-                          {getStatusLabel(stage.status)}
-                        </Badge>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-xs font-medium text-gray-700">
-                          {format(new Date(stage.timestamp), 'MMM dd, yyyy')}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {format(new Date(stage.timestamp), 'hh:mm a')}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Stage Details */}
-                    <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                      {stage.assignedTo && (
-                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-blue-50">
-                          <User size={14} className="text-blue-600" weight="fill" />
-                          <div>
-                            <p className="text-[10px] text-blue-600 font-medium">Assigned To</p>
-                            <p className="font-semibold text-gray-800">{stage.assignedTo}</p>
-                          </div>
-                        </div>
-                      )}
-                      {stage.assignedBy && (
-                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-purple-50">
-                          <User size={14} className="text-purple-600" weight="fill" />
-                          <div>
-                            <p className="text-[10px] text-purple-600 font-medium">Assigned By</p>
-                            <p className="font-semibold text-gray-800">{stage.assignedBy}</p>
-                          </div>
-                        </div>
-                      )}
-                      {stage.duration && (
-                        <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-50">
-                          <Calendar size={14} className="text-amber-600" weight="fill" />
-                          <div>
-                            <p className="text-[10px] text-amber-600 font-medium">Duration</p>
-                            <p className="font-semibold text-gray-800">{stage.duration}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Notes */}
-                    {stage.notes && (
-                      <div className="mt-2 p-2 rounded-lg bg-gray-50">
-                        <p className="text-xs text-gray-600">
-                          <span className="font-medium">Note:</span> {stage.notes}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+        <div className="space-y-4">
+          {/* Order Placed */}
+          <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold text-gray-900">Order Placed</p>
+                <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">
+                  COMPLETED
+                </Badge>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs font-medium text-gray-700">
+                  {format(new Date(serviceOrder.createdAt || serviceOrder.serviceOrderDate), 'MMM dd, yyyy')}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {format(new Date(serviceOrder.createdAt || serviceOrder.serviceOrderDate), 'hh:mm a')}
+                </p>
+              </div>
             </div>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="rounded-lg border bg-white/80 p-2.5">
+                <p className="text-[10px] text-muted-foreground">Placed On</p>
+                <p className="text-xs font-semibold">
+                  {format(new Date(serviceOrder.createdAt || serviceOrder.serviceOrderDate), 'MMM dd, yyyy · hh:mm a')}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-white/80 p-2.5">
+                <p className="text-[10px] text-muted-foreground">Order Amount</p>
+                <p className="text-sm font-bold text-[#6A64F2]">
+                  ₹{pricing.totalAmount || pricing.stitchingCost || 0}
+                </p>
+              </div>
+            </div>
+          </div>
 
-            {/* Current Status Indicator */}
-            {serviceOrder.orderStatus !== 'delivered' && (
-              <div className="mt-4 p-3 rounded-xl border-2 border-dashed" style={{ borderColor: '#c4b5fd', backgroundColor: '#faf5ff' }}>
-                <div className="flex items-center gap-2">
-                  <Spinner size={16} className="animate-spin text-purple-500" />
-                  <p className="text-sm font-medium text-purple-700">
-                    Current Status: <span className="capitalize">{serviceOrder.orderStatus.replace(/-/g, ' ')}</span>
+          {/* Order Accepted */}
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold text-gray-900">Order Accepted</p>
+                <Badge
+                  className={`text-[10px] border ${
+                    serviceOrder.acceptedDate
+                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-100 text-amber-700 border-amber-200'
+                  }`}
+                >
+                  {serviceOrder.acceptedDate ? 'COMPLETED' : 'PENDING'}
+                </Badge>
+              </div>
+              {serviceOrder.acceptedDate && (
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-medium text-gray-700">
+                    {format(new Date(serviceOrder.acceptedDate), 'MMM dd, yyyy')}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {format(new Date(serviceOrder.acceptedDate), 'hh:mm a')}
                   </p>
                 </div>
+              )}
+            </div>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="rounded-lg border bg-white/80 p-2.5">
+                <p className="text-[10px] text-emerald-600">Accepted On</p>
+                <p className="text-xs font-semibold">
+                  {serviceOrder.acceptedDate
+                    ? format(new Date(serviceOrder.acceptedDate), 'MMM dd, yyyy · hh:mm a')
+                    : 'Not accepted yet'}
+                </p>
               </div>
-            )}
+              <div className="rounded-lg border bg-white/80 p-2.5">
+                <p className="text-[10px] text-emerald-600">Accepted By</p>
+                <p className="text-xs font-semibold">Admin</p>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Stitching Process */}
+          {(() => {
+            const allCompleted = ['ready', 'finished', 'job-completed', 'received-note', 'delivered'].includes(orderStatus);
+            const workStarted = orderStatus === 'inprogress';
+            const resolvedStatuses = processSteps.map((step, index) =>
+              step.status === 'completed' || (allCompleted && !step.status)
+                ? 'completed'
+                : 'pending'
+            );
+            const completedCount = resolvedStatuses.filter(status => status === 'completed').length;
+            const hasPartialProgress =
+              completedCount > 0 && completedCount < processSteps.length;
+
+            return (
+              <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-[#6A64F2]">Order Process</p>
+                    <Badge className="bg-violet-100 text-violet-700 border border-violet-200 text-[10px]">
+                      {completedCount === processSteps.length
+                        ? 'COMPLETED'
+                        : hasPartialProgress || workStarted
+                          ? 'IN PROGRESS'
+                          : 'PENDING'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs font-semibold text-gray-700">
+                    <span className="text-emerald-600">{completedCount}</span> / {processSteps.length} Completed
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {processSteps.map((step, index) => {
+                    const resolvedStatus = resolvedStatuses[index];
+                    const active = false;
+                    const completed = resolvedStatus === 'completed';
+                    return (
+                      <div
+                        key={step.id}
+                        className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-xl border bg-white p-3"
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                            completed ? 'bg-emerald-500' : active ? 'bg-orange-500' : 'bg-slate-400'
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{step.name}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {completed ? 'Cost' : 'Estimated Cost'}
+                          </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={Number(step.amount) || 0}
+                            disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                            onChange={(e) => {
+                              const nextAmount = Number(e.target.value);
+                              setProcessSteps(prev =>
+                                prev.map(s =>
+                                  s.id === step.id
+                                    ? {
+                                        ...s,
+                                        amount: Number.isFinite(nextAmount) ? nextAmount : 0,
+                                      }
+                                    : s
+                                )
+                              );
+                            }}
+                            onBlur={(e) => {
+                              const nextAmount = Number(e.target.value);
+                              handleProcessAmountChange(
+                                step.id,
+                                Number.isFinite(nextAmount) ? nextAmount : 0
+                              );
+                            }}
+                            className="h-7 w-[88px] text-right text-sm font-bold"
+                          />
+                          <Select
+                            value={resolvedStatus === 'completed' ? 'completed' : 'pending'}
+                            onValueChange={(value) =>
+                              handleProcessStatusChange(
+                                step.id,
+                                value as 'pending' | 'completed'
+                              )
+                            }
+                            disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                          >
+                            <SelectTrigger className="h-7 w-[120px] text-[10px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Fixed closing steps — colored cards, no numbers */}
+          {finalSteps.map(step => {
+            const theme =
+              step.id === 'final_work_completed'
+                ? {
+                    card: 'border-sky-200 bg-sky-50/40',
+                    label: 'text-sky-600',
+                    badgeDone: 'bg-sky-100 text-sky-700 border-sky-200',
+                    badgePending: 'bg-amber-100 text-amber-700 border-amber-200',
+                    badgeActive: 'bg-orange-100 text-orange-700 border-orange-200',
+                  }
+                  : {
+                      card: 'border-indigo-200 bg-indigo-50/40',
+                      label: 'text-indigo-600',
+                      badgeDone: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+                      badgePending: 'bg-amber-100 text-amber-700 border-amber-200',
+                      badgeActive: 'bg-orange-100 text-orange-700 border-orange-200',
+                    };
+
+            const resolvedStatus = step.status === 'completed' ? 'completed' : 'pending';
+            const statusLabel = resolvedStatus === 'completed' ? 'COMPLETED' : 'PENDING';
+            const badgeClass =
+              resolvedStatus === 'completed' ? theme.badgeDone : theme.badgePending;
+
+            return (
+              <div key={step.id} className={`rounded-xl border p-3 ${theme.card}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 truncate">{step.name}</p>
+                    <Badge className={`text-[10px] border shrink-0 ${badgeClass}`}>{statusLabel}</Badge>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={Number(step.amount) || 0}
+                      disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                      onChange={(e) => {
+                        const nextAmount = Number(e.target.value);
+                        setFinalSteps(prev =>
+                          prev.map(s =>
+                            s.id === step.id
+                              ? { ...s, amount: Number.isFinite(nextAmount) ? nextAmount : 0 }
+                              : s
+                          )
+                        );
+                      }}
+                      onBlur={(e) => {
+                        const nextAmount = Number(e.target.value);
+                        handleFinalAmountChange(
+                          step.id,
+                          Number.isFinite(nextAmount) ? nextAmount : 0
+                        );
+                      }}
+                      className="h-7 w-[88px] text-right text-sm font-bold bg-white"
+                    />
+                    <Select
+                      value={resolvedStatus === 'completed' ? 'completed' : 'pending'}
+                      onValueChange={(value) =>
+                        handleFinalStatusChange(
+                          step.id,
+                          value as 'pending' | 'completed'
+                        )
+                      }
+                      disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                    >
+                      <SelectTrigger className="h-7 w-[120px] text-[10px] bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </Card>
     </div>
   );

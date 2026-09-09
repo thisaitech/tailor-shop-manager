@@ -128,7 +128,9 @@ export type ServiceOrderStatus =
   | 'waitingForDC'   // Vendor accepted, waiting for Delivery Challan to be created (VENDOR ONLY)
   | 'inprogress'     // Work in progress (for vendors: after DC created, for employees: after accept)
   | 'rejected'       // Rejected by vendor/employee
+  | 'cancelled'      // Cancelled by owner
   | 'ready'          // Ready to deliver (for employees)
+  | 'finished'       // Order work finished (finished product, not yet handed to customer)
   | 'job-completed'  // Job work completed (for vendors - needs goods receipt)
   | 'received-note'  // Goods received at shop (for vendors after goods receipt)
   | 'delivered';     // Final delivery to customer
@@ -195,10 +197,44 @@ export interface ServiceOrder {
   orderQty: number; // Total numeric quantity (sum of all dress items)
   uom: UOM; // Unit of Measurement (Nos, Cms, Inches, etc.)
   designList: string[]; // Array of design image URLs (legacy)
-  stitchingCost: number; // Total INR amount (sum of all dress items)
+  stitchingCost: number; // Approximate stitching cost entered at order creation
+  /** Order-level copy of category stitching steps (amounts editable per order) */
+  orderStitchingSteps?: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    order: number;
+    status?: 'pending' | 'in_progress' | 'completed';
+    startedAt?: number;
+    completedAt?: number;
+  }>;
+  /** Fixed closing steps shown after stitching process on order details */
+  orderFinalSteps?: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    order: number;
+    status?: 'pending' | 'in_progress' | 'completed';
+    startedAt?: number;
+    completedAt?: number;
+  }>;
+  finalStitchingCost?: number; // Final stitching cost set at delivery (undefined = not updated yet)
   expectedDeliveryDate: number; // Delivery date timestamp
   reference?: string; // Notes, instructions
+  /** Fabric / cloth details for the order (shown to employees) */
+  fabricDetails?: string;
+  /** Custom design instructions entered for this order */
+  designNotes?: string;
+  /** Design choices selected for this order */
+  designPreferences?: Array<{
+    id: string;
+    label: string;
+    value: string;
+    options: string[];
+  }>;
   orderStatus: ServiceOrderStatus; // Order status
+  /** Employee-side work process (pause / clarification) while order is in progress */
+  employeeWorkProcess?: 'active' | 'paused' | 'clarification';
   
   // === Assignment/Allotment Fields (merged from orderAllotment) ===
   assignmentType?: StitchingAllotmentType; // 'employee' or 'vendor'
@@ -222,6 +258,8 @@ export interface ServiceOrder {
   acceptedDate?: number; // Date when vendor/employee accepted
   rejectedDate?: number; // Date when rejected
   rejectionReason?: string; // Reason for rejection
+  cancelledDate?: number; // Date when cancelled by owner
+  cancellationReason?: string; // Reason for cancellation
   completedDate?: number; // Date when work completed (ready/job-completed)
   goodsReceivedDate?: number; // Date when goods received (for vendors)
   goodsReceiptNo?: string; // Goods receipt number
@@ -238,6 +276,10 @@ export interface ServiceOrder {
   advanceAmount?: number; // Advance paid
   balanceAmount?: number; // Balance due
   paymentStatus?: 'pending' | 'partial' | 'completed';
+  deliveryPaymentMode?: 'cash' | 'qrpay' | 'nil'; // Payment mode used at delivery
+  amountReceivedAtDelivery?: number; // Amount received at delivery
+  /** Preferred document number entered at creation (used as id when saving) */
+  orderNumber?: string;
   
   // Company/Admin reference
   companyId?: string; // Company ID

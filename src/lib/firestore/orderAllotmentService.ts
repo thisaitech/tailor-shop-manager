@@ -22,16 +22,13 @@ const ORDER_ALLOTMENTS_COLLECTION = 'orderAllotment';
  * Generate auto-incrementing job work ID
  * Format: JOB0001, JOB0002, etc.
  */
-async function generateJobWorkId(companyId: string): Promise<string> {
+async function generateJobWorkId(companyId: string, prefix = 'JOB', digits = 4): Promise<string> {
   try {
-    const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
-    const q = query(allotmentsRef, where('companyId', '==', companyId));
-    const snapshot = await getDocs(q);
-    const count = snapshot.size + 1;
-    return `JOB${count.toString().padStart(4, '0')}`;
+    const { generateNextNumber } = await import('@/lib/firestore/numberSeriesService');
+    return await generateNextNumber(companyId, prefix, digits, 'jobWork');
   } catch (error) {
     console.error('[orderAllotmentService] Error generating job work ID:', error);
-    return `JOB${Date.now()}`;
+    return `${prefix}${Date.now()}`;
   }
 }
 
@@ -139,6 +136,10 @@ export async function addOrderAllotment(
  */
 export async function getOrderAllotmentsByCompany(companyId: string): Promise<OrderAllotment[]> {
   try {
+    if (!companyId) {
+      console.warn('[orderAllotmentService] getOrderAllotmentsByCompany called without companyId');
+      return [];
+    }
     const allotmentsRef = collection(db, ORDER_ALLOTMENTS_COLLECTION);
     const q = query(allotmentsRef, where('companyId', '==', companyId));
     const snapshot = await getDocs(q);
@@ -156,7 +157,7 @@ export async function getOrderAllotmentsByCompany(companyId: string): Promise<Or
     return allotments;
   } catch (error) {
     console.error('[orderAllotmentService] Error getting order allotments:', error);
-    throw error;
+    return [];
   }
 }
 
@@ -405,8 +406,8 @@ export async function updateVendorOrderStatus(
       if (allotmentData.serviceOrderNo) {
         try {
           const { updateServiceOrderStatus } = await import('./serviceOrderService');
-          await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'ready');
-          console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} to 'ready'`);
+          await updateServiceOrderStatus(allotmentData.serviceOrderNo, 'finished');
+          console.log(`[orderAllotmentService] Updated service order ${allotmentData.serviceOrderNo} to 'finished'`);
         } catch (serviceOrderError) {
           console.error('[orderAllotmentService] Error updating service order:', serviceOrderError);
           // Continue with the allotment update even if service order update fails

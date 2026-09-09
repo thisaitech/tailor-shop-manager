@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 import { generateServiceOrderId } from '@/lib/firestore/serviceOrderService';
+import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
 import {
   ProformaInvoiceData,
   ProformaInvoiceItem,
@@ -33,7 +34,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { ServiceOrder, OrderCategory, Customer, Measurements, UOM, ModeOfPayment, AdvancePayment, DressItem, DressType } from '@/lib/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank, Microphone, Stop, Play, Trash, ArrowLeft } from '@phosphor-icons/react';
+import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank, Microphone, Stop, Play, Trash, ArrowLeft, DotsSixVertical, PencilSimple } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { uploadPhoto } from '@/lib/storage';
 import { dataUrlToFile } from '@/lib/storage';
@@ -42,6 +43,7 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   DesignCategory,
   DesignImage,
+  StitchingStep,
   getDesignCategoriesByCompany,
 } from '@/lib/firestore/designCategoryService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
@@ -70,6 +72,454 @@ const GARMENT_TYPES_BY_CATEGORY = {
     { key: 'halfTrousers', label: 'Half Trousers', icon: Pants },
   ],
 } as const;
+
+type OrderDesignPreference = {
+  id: string;
+  label: string;
+  value: string;
+  options: string[];
+};
+
+const TOP_DESIGN_PREFERENCES: OrderDesignPreference[] = [
+  {
+    id: 'neckType',
+    label: 'Neck Type',
+    value: '',
+    options: ['Round Neck', 'V Neck', 'Boat Neck', 'Square Neck', 'High Neck', 'Collar'],
+  },
+  {
+    id: 'sleeveType',
+    label: 'Sleeve Type',
+    value: '',
+    options: ['Sleeveless', 'Short Sleeve', 'Half Sleeve', '3/4 Sleeve', 'Full Sleeve'],
+  },
+  {
+    id: 'fitType',
+    label: 'Fit Type',
+    value: '',
+    options: ['Slim Fit', 'Regular Fit', 'Relaxed Fit', 'Loose Fit'],
+  },
+  {
+    id: 'patternWork',
+    label: 'Pattern / Work',
+    value: '',
+    options: ['Plain', 'Printed', 'Embroidery', 'Zari Work', 'Bead Work'],
+  },
+  {
+    id: 'liningRequired',
+    label: 'Lining Required',
+    value: '',
+    options: ['Yes', 'No'],
+  },
+  {
+    id: 'sideOpen',
+    label: 'Side Open',
+    value: '',
+    options: ['Yes', 'No'],
+  },
+];
+
+const GARMENT_DESIGN_PREFERENCES: Record<string, OrderDesignPreference[]> = {
+  shirt: [
+    {
+      id: 'collarType',
+      label: 'Collar Type',
+      value: '',
+      options: ['Regular Collar', 'Mandarin Collar', 'Button Down', 'Spread Collar', 'Band Collar'],
+    },
+    {
+      id: 'sleeveType',
+      label: 'Sleeve Type',
+      value: '',
+      options: ['Half Sleeve', 'Full Sleeve', '3/4 Sleeve', 'Short Sleeve'],
+    },
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Slim Fit', 'Regular Fit', 'Relaxed Fit'],
+    },
+    {
+      id: 'cuffType',
+      label: 'Cuff Type',
+      value: '',
+      options: ['Single Cuff', 'Double Cuff', 'No Cuff'],
+    },
+    {
+      id: 'pocketType',
+      label: 'Pocket',
+      value: '',
+      options: ['No Pocket', 'Single Pocket', 'Double Pocket'],
+    },
+    {
+      id: 'patternWork',
+      label: 'Pattern / Work',
+      value: '',
+      options: ['Plain', 'Striped', 'Checked', 'Printed'],
+    },
+  ],
+  pant: [
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Slim Fit', 'Regular Fit', 'Relaxed Fit', 'Loose Fit'],
+    },
+    {
+      id: 'waistbandType',
+      label: 'Waistband',
+      value: '',
+      options: ['Regular', 'Elastic', 'Drawstring', 'Belt Loops'],
+    },
+    {
+      id: 'pleatType',
+      label: 'Pleat Style',
+      value: '',
+      options: ['No Pleat', 'Single Pleat', 'Double Pleat'],
+    },
+    {
+      id: 'pocketType',
+      label: 'Pocket Type',
+      value: '',
+      options: ['Side Pocket', 'Cross Pocket', 'Back Pocket', 'No Pocket'],
+    },
+    {
+      id: 'bottomStyle',
+      label: 'Bottom Style',
+      value: '',
+      options: ['Straight', 'Tapered', 'Bootcut', 'Wide Leg'],
+    },
+    {
+      id: 'liningRequired',
+      label: 'Lining Required',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+  ],
+  coat: [
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Slim Fit', 'Regular Fit', 'Loose Fit'],
+    },
+    {
+      id: 'lapelType',
+      label: 'Lapel Type',
+      value: '',
+      options: ['Notch Lapel', 'Peak Lapel', 'Shawl Lapel', 'No Lapel'],
+    },
+    {
+      id: 'buttonStyle',
+      label: 'Button Style',
+      value: '',
+      options: ['Single Breasted', 'Double Breasted', 'No Button'],
+    },
+    {
+      id: 'ventType',
+      label: 'Vent Style',
+      value: '',
+      options: ['No Vent', 'Center Vent', 'Side Vents'],
+    },
+    {
+      id: 'liningRequired',
+      label: 'Lining Required',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+    {
+      id: 'patternWork',
+      label: 'Pattern / Work',
+      value: '',
+      options: ['Plain', 'Checked', 'Striped', 'Printed'],
+    },
+  ],
+  blouse: [
+    {
+      id: 'neckType',
+      label: 'Neck Type',
+      value: '',
+      options: ['Round Neck', 'V Neck', 'Boat Neck', 'Square Neck', 'High Neck', 'Collar'],
+    },
+    {
+      id: 'sleeveType',
+      label: 'Sleeve Type',
+      value: '',
+      options: ['Sleeveless', 'Short Sleeve', 'Half Sleeve', '3/4 Sleeve', 'Full Sleeve'],
+    },
+    {
+      id: 'backOpen',
+      label: 'Back Open',
+      value: '',
+      options: ['Yes', 'No', 'Hook', 'Zip'],
+    },
+    {
+      id: 'padding',
+      label: 'Padding',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+    {
+      id: 'liningRequired',
+      label: 'Lining Required',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+    {
+      id: 'patternWork',
+      label: 'Pattern / Work',
+      value: '',
+      options: ['Plain', 'Printed', 'Embroidery', 'Zari Work', 'Bead Work', 'Stone Work'],
+    },
+  ],
+  churidar: [
+    {
+      id: 'neckType',
+      label: 'Neck Type',
+      value: '',
+      options: ['Round Neck', 'V Neck', 'Boat Neck', 'Square Neck', 'High Neck', 'Chinese Collar'],
+    },
+    {
+      id: 'sleeveType',
+      label: 'Sleeve Type',
+      value: '',
+      options: ['Sleeveless', 'Short Sleeve', 'Half Sleeve', '3/4 Sleeve', 'Full Sleeve'],
+    },
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Straight', 'A-Line', 'Anarkali', 'Flared'],
+    },
+    {
+      id: 'sideSlit',
+      label: 'Side Slit',
+      value: '',
+      options: ['Yes', 'No', 'Both Sides'],
+    },
+    {
+      id: 'liningRequired',
+      label: 'Lining Required',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+    {
+      id: 'patternWork',
+      label: 'Pattern / Work',
+      value: '',
+      options: ['Plain', 'Printed', 'Embroidery', 'Zari Work', 'Bead Work', 'Mirror Work'],
+    },
+  ],
+  kurthi: [
+    {
+      id: 'neckType',
+      label: 'Neck Type',
+      value: '',
+      options: ['Round Neck', 'V Neck', 'Boat Neck', 'Square Neck', 'High Neck', 'Chinese Collar'],
+    },
+    {
+      id: 'sleeveType',
+      label: 'Sleeve Type',
+      value: '',
+      options: ['Sleeveless', 'Short Sleeve', 'Half Sleeve', '3/4 Sleeve', 'Full Sleeve'],
+    },
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Straight Kurthi', 'A-Line', 'Anarkali', 'Flared', 'Front Slit'],
+    },
+    {
+      id: 'lengthStyle',
+      label: 'Length Style',
+      value: '',
+      options: ['Short', 'Knee Length', 'Calf Length', 'Full Length'],
+    },
+    {
+      id: 'sideSlit',
+      label: 'Side Slit',
+      value: '',
+      options: ['Yes', 'No', 'Both Sides'],
+    },
+    {
+      id: 'patternWork',
+      label: 'Pattern / Work',
+      value: '',
+      options: ['Plain', 'Printed', 'Embroidery', 'Zari Work', 'Bead Work', 'Mirror Work'],
+    },
+  ],
+  halfTrousers: [
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Slim Fit', 'Regular Fit', 'Relaxed Fit'],
+    },
+    {
+      id: 'waistbandType',
+      label: 'Waistband',
+      value: '',
+      options: ['Regular', 'Elastic', 'Drawstring'],
+    },
+    {
+      id: 'pocketType',
+      label: 'Pocket Type',
+      value: '',
+      options: ['Side Pocket', 'No Pocket', 'Cargo Pocket'],
+    },
+    {
+      id: 'bottomStyle',
+      label: 'Bottom Style',
+      value: '',
+      options: ['Straight', 'Tapered', 'Cuffed'],
+    },
+  ],
+  chuditharTop: [
+    {
+      id: 'neckType',
+      label: 'Neck Type',
+      value: '',
+      options: ['Round Neck', 'V Neck', 'Boat Neck', 'Square Neck', 'High Neck'],
+    },
+    {
+      id: 'sleeveType',
+      label: 'Sleeve Type',
+      value: '',
+      options: ['Sleeveless', 'Short Sleeve', 'Half Sleeve', '3/4 Sleeve', 'Full Sleeve'],
+    },
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Straight', 'A-Line', 'Flared'],
+    },
+    {
+      id: 'sideSlit',
+      label: 'Side Slit',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+    {
+      id: 'patternWork',
+      label: 'Pattern / Work',
+      value: '',
+      options: ['Plain', 'Printed', 'Embroidery', 'Zari Work'],
+    },
+  ],
+  chuditharPant: [
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Regular', 'Churidar Fit', 'Patiala', 'Salwar'],
+    },
+    {
+      id: 'waistbandType',
+      label: 'Waistband',
+      value: '',
+      options: ['Elastic', 'Drawstring', 'Regular'],
+    },
+    {
+      id: 'bottomStyle',
+      label: 'Bottom Style',
+      value: '',
+      options: ['Churidar', 'Straight', 'Flared'],
+    },
+    {
+      id: 'pocketType',
+      label: 'Pocket',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+  ],
+  trouser: [
+    {
+      id: 'fitType',
+      label: 'Fit Type',
+      value: '',
+      options: ['Slim Fit', 'Regular Fit', 'Relaxed Fit'],
+    },
+    {
+      id: 'pleatType',
+      label: 'Pleat Style',
+      value: '',
+      options: ['No Pleat', 'Single Pleat', 'Double Pleat'],
+    },
+    {
+      id: 'pocketType',
+      label: 'Pocket Type',
+      value: '',
+      options: ['Side Pocket', 'Cross Pocket', 'Back Pocket'],
+    },
+    {
+      id: 'bottomStyle',
+      label: 'Bottom Style',
+      value: '',
+      options: ['Straight', 'Tapered', 'Bootcut'],
+    },
+    {
+      id: 'liningRequired',
+      label: 'Lining Required',
+      value: '',
+      options: ['Yes', 'No'],
+    },
+  ],
+};
+
+function resolveGarmentPreferenceKey(garmentKey: string, garmentLabel?: string): string {
+  const key = garmentKey.toLowerCase();
+  const label = (garmentLabel || garmentKey).toLowerCase();
+
+  if (GARMENT_DESIGN_PREFERENCES[garmentKey]) return garmentKey;
+  if (GARMENT_DESIGN_PREFERENCES[key]) return key;
+
+  if (label.includes('kurthi') || label.includes('kurti')) return 'kurthi';
+  if (label.includes('blouse')) return 'blouse';
+  if (label.includes('churidar') || label.includes('chudithar top')) return 'churidar';
+  if (label.includes('shirt')) return 'shirt';
+  if (label.includes('coat') || label.includes('blazer') || label.includes('jacket')) return 'coat';
+  if (
+    label.includes('pant') ||
+    label.includes('trouser') ||
+    label.includes('salwar') ||
+    label.includes('patiala')
+  ) {
+    return label.includes('chudithar') || label.includes('churidar') ? 'chuditharPant' : 'pant';
+  }
+  if (label.includes('half')) return 'halfTrousers';
+
+  return 'top';
+}
+
+function getDesignPreferencesForGarments(
+  garmentKeys: string[],
+  getLabel: (key: string) => string
+): OrderDesignPreference[] {
+  if (garmentKeys.length === 0) return [];
+
+  const usePrefix = garmentKeys.length > 1;
+  const preferences: OrderDesignPreference[] = [];
+
+  for (const garmentKey of garmentKeys) {
+    const label = getLabel(garmentKey);
+    const preferenceKey = resolveGarmentPreferenceKey(garmentKey, label);
+    const source =
+      GARMENT_DESIGN_PREFERENCES[preferenceKey] ||
+      (preferenceKey === 'top' ? TOP_DESIGN_PREFERENCES : TOP_DESIGN_PREFERENCES);
+
+    for (const preference of source) {
+      preferences.push({
+        ...preference,
+        id: usePrefix ? `${garmentKey}_${preference.id}` : preference.id,
+        label: usePrefix ? `${label} - ${preference.label}` : preference.label,
+        value: '',
+        options: [...preference.options],
+      });
+    }
+  }
+
+  return preferences;
+}
 
 // Measurement field configurations for each garment type
 const MEASUREMENT_CATEGORIES = {
@@ -192,7 +642,123 @@ const MEASUREMENT_CATEGORIES = {
   },
 };
 
-type MeasurementCategoryKey = keyof typeof MEASUREMENT_CATEGORIES;
+type MeasurementCategoryKey = string;
+
+type GarmentFieldConfig = {
+  key: string;
+  label: string;
+  type: string;
+  options?: string[];
+};
+
+type GarmentTypeOption = {
+  key: string;
+  label: string;
+  icon: typeof TShirt;
+};
+
+interface CustomGarmentType {
+  key: string;
+  label: string;
+  category: OrderCategory;
+}
+
+const CUSTOM_GARMENTS_STORAGE_KEY = 'custom_garment_types';
+const CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY = 'custom_measurement_fields';
+
+const DEFAULT_CUSTOM_MEASUREMENT_FIELDS: GarmentFieldConfig[] = [
+  { key: 'chest', label: 'Chest', type: 'number' },
+  { key: 'waist', label: 'Waist', type: 'number' },
+  { key: 'length', label: 'Length', type: 'number' },
+  { key: 'shoulder', label: 'Shoulder', type: 'number' },
+  { key: 'hip', label: 'Hip', type: 'number' },
+];
+
+type CustomMeasurementFieldsMap = Record<string, GarmentFieldConfig[]>;
+
+function loadCustomGarmentTypes(): CustomGarmentType[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_GARMENTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomGarmentTypes(garments: CustomGarmentType[]) {
+  try {
+    localStorage.setItem(CUSTOM_GARMENTS_STORAGE_KEY, JSON.stringify(garments));
+  } catch {
+    // ignore
+  }
+}
+
+function loadCustomMeasurementFields(): CustomMeasurementFieldsMap {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCustomMeasurementFields(fields: CustomMeasurementFieldsMap) {
+  try {
+    localStorage.setItem(CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY, JSON.stringify(fields));
+  } catch {
+    // ignore
+  }
+}
+
+function slugifyKey(label: string): string {
+  const base = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  return base || ('custom_' + Date.now());
+}
+
+function getMeasurementConfig(
+  key: string,
+  customGarmentTypes: CustomGarmentType[] = [],
+  customMeasurementFields: CustomMeasurementFieldsMap = {}
+) {
+  let base:
+    | { label: string; icon: typeof TShirt; fields: readonly GarmentFieldConfig[] | GarmentFieldConfig[] }
+    | undefined;
+
+  if (key in MEASUREMENT_CATEGORIES) {
+    base = MEASUREMENT_CATEGORIES[key as keyof typeof MEASUREMENT_CATEGORIES];
+  } else {
+    const custom = customGarmentTypes.find((g) => g.key === key);
+    if (custom) {
+      base = {
+        label: custom.label,
+        icon: Dress,
+        fields: DEFAULT_CUSTOM_MEASUREMENT_FIELDS,
+      };
+    }
+  }
+
+  if (!base) return undefined;
+
+  const extraFields = customMeasurementFields[key] || [];
+  if (extraFields.length === 0) {
+    return { ...base, fields: [...base.fields] };
+  }
+
+  const existingKeys = new Set(base.fields.map((f) => f.key));
+  const mergedExtras = extraFields.filter((f) => !existingKeys.has(f.key));
+  return {
+    ...base,
+    fields: [...base.fields, ...mergedExtras],
+  };
+}
 
 // Pant options labels
 const PANT_OPTIONS_LABELS: Record<string, string> = {
@@ -273,8 +839,16 @@ export function ServiceOrderForm({
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
   const [reference, setReference] = useState('');
+  const [fabricDetails, setFabricDetails] = useState('');
+  const [designNotes, setDesignNotes] = useState('');
   const [selectedMeasurementCategories, setSelectedMeasurementCategories] = useState<MeasurementCategoryKey[]>([]);
   const [activeDressType, setActiveDressType] = useState<MeasurementCategoryKey | null>(null); // Currently viewing dress type
+  const [customGarmentTypes, setCustomGarmentTypes] = useState<CustomGarmentType[]>(() => loadCustomGarmentTypes());
+  const [showAddGarmentDialog, setShowAddGarmentDialog] = useState(false);
+  const [newGarmentName, setNewGarmentName] = useState('');
+  const [customMeasurementFields, setCustomMeasurementFields] = useState<CustomMeasurementFieldsMap>(() => loadCustomMeasurementFields());
+  const [showAddMeasurementFieldDialog, setShowAddMeasurementFieldDialog] = useState(false);
+  const [newMeasurementFieldName, setNewMeasurementFieldName] = useState('');
 
   // Dress Items (multiple dresses per order)
   const [dressItems, setDressItems] = useState<DressItem[]>([]);
@@ -286,12 +860,24 @@ export function ServiceOrderForm({
 
   // Design category selection
   const [designCategories, setDesignCategories] = useState<DesignCategory[]>([]);
-  const [selectedDesignCategory, setSelectedDesignCategory] = useState<string>('');
-  const [showDesignModal, setShowDesignModal] = useState(false);
+  const [selectedDesignCategory, setSelectedDesignCategory] = useState('');
   const [selectedDesigns, setSelectedDesigns] = useState<DesignImage[]>([]);
+  const [showDesignModal, setShowDesignModal] = useState(false);
+  const [designPreferences, setDesignPreferences] = useState<OrderDesignPreference[]>([]);
+  const [showAddPreferenceDialog, setShowAddPreferenceDialog] = useState(false);
+  const [newPreferenceName, setNewPreferenceName] = useState('');
+  const [newPreferenceOptions, setNewPreferenceOptions] = useState('');
   const [nextServiceOrderId, setNextServiceOrderId] = useState<string>('');
+  /** Order-only stitching steps (manual per order) */
+  const [orderStitchingSteps, setOrderStitchingSteps] = useState<StitchingStep[]>([]);
+  const [hasLoadedStitchingProcess, setHasLoadedStitchingProcess] = useState(false);
+  const [orderStepDialogOpen, setOrderStepDialogOpen] = useState(false);
+  const [newOrderStepName, setNewOrderStepName] = useState('');
+  const [newOrderStepAmount, setNewOrderStepAmount] = useState('');
+  const [editingOrderStepIndex, setEditingOrderStepIndex] = useState<number | null>(null);
+  const [orderStepDragIndex, setOrderStepDragIndex] = useState<number | null>(null);
 
-  // Upload Designs Modal (unified camera + gallery)
+  // Reference design image upload modal (unified camera + gallery)
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadMode, setUploadMode] = useState<'camera' | 'gallery'>('camera');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -380,10 +966,8 @@ export function ServiceOrderForm({
             setCompanyName(company.companyName || company.aliasName || 'Tailor Shop');
           }
 
-          // Load design categories
           const categories = await getDesignCategoriesByCompany(actualCompanyId);
           setDesignCategories(categories);
-          console.log(`[ServiceOrderForm] Loaded ${categories.length} design categories`);
 
           // Load 15 most recent customers - refresh whenever customers prop changes
           if (open && !order) {
@@ -392,12 +976,14 @@ export function ServiceOrderForm({
             console.log(`[ServiceOrderForm] Loaded ${recent.length} recent customers`);
           }
 
-          // Generate next service order ID for new orders
+          // Generate next service order ID for new orders (keep admin edits)
           if (open && !order) {
             const nextId = await generateServiceOrderId(actualCompanyId);
-            setNextServiceOrderId(nextId);
-            setServiceOrderNo(nextId);
-            console.log(`[ServiceOrderForm] Next service order ID: ${nextId}`);
+            setNextServiceOrderId((prev) => prev || nextId);
+            setServiceOrderNo((prev) => prev || nextId);
+            if (!nextServiceOrderId) {
+              console.log(`[ServiceOrderForm] Next service order ID: ${nextId}`);
+            }
           } else if (!open) {
             // Reset when form closes
             setNextServiceOrderId('');
@@ -449,12 +1035,168 @@ export function ServiceOrderForm({
     }
   }, [initialCustomerId, open, order]);
 
-  // Get images for selected category
   const categoryImages = useMemo(() => {
     if (!selectedDesignCategory) return [];
-    const category = designCategories.find(c => c.id === selectedDesignCategory);
-    return category?.images || [];
+    return designCategories.find(category => category.id === selectedDesignCategory)?.images || [];
   }, [designCategories, selectedDesignCategory]);
+
+  const handleDesignCategoryChange = (categoryId: string) => {
+    setSelectedDesignCategory(categoryId);
+    setShowDesignModal(true);
+
+    const category = designCategories.find(item => item.id === categoryId);
+    const categorySteps = [...(category?.stitchingSteps || [])]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((step, index) => ({
+        ...step,
+        id: step.id || `category_step_${index}`,
+        amount: Number(step.amount) || 0,
+        order: index + 1,
+      }));
+
+    setOrderStitchingSteps(categorySteps);
+    setHasLoadedStitchingProcess(true);
+  };
+
+  const handleDesignPreferenceChange = (id: string, value: string) => {
+    setDesignPreferences(prev =>
+      prev.map(preference =>
+        preference.id === id ? { ...preference, value } : preference
+      )
+    );
+  };
+
+  const handleAddDesignPreference = () => {
+    const label = newPreferenceName.trim();
+    const options = newPreferenceOptions
+      .split(',')
+      .map(option => option.trim())
+      .filter(Boolean);
+
+    if (!label) {
+      toast.error('Please enter a preference name');
+      return;
+    }
+    if (options.length === 0) {
+      toast.error('Please enter at least one option');
+      return;
+    }
+
+    setDesignPreferences(prev => [
+      ...prev,
+      {
+        id: `custom_preference_${Date.now()}`,
+        label,
+        value: '',
+        options,
+      },
+    ]);
+    setNewPreferenceName('');
+    setNewPreferenceOptions('');
+    setShowAddPreferenceDialog(false);
+  };
+
+  // Show stitching process + garment-specific preferences once a garment type is selected
+  useEffect(() => {
+    if (selectedGarmentTypes.length > 0) {
+      setHasLoadedStitchingProcess(true);
+      setDesignPreferences(
+        getDesignPreferencesForGarments(selectedGarmentTypes, garmentKey =>
+          getMeasurementConfig(garmentKey, customGarmentTypes, customMeasurementFields)?.label ||
+          garmentKey.replace(/([A-Z])/g, ' $1').replace(/^./, character => character.toUpperCase())
+        )
+      );
+    } else {
+      setDesignPreferences([]);
+    }
+  }, [selectedGarmentTypes.join('|'), customGarmentTypes, customMeasurementFields]);
+
+  // Keep approximate stitching cost in sync with order step amounts
+  useEffect(() => {
+    if (!hasLoadedStitchingProcess) return;
+    const total = orderStitchingSteps.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    setStitchingCost(total);
+  }, [orderStitchingSteps, hasLoadedStitchingProcess]);
+
+  const handleOrderStepAmountChange = (index: number, amount: number) => {
+    setOrderStitchingSteps(prev =>
+      prev.map((step, i) =>
+        i === index ? { ...step, amount: Number.isNaN(amount) ? 0 : amount } : step
+      )
+    );
+  };
+
+  const openAddOrderStepDialog = () => {
+    setEditingOrderStepIndex(null);
+    setNewOrderStepName('');
+    setNewOrderStepAmount('');
+    setOrderStepDialogOpen(true);
+  };
+
+  const openEditOrderStepDialog = (index: number) => {
+    const step = orderStitchingSteps[index];
+    setEditingOrderStepIndex(index);
+    setNewOrderStepName(step.name);
+    setNewOrderStepAmount(String(step.amount ?? ''));
+    setOrderStepDialogOpen(true);
+  };
+
+  const handleSaveOrderStep = () => {
+    if (!newOrderStepName.trim()) {
+      toast.error('Please enter a step name');
+      return;
+    }
+    const amount = Number(newOrderStepAmount);
+    if (Number.isNaN(amount) || amount < 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    setOrderStitchingSteps(prev => {
+      if (editingOrderStepIndex !== null) {
+        return prev.map((step, index) =>
+          index === editingOrderStepIndex
+            ? { ...step, name: newOrderStepName.trim(), amount }
+            : step
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: `order_step_${Date.now()}`,
+          name: newOrderStepName.trim(),
+          amount,
+          order: prev.length + 1,
+        },
+      ];
+    });
+    setHasLoadedStitchingProcess(true);
+    setNewOrderStepName('');
+    setNewOrderStepAmount('');
+    setEditingOrderStepIndex(null);
+    setOrderStepDialogOpen(false);
+  };
+
+  const handleDeleteOrderStep = (index: number) => {
+    setOrderStitchingSteps(prev =>
+      prev
+        .filter((_, i) => i !== index)
+        .map((step, i) => ({ ...step, order: i + 1 }))
+    );
+  };
+
+  const handleOrderStepDragOver = (event: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
+    event.preventDefault();
+    if (orderStepDragIndex === null || orderStepDragIndex === targetIndex) return;
+
+    setOrderStitchingSteps(prev => {
+      const reordered = [...prev];
+      const [moved] = reordered.splice(orderStepDragIndex, 1);
+      reordered.splice(targetIndex, 0, moved);
+      return reordered.map((step, i) => ({ ...step, order: i + 1 }));
+    });
+    setOrderStepDragIndex(targetIndex);
+  };
 
   // Filter customers based on search
   const filteredCustomers = useMemo(() => {
@@ -468,10 +1210,15 @@ export function ServiceOrderForm({
     );
   }, [customers, customerSearch]);
 
-  // Get selected customer
+  // Get selected customer (from props list, search results, or recent)
   const selectedCustomer = useMemo(() => {
-    return customers.find((c) => c.id === customerId);
-  }, [customers, customerId]);
+    if (!customerId) return undefined;
+    return (
+      customers.find((c) => c.id === customerId) ||
+      searchResults.find((c) => c.id === customerId) ||
+      recentCustomers.find((c) => c.id === customerId)
+    );
+  }, [customers, customerId, searchResults, recentCustomers]);
 
   // Get measurement value with UOM conversion for display
   const getDisplayValue = (value: number | undefined): string => {
@@ -505,10 +1252,23 @@ export function ServiceOrderForm({
       setUom(order.uom);
       setDesignList(order.designList);
       setStitchingCost(order.stitchingCost);
+      setOrderStitchingSteps(
+        Array.isArray(order.orderStitchingSteps)
+          ? [...order.orderStitchingSteps].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          : []
+      );
+      setHasLoadedStitchingProcess(Array.isArray(order.orderStitchingSteps));
       setExpectedDeliveryDate(
         format(new Date(order.expectedDeliveryDate), 'yyyy-MM-dd')
       );
       setReference(order.reference || '');
+      setFabricDetails(order.fabricDetails || '');
+      setDesignNotes(order.designNotes || '');
+      setDesignPreferences(
+        Array.isArray(order.designPreferences)
+          ? order.designPreferences
+          : []
+      );
     } else {
       resetForm();
     }
@@ -531,6 +1291,8 @@ export function ServiceOrderForm({
     setExpectedDeliveryDate('');
     setShowCalendar(false);
     setReference('');
+    setFabricDetails('');
+    setDesignNotes('');
     setSelectedMeasurementCategories([]);
     setActiveDressType(null);
     setDressItems([]);
@@ -538,9 +1300,16 @@ export function ServiceOrderForm({
     setModeOfPayment('cash');
     setAdvanceAmount(0);
     setProformaInvoiceNo('');
-    // Reset design selection
     setSelectedDesignCategory('');
     setSelectedDesigns([]);
+    setShowDesignModal(false);
+    setDesignPreferences([]);
+    setShowAddPreferenceDialog(false);
+    setNewPreferenceName('');
+    setNewPreferenceOptions('');
+    // Reset stitching process
+    setOrderStitchingSteps([]);
+    setHasLoadedStitchingProcess(false);
     // Reset garment types and audio
     setSelectedGarmentTypes([]);
     setIsRecording(false);
@@ -633,7 +1402,10 @@ export function ServiceOrderForm({
       });
     }
 
-    const customer = customers.find((c) => c.id === customerId);
+    const customer =
+      customers.find((c) => c.id === customerId) ||
+      searchResults.find((c) => c.id === customerId) ||
+      recentCustomers.find((c) => c.id === customerId);
     if (!customer) {
       toast.error('Selected customer not found');
       return;
@@ -643,14 +1415,9 @@ export function ServiceOrderForm({
     const finalOrderQty = dressItems.length > 0 ? totalDressQty : orderQty;
     const finalStitchingCost = dressItems.length > 0 ? totalDressCost : stitchingCost;
 
-    // Combine uploaded designs and selected designs from categories
-    const allDesigns = [
-      ...designList,
-      ...selectedDesigns.map(d => d.url)
-    ];
-
     const orderData: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'> = {
       serviceOrderDate: Date.now(),
+      orderNumber: (nextServiceOrderId || serviceOrderNo).trim().toUpperCase(),
       customerId,
       customerName: customer.name,
       orderCategory,
@@ -659,10 +1426,25 @@ export function ServiceOrderForm({
       dressItems: dressItems.length > 0 ? dressItems : undefined,
       orderQty: finalOrderQty,
       uom,
-      designList: allDesigns,
+      designList: [
+        ...designList,
+        ...selectedDesigns.map(design => design.url),
+      ],
       stitchingCost: finalStitchingCost,
+      orderStitchingSteps:
+        orderStitchingSteps.length > 0
+          ? orderStitchingSteps.map((step, index) => ({
+              id: step.id,
+              name: step.name,
+              amount: Number(step.amount) || 0,
+              order: index + 1,
+            }))
+          : undefined,
       expectedDeliveryDate: new Date(expectedDeliveryDate).getTime(),
       reference: reference.trim() || undefined,
+      fabricDetails: fabricDetails.trim() || undefined,
+      designNotes: designNotes.trim() || undefined,
+      designPreferences: designPreferences.length > 0 ? designPreferences : undefined,
       orderStatus: 'open',
     };
 
@@ -697,6 +1479,19 @@ export function ServiceOrderForm({
       return;
     }
 
+    const effectiveAdvance = modeOfPayment === 'nil' ? 0 : advanceAmount;
+    const orderWithPayment: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'> = {
+      ...createdOrderData,
+      orderNumber: createdOrderData.orderNumber || (nextServiceOrderId || serviceOrderNo).trim().toUpperCase(),
+      advanceAmount: effectiveAdvance,
+      balanceAmount: createdOrderData.stitchingCost - effectiveAdvance,
+      paymentStatus: effectiveAdvance <= 0
+        ? 'pending'
+        : effectiveAdvance >= createdOrderData.stitchingCost
+          ? 'completed'
+          : 'partial',
+    };
+
     // Create advance payment data
     const advancePaymentData: Omit<AdvancePayment, 'id' | 'proformaInvoiceNo' | 'invoiceNo' | 'createdAt' | 'updatedAt'> = {
       proformaInvoiceDate: Date.now(),
@@ -705,12 +1500,14 @@ export function ServiceOrderForm({
       customerId: createdOrderData.customerId,
       customerName: createdOrderData.customerName,
       modeOfPayment,
-      amount: advanceAmount,
+      amount: effectiveAdvance,
       totalJobCost: createdOrderData.stitchingCost,
-      remainingAmount: createdOrderData.stitchingCost - advanceAmount,
+      remainingAmount: createdOrderData.stitchingCost - effectiveAdvance,
       companyId: '', // Will be set by the parent component
       adminId: '', // Will be set by the parent component
     };
+
+    setCreatedOrderData(orderWithPayment);
 
     // Check if customer has WhatsApp/phone number
     if (selectedCustomer && (selectedCustomer.whatsappNumber || selectedCustomer.phone)) {
@@ -719,7 +1516,7 @@ export function ServiceOrderForm({
       setShowWhatsAppDialog(true);
     } else {
       // No phone number, save directly
-      onSave(createdOrderData, advancePaymentData);
+      onSave(orderWithPayment, advancePaymentData);
       onOpenChange(false);
       resetForm();
     }
@@ -728,8 +1525,21 @@ export function ServiceOrderForm({
   // Complete save after WhatsApp dialog (send or skip)
   const completeOrderSave = () => {
     if (!createdOrderData) return;
+
+    const effectiveAdvance = modeOfPayment === 'nil' ? 0 : advanceAmount;
+    const orderWithPayment: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'> = {
+      ...createdOrderData,
+      orderNumber: createdOrderData.orderNumber || (nextServiceOrderId || serviceOrderNo).trim().toUpperCase(),
+      advanceAmount: effectiveAdvance,
+      balanceAmount: createdOrderData.stitchingCost - effectiveAdvance,
+      paymentStatus: effectiveAdvance <= 0
+        ? 'pending'
+        : effectiveAdvance >= createdOrderData.stitchingCost
+          ? 'completed'
+          : 'partial',
+    };
     
-    onSave(createdOrderData, pendingAdvancePaymentData || undefined);
+    onSave(orderWithPayment, pendingAdvancePaymentData || undefined);
     onOpenChange(false);
     setShowWhatsAppDialog(false);
     setPendingAdvancePaymentData(null);
@@ -767,7 +1577,7 @@ export function ServiceOrderForm({
           const hasValues = Object.values(categoryMeasurements).some(v => v !== undefined && v !== null && v !== '' && v !== 0);
           if (hasValues) {
             // Get display label for garment type
-            const garmentLabel = MEASUREMENT_CATEGORIES[category as MeasurementCategoryKey]?.label || category;
+            const garmentLabel = getMeasurementConfig(String(category), customGarmentTypes, customMeasurementFields)?.label || category;
             measurementsData.push({
               garmentType: garmentLabel,
               measurements: categoryMeasurements as Record<string, number | string | undefined>,
@@ -779,7 +1589,7 @@ export function ServiceOrderForm({
 
     // Get garment type labels
     const garmentTypeLabels = selectedGarmentTypes.map(gt => {
-      const config = MEASUREMENT_CATEGORIES[gt as MeasurementCategoryKey];
+      const config = getMeasurementConfig(gt, customGarmentTypes, customMeasurementFields);
       return config?.label || gt;
     });
 
@@ -833,38 +1643,44 @@ export function ServiceOrderForm({
     if (!createdOrderData?.measurements) return '';
 
     const measurementSections: string[] = [];
-    const categories = Object.keys(MEASUREMENT_CATEGORIES) as MeasurementCategoryKey[];
+    const categories = [
+      ...Object.keys(MEASUREMENT_CATEGORIES),
+      ...customGarmentTypes.map((g) => g.key),
+    ] as MeasurementCategoryKey[];
 
     categories.forEach(category => {
-      const data = createdOrderData.measurements?.[category] as Record<string, unknown> | undefined;
+      const config = getMeasurementConfig(category, customGarmentTypes, customMeasurementFields);
+      if (!config) return;
+
+      const data = createdOrderData.measurements?.[category as keyof Measurements] as Record<string, unknown> | undefined;
       if (!data) return;
 
       const values = Object.entries(data)
         .filter(([_, v]) => v !== undefined && v !== null)
         .map(([key, value]) => {
           const label = key.replace(/([A-Z])/g, ' $1').trim();
-          const displayVal = typeof value === 'number' ? `${value}"` : String(value);
-          return `<td style="padding: 6px 10px; border: 1px solid #e0e0e0; font-size: 12px;"><strong>${label}:</strong> ${displayVal}</td>`;
+          const displayVal = typeof value === 'number' ? (value + '"') : String(value);
+          return '<td style="padding: 6px 10px; border: 1px solid #e0e0e0; font-size: 12px;"><strong>' + label + ':</strong> ' + displayVal + '</td>';
         });
 
       if (values.length === 0) return;
 
       // Group into rows of 4 columns
-      const rows: string[] = [];
+      const rows = [];
       for (let i = 0; i < values.length; i += 4) {
         const rowCells = values.slice(i, i + 4);
         while (rowCells.length < 4) rowCells.push('<td style="padding: 6px 10px; border: 1px solid #e0e0e0;"></td>');
-        rows.push(`<tr>${rowCells.join('')}</tr>`);
+        rows.push('<tr>' + rowCells.join('') + '</tr>');
       }
 
-      measurementSections.push(`
-        <div style="margin-bottom: 10px;">
-          <h4 style="font-size: 12px; color: #1a5f7a; margin-bottom: 5px; text-transform: uppercase;">${MEASUREMENT_CATEGORIES[category].label}</h4>
-          <table style="width: 100%; border-collapse: collapse;">
-            ${rows.join('')}
-          </table>
-        </div>
-      `);
+      measurementSections.push(
+        '<div style="margin-bottom: 10px;">' +
+          '<h4 style="font-size: 12px; color: #1a5f7a; margin-bottom: 5px; text-transform: uppercase;">' + config.label + '</h4>' +
+          '<table style="width: 100%; border-collapse: collapse;">' +
+            rows.join('') +
+          '</table>' +
+        '</div>'
+      );
     });
 
     return measurementSections.length > 0 ? measurementSections.join('') : '<p style="color: #666; font-size: 12px;">No measurements recorded</p>';
@@ -936,15 +1752,22 @@ export function ServiceOrderForm({
     toast.success(`Proforma Invoice ${proformaInvoiceNo} downloaded as PDF.`);
   };
 
-  const handleCustomerChange = (value: string) => {
+  const handleCustomerChange = (value: string, customerFromList?: Customer) => {
     if (value === 'create-new') {
       onCreateCustomer?.();
       return;
     }
 
     setCustomerId(value);
-    setCustomerSearch('');
-    const customer = customers.find((c) => c.id === value);
+    const customer =
+      customerFromList ||
+      customers.find((c) => c.id === value) ||
+      searchResults.find((c) => c.id === value) ||
+      recentCustomers.find((c) => c.id === value);
+
+    // Keep the selected name visible in the search box
+    setCustomerSearch(customer?.name || '');
+    setShowCustomerDropdown(false);
 
     console.log('[ServiceOrderForm] Customer selected:', customer?.name);
 
@@ -963,7 +1786,7 @@ export function ServiceOrderForm({
       setPreviousMeasurements({});
       setMeasurements({});
 
-      toast.info('Customer selected. Select a dress type to add measurements.');
+      toast.info(customer ? `Customer selected: ${customer.name}` : 'Customer selected. Select a dress type to add measurements.');
     }
 
     // Reset selected dress types - user will choose which ones to add
@@ -1193,11 +2016,88 @@ export function ServiceOrderForm({
     return pantData.options.includes('packet') || pantData.options.includes('backPacket');
   }, [measurements]);
 
-  // Get garment types available for the selected category
-  const availableGarmentTypes = useMemo(() => {
+  // Get garment types available for the selected category (built-in + custom)
+  const availableGarmentTypes = useMemo((): GarmentTypeOption[] => {
     if (!orderCategory) return [];
-    return GARMENT_TYPES_BY_CATEGORY[orderCategory] || [];
-  }, [orderCategory]);
+    const base = (GARMENT_TYPES_BY_CATEGORY[orderCategory] || []).map((garment) => ({
+      key: garment.key,
+      label: garment.label,
+      icon: garment.icon,
+    }));
+    const custom = customGarmentTypes
+      .filter((g) => g.category === orderCategory)
+      .map((g) => ({
+        key: g.key,
+        label: g.label,
+        icon: Dress,
+      }));
+    return [...base, ...custom];
+  }, [orderCategory, customGarmentTypes]);
+
+  const handleAddCustomGarment = () => {
+    const label = newGarmentName.trim();
+    if (!label) {
+      toast.error('Please enter a garment category name');
+      return;
+    }
+    if (!orderCategory) {
+      toast.error('Please select Men / Women / Kids first');
+      return;
+    }
+
+    let key = slugifyKey(label);
+    const existingKeys = new Set([
+      ...Object.keys(MEASUREMENT_CATEGORIES),
+      ...customGarmentTypes.map((g) => g.key),
+    ]);
+    if (existingKeys.has(key)) {
+      key = key + '_' + Date.now().toString().slice(-4);
+    }
+
+    const next = [...customGarmentTypes, { key, label, category: orderCategory }];
+    setCustomGarmentTypes(next);
+    saveCustomGarmentTypes(next);
+    setSelectedGarmentTypes((prev) => [...prev, key]);
+    setActiveDressType(key);
+    setNewGarmentName('');
+    setShowAddGarmentDialog(false);
+    toast.success(label + ' category added');
+  };
+
+  const handleAddMeasurementField = () => {
+    const label = newMeasurementFieldName.trim();
+    if (!label) {
+      toast.error('Please enter a measurement name');
+      return;
+    }
+    if (!activeDressType) {
+      toast.error('Please select a garment type first');
+      return;
+    }
+
+    const config = getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields);
+    if (!config) {
+      toast.error('Invalid garment type');
+      return;
+    }
+
+    let key = slugifyKey(label);
+    const existingKeys = new Set(config.fields.map((f) => f.key));
+    if (existingKeys.has(key)) {
+      key = key + '_' + Date.now().toString().slice(-4);
+    }
+
+    const newField = { key, label, type: 'number' };
+    const next = {
+      ...customMeasurementFields,
+      [activeDressType]: [...(customMeasurementFields[activeDressType] || []), newField],
+    };
+    setCustomMeasurementFields(next);
+    saveCustomMeasurementFields(next);
+    setNewMeasurementFieldName('');
+    setShowAddMeasurementFieldDialog(false);
+    toast.success(label + ' added to size sheet');
+  };
 
   // Validate measurements are filled for selected garment types
   const validateMeasurements = (): boolean => {
@@ -1207,7 +2107,7 @@ export function ServiceOrderForm({
     }
 
     for (const garmentType of selectedGarmentTypes) {
-      const config = MEASUREMENT_CATEGORIES[garmentType as MeasurementCategoryKey];
+      const config = getMeasurementConfig(garmentType, customGarmentTypes, customMeasurementFields);
       if (!config) continue;
 
       const garmentMeasurements = measurements[garmentType as keyof typeof measurements] as Record<string, unknown> | undefined;
@@ -1297,7 +2197,7 @@ export function ServiceOrderForm({
                       return;
                     }
                     if (!stitchingCost || stitchingCost <= 0) {
-                      toast.error('Please enter stitching cost');
+                      toast.error('Please enter approximate stitching cost');
                       return;
                     }
                     if (!expectedDeliveryDate) {
@@ -1333,6 +2233,17 @@ export function ServiceOrderForm({
         <form onSubmit={handleStep1Submit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-background">
 
+            {!order && actualCompanyId && (
+              <NumberSeriesSelect
+                companyId={actualCompanyId}
+                defaultPrefix="SO"
+                onSeriesChange={(_series, nextNumber) => {
+                  setNextServiceOrderId(nextNumber);
+                  setServiceOrderNo(nextNumber);
+                }}
+              />
+            )}
+
             {/* Customer Selection with Search */}
             <div className="space-y-3">
               <Label htmlFor="customer-search" className="text-sm font-medium">Customer Name *</Label>
@@ -1351,7 +2262,7 @@ export function ServiceOrderForm({
                   onFocus={() => setShowCustomerDropdown(true)}
                   onBlur={() => {
                     // Delay closing to allow clicking dropdown items
-                    setTimeout(() => setShowCustomerDropdown(false), 200);
+                    setTimeout(() => setShowCustomerDropdown(false), 250);
                   }}
                   className="pl-10 h-11"
                   autoFocus={false}
@@ -1388,10 +2299,10 @@ export function ServiceOrderForm({
                         <button
                           key={customer.id}
                           type="button"
-                          onClick={() => {
-                            setCustomerId(customer.id);
-                            setCustomerSearch('');
-                            handleCustomerChange(customer.id);
+                          onMouseDown={(e) => {
+                            // Prevent input blur from swallowing the click
+                            e.preventDefault();
+                            handleCustomerChange(customer.id, customer);
                           }}
                           className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
                             customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
@@ -1426,9 +2337,10 @@ export function ServiceOrderForm({
                         <button
                           key={customer.id}
                           type="button"
-                          onClick={() => {
-                            setCustomerId(customer.id);
-                            handleCustomerChange(customer.id);
+                          onMouseDown={(e) => {
+                            // Prevent input blur from swallowing the click
+                            e.preventDefault();
+                            handleCustomerChange(customer.id, customer);
                           }}
                           className={`w-full text-left px-3 py-2 rounded-md hover:bg-accent transition-colors ${
                             customerId === customer.id ? 'bg-green-50 dark:bg-green-950/20 border border-green-200' : ''
@@ -1527,21 +2439,35 @@ export function ServiceOrderForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="stitchingCost" className="text-sm font-medium">Stitching Cost (₹) *</Label>
-                  <Input
-                    id="stitchingCost"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={stitchingCost || ''}
-                    onChange={(e) =>
-                      setStitchingCost(parseFloat(e.target.value) || 0)
-                    }
-                    onFocus={(e) => e.target.select()}
-                    placeholder="0.00"
-                    className="h-12 text-base bg-background"
-                    required
-                  />
+                  <Label htmlFor="stitchingCost" className="text-sm font-medium">Approximate Stitching Cost (₹) *</Label>
+                  {orderStitchingSteps.length > 0 ? (
+                    <>
+                      <Input
+                        id="stitchingCost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={stitchingCost || ''}
+                        readOnly
+                        className="h-12 text-base bg-muted"
+                      />
+                    </>
+                  ) : (
+                    <Input
+                      id="stitchingCost"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={stitchingCost || ''}
+                      onChange={(e) =>
+                        setStitchingCost(parseFloat(e.target.value) || 0)
+                      }
+                      onFocus={(e) => e.target.select()}
+                      placeholder="0.00"
+                      className="h-12 text-base bg-background"
+                      required
+                    />
+                  )}
                   {stitchingCost > 0 && (
                     <p className="text-xs text-green-600 font-semibold">
                       {formatCurrency(stitchingCost)}
@@ -1663,30 +2589,57 @@ export function ServiceOrderForm({
                       </button>
                     );
                   })}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewGarmentName('');
+                      setShowAddGarmentDialog(true);
+                    }}
+                    className="relative flex flex-col items-center gap-1 min-w-[70px] p-3 rounded-xl transition-all border-2 border-dashed border-purple-300 bg-white text-purple-600 hover:border-purple-500 hover:bg-purple-50"
+                  >
+                    <div className="w-[26px] h-[26px] flex items-center justify-center rounded-full bg-purple-100">
+                      <Plus size={16} weight="bold" />
+                    </div>
+                    <span className="text-[11px] font-semibold">Add</span>
+                  </button>
                 </div>
 
                 {/* Measurement Fields - Show for active garment type */}
-                {activeDressType && MEASUREMENT_CATEGORIES[activeDressType] && (
+                {activeDressType && getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields) && (
                   <div className="space-y-4 pt-3 border-t border-purple-200">
                     {/* Garment Title */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2">
                       {(() => {
-                        const config = MEASUREMENT_CATEGORIES[activeDressType];
+                        const config = getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields);
                         const Icon = config.icon;
                         return (
-                          <>
+                          <div className="flex items-center gap-2">
                             <Icon size={20} weight="duotone" className="text-purple-600" />
                             <h4 className="font-semibold text-sm text-purple-700">
                               {config.label} Measurements
                             </h4>
-                          </>
+                          </div>
                         );
                       })()}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setNewMeasurementFieldName('');
+                          setShowAddMeasurementFieldDialog(true);
+                        }}
+                        className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50"
+                      >
+                        <Plus size={14} weight="bold" />
+                        Add
+                      </Button>
                     </div>
 
                     {/* Measurement Input Grid */}
                     <div className="grid grid-cols-2 gap-3">
-                      {MEASUREMENT_CATEGORIES[activeDressType].fields.map((field) => {
+                      {getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields).fields.map((field) => {
                         const garmentData = measurements[activeDressType as keyof typeof measurements] as Record<string, unknown> | undefined;
                         const value = garmentData?.[field.key];
 
@@ -1913,7 +2866,7 @@ export function ServiceOrderForm({
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedGarmentTypes.map((garmentKey) => {
-                        const config = MEASUREMENT_CATEGORIES[garmentKey as MeasurementCategoryKey];
+                        const config = getMeasurementConfig(garmentKey, customGarmentTypes, customMeasurementFields);
                         if (!config) return null;
                         const garmentData = measurements[garmentKey as keyof typeof measurements] as Record<string, unknown> | undefined;
                         const filledFieldsCount = garmentData
@@ -1962,148 +2915,275 @@ export function ServiceOrderForm({
               </div>
             )}
 
-            {/* Design Selection from Categories */}
+            {/* Design Category and predefined designs */}
             <div className="space-y-2">
               <Label>Select Design from Category</Label>
-              <div className="space-y-3">
-                {/* Category Dropdown */}
-                <Select value={selectedDesignCategory} onValueChange={(value) => {
-                  setSelectedDesignCategory(value);
-                  setShowDesignModal(true);
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a design category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {designCategories.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground text-center">
-                        No design categories available
-                      </div>
-                    ) : (
-                      designCategories.map(category => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name} ({category.images.length} designs)
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-
-                {/* Browse Designs Button */}
-                {selectedDesignCategory && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowDesignModal(true)}
-                    className="w-full"
-                  >
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    Browse Designs ({categoryImages.length} available)
-                  </Button>
-                )}
-
-                {/* Selected Designs Preview */}
-                {selectedDesigns.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Selected Designs ({selectedDesigns.length})</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {selectedDesigns.map((design) => (
-                        <div
-                          key={design.id}
-                          className="relative group aspect-square border rounded-lg overflow-hidden"
-                        >
-                          <img
-                            src={design.url}
-                            alt={design.name}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
-                            {design.designCode}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDesigns(prev => prev.filter(d => d.id !== design.id))}
-                            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
+              <Select
+                value={selectedDesignCategory}
+                onValueChange={handleDesignCategoryChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a design category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {designCategories.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      No design categories available
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
+                  ) : (
+                    designCategories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name} ({category.images.length} designs)
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
 
-            {/* Attach Sample Cloths */}
-            <div className="space-y-2">
-              <Label>Attach Sample Cloths</Label>
-              
-              {/* Hidden Camera Input for direct capture - Back Camera (fallback for web) */}
-              <input
-                id="sample-cloth-camera"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    try {
-                      setIsUploading(true);
-                      const downloadURL = await uploadPhoto(file, `designs/${Date.now()}_${file.name}`);
-                      setDesignList((prev) => [...prev, downloadURL]);
-                      toast.success('Photo uploaded successfully');
-                    } catch (error) {
-                      console.error('Upload error:', error);
-                      toast.error('Failed to upload photo');
-                    } finally {
-                      setIsUploading(false);
-                      e.target.value = ''; // Reset input
-                    }
-                  }
-                }}
-                className="hidden"
-              />
-              
-              <div className="space-y-2">
-                {/* Camera Button - Uses native camera on mobile, HTML input on web */}
+              {selectedDesignCategory && (
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={async () => {
-                    if (isNative) {
-                      // Use native camera (back camera)
-                      try {
-                        setIsUploading(true);
-                        const photoDataUrl = await takeNativePhoto();
-                        if (photoDataUrl) {
-                          const file = dataUrlToFile(photoDataUrl, `capture_${Date.now()}.jpg`);
-                          const downloadURL = await uploadPhoto(file, `designs/${Date.now()}_capture.jpg`);
-                          setDesignList((prev) => [...prev, downloadURL]);
-                          toast.success('Photo captured and uploaded!');
+                  onClick={() => setShowDesignModal(true)}
+                  className="w-full"
+                >
+                  <ImageIcon className="mr-2 h-4 w-4" />
+                  Browse Designs ({categoryImages.length} available)
+                </Button>
+              )}
+
+              {selectedDesigns.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Selected Designs ({selectedDesigns.length})
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedDesigns.map(design => (
+                      <div
+                        key={design.id}
+                        className="relative group aspect-square border rounded-lg overflow-hidden"
+                      >
+                        <img
+                          src={design.url}
+                          alt={design.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
+                          {design.designCode}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDesigns(prev => prev.filter(item => item.id !== design.id))}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedGarmentTypes.length > 0 && (
+              <div
+                className="rounded-xl border p-4 space-y-4"
+                style={{
+                  background: 'linear-gradient(135deg, #faf5ff 0%, #f5f3ff 100%)',
+                  borderColor: 'rgba(196, 181, 253, 0.55)',
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold text-[#7C3AED]">
+                    {selectedGarmentTypes
+                      .map(garmentKey =>
+                        getMeasurementConfig(garmentKey, customGarmentTypes, customMeasurementFields)?.label ||
+                        garmentKey.replace(/([A-Z])/g, ' $1').replace(/^./, character => character.toUpperCase())
+                      )
+                      .join(', ')}{' '}
+                    Design Preferences
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddPreferenceDialog(true)}
+                  >
+                    <Plus size={16} className="mr-1" />
+                    Add Preference
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {designPreferences.map(preference => (
+                    <div key={preference.id} className="space-y-2 min-w-0">
+                      <Label>{preference.label}</Label>
+                      <Select
+                        value={preference.value}
+                        onValueChange={(value) =>
+                          handleDesignPreferenceChange(preference.id, value)
                         }
-                      } catch (error) {
-                        console.error('Native camera error:', error);
-                        toast.error('Failed to capture photo');
-                      } finally {
-                        setIsUploading(false);
-                      }
-                    } else {
-                      // Fallback to HTML file input for web
-                      document.getElementById('sample-cloth-camera')?.click();
-                    }
+                      >
+                        <SelectTrigger className="w-full min-w-0">
+                          <SelectValue
+                            className="truncate"
+                            placeholder={`Select ${preference.label.toLowerCase()}`}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {preference.options.map(option => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stitching Process — shown after garment type is selected */}
+            {(selectedGarmentTypes.length > 0 || orderStitchingSteps.length > 0) && hasLoadedStitchingProcess && (
+              <div
+                className="rounded-xl border p-3 space-y-3"
+                style={{
+                  background: 'linear-gradient(135deg, #f3e8ff 0%, #ede9fe 50%, #e0e7ff 100%)',
+                  borderColor: 'rgba(196, 181, 253, 0.5)',
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Stitching Process</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 bg-white"
+                    onClick={openAddOrderStepDialog}
+                  >
+                    <Plus size={16} className="mr-1" />
+                    Add Step
+                  </Button>
+                </div>
+
+                {orderStitchingSteps.length === 0 ? (
+                  <div className="rounded-lg border border-dashed bg-white/80 px-3 py-6 text-center text-sm font-medium text-muted-foreground">
+                    No Stitching Process Found.
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border bg-white overflow-hidden">
+                      <div className="grid grid-cols-[28px_28px_1fr_90px_68px] gap-2 px-2 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/40">
+                        <span />
+                        <span className="text-center">#</span>
+                        <span>Step Name</span>
+                        <span>Amount (₹)</span>
+                        <span />
+                      </div>
+                      <div className="divide-y">
+                        {orderStitchingSteps.map((step, index) => (
+                          <div
+                            key={step.id}
+                            draggable
+                            onDragStart={() => setOrderStepDragIndex(index)}
+                            onDragOver={(event) => handleOrderStepDragOver(event, index)}
+                            onDragEnd={() => setOrderStepDragIndex(null)}
+                            className={`grid grid-cols-[28px_28px_1fr_90px_68px] gap-2 px-2 py-2 items-center ${
+                              orderStepDragIndex === index ? 'opacity-70 bg-violet-50' : ''
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              className="flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing"
+                              aria-label="Drag to reorder"
+                            >
+                              <DotsSixVertical size={18} weight="bold" />
+                            </button>
+                            <span className="text-center text-xs font-bold text-violet-700">
+                              {index + 1}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {step.name}
+                            </span>
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={step.amount}
+                              onChange={(e) =>
+                                handleOrderStepAmountChange(
+                                  index,
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              onFocus={(e) => e.target.select()}
+                              className="h-8 text-sm bg-background"
+                            />
+                            <div className="flex items-center">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-[#6A64F2]"
+                                onClick={() => openEditOrderStepDialog(index)}
+                                aria-label={`Edit ${step.name}`}
+                              >
+                                <PencilSimple size={16} />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:text-red-600"
+                                onClick={() => handleDeleteOrderStep(index)}
+                                aria-label={`Delete ${step.name}`}
+                              >
+                                <Trash size={16} />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div
+                      className="rounded-lg border border-dashed px-3 py-2.5 flex items-center justify-between bg-white/70"
+                      style={{ borderColor: 'rgba(139, 92, 246, 0.45)' }}
+                    >
+                      <span className="text-sm font-medium text-gray-800">
+                        Approximate Stitching Cost
+                      </span>
+                      <span className="text-lg font-bold text-[#6A64F2]">
+                        ₹{stitchingCost.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Reference Design Images */}
+            <div className="space-y-2">
+              <Label>Reference Design Image</Label>
+              
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setUploadMode('gallery');
+                    setShowUploadModal(true);
                   }}
                   className="w-full h-auto py-4 flex items-center justify-center gap-3 border-2 border-dashed hover:border-primary hover:bg-primary/5"
                   disabled={isUploading}
                 >
-                  <Camera size={24} weight="bold" className="text-primary" />
+                  <Upload size={24} weight="bold" className="text-primary" />
                   <div className="text-left">
-                    <span className="text-sm font-semibold block">
-                      {isUploading ? 'Uploading...' : 'Take Photo'}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {isNative ? 'Opens back camera' : 'Capture sample cloth image'}
-                    </span>
+                    <span className="text-sm font-semibold block">Upload Reference Image</span>
+                    <span className="text-xs text-muted-foreground">Choose from gallery</span>
                   </div>
                 </Button>
 
@@ -2117,7 +3197,7 @@ export function ServiceOrderForm({
                       >
                         <img
                           src={imageUrl}
-                          alt={`Sample ${index + 1}`}
+                          alt={`Reference design ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                         <button
@@ -2134,15 +3214,26 @@ export function ServiceOrderForm({
               </div>
             </div>
 
-            {/* Reference */}
+            {/* Design Notes */}
             <div className="space-y-2">
-              <Label htmlFor="reference">Reference / Notes</Label>
+              <Label htmlFor="designNotes">Design Notes</Label>
               <Textarea
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                placeholder="Cloth details, customer instructions, special design requests..."
+                id="designNotes"
+                value={designNotes}
+                onChange={(e) => setDesignNotes(e.target.value)}
+                placeholder="Enter custom design instructions..."
                 rows={4}
+              />
+            </div>
+
+            {/* Fabric */}
+            <div className="space-y-2">
+              <Label htmlFor="fabricDetails">Fabric</Label>
+              <Input
+                id="fabricDetails"
+                value={fabricDetails}
+                onChange={(e) => setFabricDetails(e.target.value)}
+                placeholder="e.g. Cotton, Silk, Linen..."
               />
             </div>
           </div>
@@ -2186,7 +3277,7 @@ export function ServiceOrderForm({
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-sm font-medium text-muted-foreground">Stitching Cost</Label>
+                    <Label className="text-sm font-medium text-muted-foreground">Approx. Stitching Cost</Label>
                     <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-bold text-primary">
                       ₹{createdOrderData.stitchingCost.toFixed(2)}
                     </div>
@@ -2264,24 +3355,38 @@ export function ServiceOrderForm({
               </div>
 
               {/* Payment Summary */}
-              <div className="bg-muted/30 rounded-xl p-5 border space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground">Payment Summary</h3>
+              <div className="rounded-xl p-5 border space-y-3 bg-white" style={{ borderColor: 'rgba(167, 139, 250, 0.45)' }}>
+                <h3 className="text-base font-bold text-purple-800">Payment Summary</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Total Stitching Cost</span>
-                    <span className="text-base font-semibold">₹{createdOrderData.stitchingCost.toFixed(2)}</span>
+                    <span className="text-sm text-muted-foreground">Approximate Stitching Cost</span>
+                    <span className="text-sm font-medium">₹{createdOrderData.stitchingCost.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      Final Stitching Cost (₹)
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold" title="Set at delivery">?</span>
+                    </span>
+                    <span className="text-sm font-semibold text-amber-600">Not Updated</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Advance Paid</span>
-                    <span className="text-base font-semibold text-primary">- ₹{(modeOfPayment === 'nil' ? 0 : advanceAmount).toFixed(2)}</span>
+                    <span className="text-sm font-semibold text-purple-700">- ₹{(modeOfPayment === 'nil' ? 0 : advanceAmount).toFixed(2)}</span>
                   </div>
                   <div className="border-t pt-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold">Balance Due</span>
-                      <span className="text-xl font-bold text-primary">
+                      <span className="text-sm font-bold flex items-center gap-1.5">
+                        Estimated Balance
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold" title="Based on approximate cost">?</span>
+                      </span>
+                      <span className="text-lg font-bold text-purple-700">
                         ₹{(createdOrderData.stitchingCost - (modeOfPayment === 'nil' ? 0 : advanceAmount)).toFixed(2)}
                       </span>
                     </div>
+                  </div>
+                  <div className="mt-1 rounded-lg px-3 py-2.5 text-xs text-purple-800 flex items-start gap-2" style={{ backgroundColor: '#fef9c3' }}>
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-purple-600 text-white text-[10px] font-bold flex-shrink-0 mt-0.5">i</span>
+                    <span>Final amount will be updated before delivery.</span>
                   </div>
                 </div>
               </div>
@@ -2349,6 +3454,95 @@ export function ServiceOrderForm({
       </DialogContent>
     </Dialog>
 
+    {/* Add/edit order-only stitching step */}
+    <Dialog open={orderStepDialogOpen} onOpenChange={setOrderStepDialogOpen}>
+      <DialogContent className="sm:max-w-[400px]" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>
+            {editingOrderStepIndex !== null ? 'Edit Stitching Step' : 'Add Stitching Step'}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="newOrderStepName">Step Name *</Label>
+            <Input
+              id="newOrderStepName"
+              value={newOrderStepName}
+              onChange={(event) => setNewOrderStepName(event.target.value)}
+              placeholder="e.g., Cutting"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="newOrderStepAmount">Amount (₹) *</Label>
+            <Input
+              id="newOrderStepAmount"
+              type="number"
+              min={0}
+              value={newOrderStepAmount}
+              onChange={(event) => setNewOrderStepAmount(event.target.value)}
+              placeholder="e.g., 100"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOrderStepDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSaveOrderStep} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
+              {editingOrderStepIndex !== null ? 'Update' : 'Add'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Add custom design preference */}
+    <Dialog open={showAddPreferenceDialog} onOpenChange={setShowAddPreferenceDialog}>
+      <DialogContent className="sm:max-w-[400px]" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Add Design Preference</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="newPreferenceName">Preference Name *</Label>
+            <Input
+              id="newPreferenceName"
+              value={newPreferenceName}
+              onChange={(event) => setNewPreferenceName(event.target.value)}
+              placeholder="e.g., Collar Style"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="newPreferenceOptions">Options *</Label>
+            <Input
+              id="newPreferenceOptions"
+              value={newPreferenceOptions}
+              onChange={(event) => setNewPreferenceOptions(event.target.value)}
+              placeholder="e.g., Mandarin, Spread, Button Down"
+            />
+            <p className="text-xs text-muted-foreground">
+              Separate each option with a comma.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAddPreferenceDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAddDesignPreference}
+              className="bg-[#6A64F2] hover:bg-[#5b55e0]"
+            >
+              Add
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     {/* WhatsApp Confirmation Dialog */}
     <WhatsAppConfirmationDialog
       open={showWhatsAppDialog}
@@ -2362,15 +3556,15 @@ export function ServiceOrderForm({
       skipButtonText="Skip & Save Order"
     />
 
-    {/* Design Selection Modal */}
+    {/* Design selection modal */}
     <Dialog open={showDesignModal} onOpenChange={setShowDesignModal}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
-            Select Designs - {designCategories.find(c => c.id === selectedDesignCategory)?.name}
+            Select Designs - {designCategories.find(category => category.id === selectedDesignCategory)?.name}
           </DialogTitle>
           <DialogDescription>
-            Click on designs to select/deselect them. Selected designs will be added to your order.
+            Click on designs to select or deselect them.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto py-4">
@@ -2381,20 +3575,22 @@ export function ServiceOrderForm({
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-              {categoryImages.map((image) => {
-                const isSelected = selectedDesigns.some(d => d.id === image.id);
+              {categoryImages.map(image => {
+                const isSelected = selectedDesigns.some(design => design.id === image.id);
                 return (
                   <div
                     key={image.id}
                     onClick={() => {
-                      if (isSelected) {
-                        setSelectedDesigns(prev => prev.filter(d => d.id !== image.id));
-                      } else {
-                        setSelectedDesigns(prev => [...prev, image]);
-                      }
+                      setSelectedDesigns(prev =>
+                        isSelected
+                          ? prev.filter(design => design.id !== image.id)
+                          : [...prev, image]
+                      );
                     }}
                     className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                      isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-muted-foreground/30'
+                      isSelected
+                        ? 'border-primary ring-2 ring-primary/30'
+                        : 'border-transparent hover:border-muted-foreground/30'
                     }`}
                   >
                     <div className="aspect-square">
@@ -2423,23 +3619,16 @@ export function ServiceOrderForm({
           <p className="text-sm text-muted-foreground">
             {selectedDesigns.length} design(s) selected
           </p>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowDesignModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setShowDesignModal(false)}>
-              Done
-            </Button>
-          </div>
+          <Button onClick={() => setShowDesignModal(false)}>Done</Button>
         </div>
       </DialogContent>
     </Dialog>
 
-    {/* Upload Designs Modal - Instagram Style */}
+    {/* Reference design image upload modal */}
     <Dialog open={showUploadModal} onOpenChange={handleCloseUploadModal}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Upload Designs</DialogTitle>
+          <DialogTitle>Reference Design Image</DialogTitle>
           <DialogDescription>
             Capture a photo with your camera or select from your gallery
           </DialogDescription>
@@ -2667,6 +3856,86 @@ export function ServiceOrderForm({
             defaultMonth={expectedDeliveryDate ? new Date(expectedDeliveryDate) : new Date()}
             className="rounded-md"
           />
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Add Garment Category Dialog */}
+    <Dialog open={showAddGarmentDialog} onOpenChange={setShowAddGarmentDialog}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Add Garment Category</DialogTitle>
+          <DialogDescription>
+            Create a new garment type for {orderCategory === 'female' ? 'Women' : orderCategory === 'male' ? 'Men' : orderCategory === 'kids' ? 'Kids' : 'this order'}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="new-garment-name">Category Name *</Label>
+            <Input
+              id="new-garment-name"
+              value={newGarmentName}
+              onChange={(e) => setNewGarmentName(e.target.value)}
+              placeholder="e.g., Lehenga, Kurti"
+              className="h-11"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddCustomGarment();
+                }
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setShowAddGarmentDialog(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleAddCustomGarment} className="gap-2">
+            <Plus size={16} weight="bold" />
+            Add Category
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Add Measurement Field Dialog */}
+    <Dialog open={showAddMeasurementFieldDialog} onOpenChange={setShowAddMeasurementFieldDialog}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Add Size Sheet Field</DialogTitle>
+          <DialogDescription>
+            Add a measurement field{activeDressType ? (' for ' + (getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields)?.label || activeDressType)) : ''}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="new-measurement-field">Measurement Name *</Label>
+            <Input
+              id="new-measurement-field"
+              value={newMeasurementFieldName}
+              onChange={(e) => setNewMeasurementFieldName(e.target.value)}
+              placeholder="e.g., Sleeve Length, Waist Length"
+              className="h-11"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddMeasurementField();
+                }
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setShowAddMeasurementFieldDialog(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleAddMeasurementField} className="gap-2">
+            <Plus size={16} weight="bold" />
+            Add Field
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

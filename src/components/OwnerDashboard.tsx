@@ -57,7 +57,7 @@ import {
 import {
   addAdvancePayment,
 } from '@/lib/firestore/advancePaymentService';
-import { getCompanyProfile } from '@/lib/firestore/companyService';
+import { getCompanyProfile, resolveCompanyForUser } from '@/lib/firestore/companyService';
 import { notifyOrderCreated, OrderConfirmationData } from '@/lib/notificationService';
 import { getCustomerById } from '@/lib/firestore/customerService';
 
@@ -112,13 +112,12 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
           return;
         }
 
-        // Get company profile to get the real company ID
-        const company = await getCompanyProfile(user.id);
-        if (!company) {
-          console.error('[OwnerDashboard] No company profile found for user:', user.id);
-          setLoading(false);
-          return;
-        }
+        // Resolve company profile (create/link if missing for seeded owner logins)
+        const company = await resolveCompanyForUser(user.id, {
+          phone: user.phone || user.username,
+          name: user.name,
+          employeeCompanyId: employee?.companyId,
+        });
 
         const realCompanyId = employee?.companyId || company.id;
         setCompanyId(realCompanyId);
@@ -139,10 +138,22 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
 
         // Load all data in PARALLEL for faster loading (instead of sequential)
         const [customersData, allotmentsData, employeesData, vendorsData] = await Promise.all([
-          getCustomersByCompany(realCompanyId),
-          getOrderAllotmentsByCompany(realCompanyId),
-          getEmployeesByCompany(user.id),
-          getVendorsByCompany(user.id),
+          getCustomersByCompany(realCompanyId).catch((err) => {
+            console.error('[OwnerDashboard] customers load failed:', err);
+            return [];
+          }),
+          getOrderAllotmentsByCompany(realCompanyId).catch((err) => {
+            console.error('[OwnerDashboard] allotments load failed:', err);
+            return [];
+          }),
+          getEmployeesByCompany(user.id).catch((err) => {
+            console.error('[OwnerDashboard] employees load failed:', err);
+            return [];
+          }),
+          getVendorsByCompany(user.id).catch((err) => {
+            console.error('[OwnerDashboard] vendors load failed:', err);
+            return [];
+          }),
         ]);
 
         // Set all state at once after parallel fetch completes
@@ -173,22 +184,39 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
         unsubscribeOrders();
       }
     };
-  }, [user]);
+  }, [user, employee]);
 
   const handleAddCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       console.log('[OwnerDashboard] Adding customer to Firestore newcustomers collection');
       console.log('[OwnerDashboard] Customer data with measurements:', customerData);
-      console.log('[OwnerDashboard] Company ID:', companyId);
+
+      let activeCompanyId = companyId;
+      if (!activeCompanyId && user?.id) {
+        const company = await resolveCompanyForUser(user.id, {
+          phone: user.phone || user.username,
+          name: user.name,
+          employeeCompanyId: employee?.companyId,
+        });
+        activeCompanyId = company.id;
+        setCompanyId(activeCompanyId);
+      }
+
+      if (!activeCompanyId) {
+        toast.error('Company profile missing. Please set up company profile first.');
+        throw new Error('No company ID');
+      }
+
+      console.log('[OwnerDashboard] Company ID:', activeCompanyId);
       console.log('[OwnerDashboard] Admin ID:', adminId);
 
-      const newCustomer = await addCustomer(customerData, companyId, adminId);
-      setCustomers([...(customers || []), newCustomer]);
+      const newCustomer = await addCustomer(customerData, activeCompanyId, adminId);
+      setCustomers((prev) => [...(prev || []), newCustomer]);
       toast.success('Account created successfully');
       return newCustomer; // Return the newly created customer
     } catch (error) {
       console.error('[OwnerDashboard] Error adding customer:', error);
-      toast.error('Failed to create account');
+      toast.error(error instanceof Error ? error.message : 'Failed to create account');
       throw error; // Re-throw to handle in caller
     }
   };
@@ -463,7 +491,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
       }
     } catch (error) {
       console.error('[OwnerDashboard] Error adding service order:', error);
-      toast.error('Failed to create service order');
+      toast.error(error instanceof Error ? error.message : 'Failed to create service order');
     }
   };
 
@@ -573,6 +601,14 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
               orderAllotments={orderAllotments || []}
               customer={customers.find(c => c.id === selectedServiceOrder.customerId)}
               onBack={() => setSelectedServiceOrder(null)}
+              onOrderUpdated={(updates) => {
+                setSelectedServiceOrder(prev => (prev ? { ...prev, ...updates } : prev));
+                setServiceOrders(prev =>
+                  (prev || []).map(order =>
+                    order.id === selectedServiceOrder.id ? { ...order, ...updates } : order
+                  )
+                );
+              }}
             />
           ) : orderFilter === 'overdue' ? (
             <OverDueOrdersList
@@ -627,6 +663,13 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
                 setShowOrderAllotmentForm(true);
               }}
             />
+          ) : orderFilter === 'cancelled' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="cancelled"
+            />
           ) : orderFilter === 'ready' ? (
             <ReadyToDeliverList
               serviceOrders={serviceOrders || []}
@@ -640,6 +683,27 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
                 setOrderAllotments(allotmentsData);
               }}
               onNavigateToPayment={onNavigateToPayment}
+            />
+          ) : orderFilter === 'finished' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="finished"
+              onMovedToReady={async () => {
+                const ordersData = await getServiceOrdersByCompany(companyId);
+                setServiceOrders(ordersData);
+                const allotmentsData = await getOrderAllotmentsByCompany(companyId);
+                setOrderAllotments(allotmentsData);
+                setOrderFilter('ready');
+              }}
+            />
+          ) : orderFilter === 'delivered' ? (
+            <ActiveOrdersList
+              serviceOrders={serviceOrders || []}
+              orderAllotments={orderAllotments || []}
+              onBack={handleBackToDashboard}
+              filterType="delivered"
             />
           ) : orderFilter === 'receivedNote' ? (
             <ReceivedNoteList
@@ -830,7 +894,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
               setShowServiceOrderForm(true);
             }
             setCustomerFormFromOrder(false);
-            setNewlyCreatedCustomerId(undefined);
+            // Keep newlyCreatedCustomerId — ServiceOrderForm needs it, clears on its own close
           }
         }}
         customer={editingCustomer || undefined}
@@ -867,7 +931,8 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
             }
           } catch (error) {
             console.error('[OwnerDashboard] Failed to save customer:', error);
-            toast.error('Failed to save customer');
+            // Re-throw so CustomerForm stays open; handleAddCustomer already showed toast
+            throw error;
           }
         }}
       />

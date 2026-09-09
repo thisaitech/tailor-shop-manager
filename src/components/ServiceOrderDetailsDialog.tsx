@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,9 +8,11 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Package, User, Calendar, Ruler, UserCircle, ClockCounterClockwise, ArrowRight, FilePdf, Printer, CheckCircle, XCircle, ArrowsClockwise, FileText, Truck, Spinner } from '@phosphor-icons/react';
+import { Package, User, Calendar, Ruler, ClockCounterClockwise, ArrowRight, FilePdf, Printer, CheckCircle, XCircle, ArrowsClockwise, FileText, Truck, Spinner } from '@phosphor-icons/react';
 import { format, isValid, parseISO } from 'date-fns';
-import { ServiceOrder, OrderAllotment, DressItem } from '@/lib/types';
+import { ServiceOrder, OrderAllotment, DressItem, Measurements } from '@/lib/types';
+import { getCustomerById } from '@/lib/firestore/customerService';
+import { getServiceOrderById } from '@/lib/firestore/serviceOrderService';
 
 // Helper function to safely format dates (accepts string, Date, number timestamp, or null/undefined)
 const safeFormatDate = (dateValue: string | Date | number | undefined | null, formatStr: string): string => {
@@ -57,10 +60,79 @@ interface ServiceOrderDetailsDialogProps {
   onClose: () => void;
 }
 
-export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, onClose }: ServiceOrderDetailsDialogProps) {
+export function ServiceOrderDetailsDialog({
+  serviceOrder: serviceOrderProp,
+  orderAllotment,
+  open,
+  onClose,
+}: ServiceOrderDetailsDialogProps) {
+  const [resolvedOrder, setResolvedOrder] = useState<ServiceOrder>(serviceOrderProp);
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
+
+  const hasMeasurementData = (measurements?: Measurements | null | any): boolean => {
+    if (!measurements) return false;
+    if (Array.isArray(measurements)) return measurements.length > 0;
+    if (typeof measurements !== 'object') return false;
+    return Object.values(measurements).some((category) => {
+      if (category === undefined || category === null || category === '') return false;
+      if (typeof category !== 'object') return true;
+      return Object.entries(category as Record<string, unknown>).some(([key, value]) => {
+        if (key === 'specialNote') return false;
+        return value !== undefined && value !== null && value !== '';
+      });
+    });
+  };
+
+  // Keep local order in sync and enrich measurements from customer if missing
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    const enrich = async () => {
+      setResolvedOrder(serviceOrderProp);
+      let next: ServiceOrder = { ...serviceOrderProp };
+
+      try {
+        const fresh = await getServiceOrderById(serviceOrderProp.id);
+        if (fresh && !cancelled) {
+          next = { ...next, ...fresh };
+        }
+      } catch {
+        // keep passed order
+      }
+
+      if (!hasMeasurementData(next.measurements)) {
+        if (hasMeasurementData(next.previousMeasurements)) {
+          next = { ...next, measurements: next.previousMeasurements };
+        } else if (next.customerId) {
+          setLoadingMeasurements(true);
+          try {
+            const customer = await getCustomerById(next.customerId);
+            if (customer && hasMeasurementData(customer.measurements) && !cancelled) {
+              next = { ...next, measurements: customer.measurements };
+            }
+          } catch (err) {
+            console.warn('[ServiceOrderDetailsDialog] Failed to load customer measurements:', err);
+          } finally {
+            if (!cancelled) setLoadingMeasurements(false);
+          }
+        }
+      }
+
+      if (!cancelled) setResolvedOrder(next);
+    };
+
+    enrich();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, serviceOrderProp.id, serviceOrderProp.customerId]);
+
+  // Always render enriched order (falls back to prop while loading)
+  const serviceOrder = resolvedOrder;
+
   // Build proforma invoice data from service order
   const buildProformaInvoiceData = (): ProformaInvoiceData => {
-    // Build line items from dress items or use total
     const items: ProformaInvoiceItem[] = serviceOrder.dressItems && serviceOrder.dressItems.length > 0
       ? serviceOrder.dressItems.map((item: DressItem) => ({
           name: item.dressName || item.dressType || 'Stitching',
@@ -160,8 +232,12 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >      <DialogContent
         className="max-w-3xl max-h-[90vh] overflow-y-auto border-2"
         style={{
           background: '#EADDFD',
@@ -273,67 +349,6 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
               </div>
             </div>
           </div>
-
-          {/* Assignment Information */}
-          {orderAllotment && (
-            <div
-              className="p-4 rounded-xl border-2"
-              style={{
-                background: '#FAF8FF',
-                borderColor: '#6A64F2',
-                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.2), 0 2px 6px -2px rgba(106, 100, 242, 0.15)'
-              }}
-            >
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#6A64F2' }}>
-                <UserCircle size={20} weight="duotone" />
-                Assignment Information
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Allotment Status</p>
-                  <div className="mt-1">{getStatusBadge(orderAllotment.status || 'allotted')}</div>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Assignment Type</p>
-                  <Badge variant="outline" className="mt-1">
-                    {orderAllotment.stitchingAllotment === 'employee' ? 'In-House (Employee)' : 'Job Work (Vendor)'}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Assigned To</p>
-                  <p className="font-medium text-gray-900">{orderAllotment.assignedName || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Job Work No</p>
-                  <p className="font-medium text-gray-900">{orderAllotment.id || '-'}</p>
-                </div>
-                {orderAllotment.assignedDate && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Assigned Date</p>
-                    <p className="font-medium text-gray-900">
-                      {safeFormatDate(orderAllotment.assignedDate, 'dd MMM yyyy, hh:mm a')}
-                    </p>
-                  </div>
-                )}
-                {orderAllotment.stitchedDate && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Stitched Date</p>
-                    <p className="font-medium text-gray-900">
-                      {safeFormatDate(orderAllotment.stitchedDate, 'dd MMM yyyy, hh:mm a')}
-                    </p>
-                  </div>
-                )}
-                {orderAllotment.deliveredDate && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Delivered Date</p>
-                    <p className="font-medium text-gray-900">
-                      {safeFormatDate(orderAllotment.deliveredDate, 'dd MMM yyyy, hh:mm a')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Order Timeline */}
           {(() => {
@@ -691,68 +706,80 @@ export function ServiceOrderDetailsDialog({ serviceOrder, orderAllotment, open, 
           )}
 
           {/* Measurements */}
-          {serviceOrder.measurements && Object.keys(serviceOrder.measurements).length > 0 && (
-            <div
-              className="p-4 sm:p-5 rounded-xl border-2"
-              style={{
-                background: '#f8f5ff',
-                borderColor: '#a78bfa',
-                boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.15)'
-              }}
-            >
-              <h3 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: '#6A64F2' }}>
-                <Ruler size={20} weight="duotone" />
-                Measurements
-              </h3>
+          <div
+            className="p-4 sm:p-5 rounded-xl border-2"
+            style={{
+              background: '#f8f5ff',
+              borderColor: '#a78bfa',
+              boxShadow: '0 4px 12px -2px rgba(106, 100, 242, 0.15)'
+            }}
+          >
+            <h3 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: '#6A64F2' }}>
+              <Ruler size={20} weight="duotone" />
+              Measurements
+              {loadingMeasurements && <Spinner size={16} className="animate-spin" />}
+            </h3>
+            {serviceOrder.measurements && hasMeasurementData(serviceOrder.measurements) ? (
               <div className="space-y-5">
                 {Object.entries(serviceOrder.measurements).map(([category, categoryMeasurements]) => {
                   // Check if categoryMeasurements is an object with properties
                   if (categoryMeasurements && typeof categoryMeasurements === 'object') {
-                    const measurementEntries = Object.entries(categoryMeasurements as Record<string, number | string>);
+                    const measurementEntries = Object.entries(categoryMeasurements as Record<string, number | string | object>).filter(
+                      ([key, value]) => key !== 'specialNote' && value !== undefined && value !== null && value !== ''
+                    );
                     if (measurementEntries.length === 0) return null;
                     
                     return (
                       <div key={category}>
                         {/* Category Title */}
                         <h4 className="text-sm font-semibold text-gray-700 capitalize mb-3">
-                          {category}
+                          {category.replace(/([A-Z])/g, ' $1').trim()}
                         </h4>
                         {/* Measurement Cards Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           {measurementEntries.map(([measureName, measureValue]) => (
-                            measureValue !== undefined && measureValue !== null && measureValue !== '' && (
-                              <div
-                                key={measureName}
-                                className="p-3 rounded-xl"
-                                style={{ background: '#ede9fe' }}
-                              >
-                                <p className="text-xs text-purple-600 font-medium capitalize mb-1">
-                                  {measureName.replace(/([A-Z])/g, ' $1').trim()}
-                                </p>
-                                <p className="text-xl font-bold text-gray-800">
-                                  {typeof measureValue === 'number' ? measureValue : measureValue}
-                                  <span className="text-base">"</span>
-                                </p>
-                              </div>
-                            )
+                            <div
+                              key={measureName}
+                              className="p-3 rounded-xl"
+                              style={{ background: '#ede9fe' }}
+                            >
+                              <p className="text-xs text-purple-600 font-medium capitalize mb-1">
+                                {measureName.replace(/([A-Z])/g, ' $1').trim()}
+                              </p>
+                              <p className="text-xl font-bold text-gray-800">
+                                {typeof measureValue === 'number' ? measureValue : String(measureValue)}
+                                {typeof measureValue === 'number' && <span className="text-base">"</span>}
+                              </p>
+                            </div>
                           ))}
                         </div>
                       </div>
                     );
                   }
                   // If it's a simple value (not nested object)
-                  return categoryMeasurements && (
+                  return categoryMeasurements ? (
                     <div key={category} className="p-3 rounded-xl" style={{ background: '#ede9fe' }}>
                       <p className="text-xs text-purple-600 font-medium capitalize mb-1">{category}</p>
                       <p className="text-xl font-bold text-gray-800">
                         {String(categoryMeasurements)}<span className="text-base">"</span>
                       </p>
                     </div>
-                  );
+                  ) : null;
                 })}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="rounded-lg border border-dashed border-purple-300 bg-white/70 px-3 py-5 text-center">
+                <p className="text-sm font-medium text-gray-700">
+                  {loadingMeasurements ? 'Loading measurements...' : 'No measurements found'}
+                </p>
+                {!loadingMeasurements && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ask the owner to add measurements on this order or customer profile.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Design Images */}
           {serviceOrder.designList && serviceOrder.designList.length > 0 && (

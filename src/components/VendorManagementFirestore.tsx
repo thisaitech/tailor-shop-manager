@@ -90,7 +90,7 @@ interface VendorManagementProps {
   onBack: () => void;
 }
 
-export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
+export function VendorManagementFirestore({ onBack: _onBack }: VendorManagementProps) {
   const { user } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -456,59 +456,222 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
   );
 
   // Filter buttons component
-  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => (
-    <div className={`flex flex-wrap gap-2 ${inModal ? '' : 'hidden sm:flex'}`}>
-      {dateFilterOptions.map((option) => (
-        <Button
-          key={option.value}
-          variant={dateFilter === option.value ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handleFilterChange(option.value)}
-          className={`text-xs ${
-            dateFilter === option.value
-              ? 'bg-purple-600 hover:bg-purple-700 text-white'
-              : 'border-purple-300 text-purple-700 hover:bg-purple-50'
-          }`}
-        >
-          {option.label}
-        </Button>
-      ))}
-      {dateFilter === 'exact' && (
-        <Input
-          type="date"
-          value={exactDate}
-          onChange={(e) => {
-            setExactDate(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="h-8 w-32 text-xs border-purple-300"
-        />
-      )}
-      {dateFilter === 'range' && (
-        <div className="flex gap-1 items-center">
-          <Input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="h-8 w-32 text-xs border-purple-300"
-          />
-          <span className="text-gray-500 text-xs">to</span>
-          <Input
-            type="date"
-            value={endDate}
-            onChange={(e) => {
-              setEndDate(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="h-8 w-32 text-xs border-purple-300"
-          />
+  const FilterButtons = ({ inModal = false }: { inModal?: boolean }) => {
+    // Mobile modal: stacked layout
+    if (inModal) {
+      return (
+        <div className="space-y-3">
+          <div className="flex gap-1.5 flex-wrap">
+            {dateFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={dateFilter === option.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  handleFilterChange(option.value);
+                  if (option.value === 'all') {
+                    setExactDate('');
+                    setStartDate('');
+                    setEndDate('');
+                    setShowFilterModal(false);
+                  }
+                }}
+                className="text-xs font-semibold whitespace-nowrap touch-manipulation h-8 px-3"
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+
+          {dateFilter === 'exact' && (
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-foreground">Select Date</label>
+              <Input
+                type="date"
+                value={exactDate}
+                onChange={(e) => {
+                  setExactDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-10 text-sm w-full"
+              />
+              {exactDate && (
+                <Button
+                  onClick={() => setShowFilterModal(false)}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Apply Filter
+                </Button>
+              )}
+              {exactDate && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setExactDate('');
+                    handleFilterChange('all');
+                  }}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Reset Filter
+                </Button>
+              )}
+            </div>
+          )}
+
+          {dateFilter === 'range' && (
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-foreground">Date Range Filter</label>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground font-medium">From Date</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 text-sm w-full"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground font-medium">To Date</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  min={startDate}
+                  className="h-10 text-sm w-full"
+                />
+              </div>
+              {startDate && endDate && (
+                <Button
+                  onClick={() => setShowFilterModal(false)}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Apply Filter
+                </Button>
+              )}
+              {(startDate || endDate) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    handleFilterChange('all');
+                  }}
+                  className="w-full h-10 font-semibold text-sm"
+                >
+                  Reset Filter
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      );
+    }
+
+    // Web: horizontal progressive filter like home page
+    return (
+      <div className="hidden sm:flex flex-wrap items-end gap-4">
+        <div className="flex-shrink-0">
+          <label className="text-xs font-medium text-muted-foreground mb-2 block">Filter by Date</label>
+          <div className="flex gap-1.5">
+            {dateFilterOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={dateFilter === option.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  handleFilterChange(option.value);
+                  if (option.value === 'all') {
+                    setExactDate('');
+                    setStartDate('');
+                    setEndDate('');
+                  }
+                }}
+                className="text-xs font-semibold whitespace-nowrap h-8 px-3"
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {dateFilter === 'exact' && (
+          <>
+            <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+            <div className="flex-shrink-0 min-w-[180px]">
+              <label className="text-xs font-medium text-muted-foreground mb-2 block">Select Date</label>
+              <Input
+                type="date"
+                value={exactDate}
+                onChange={(e) => {
+                  setExactDate(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-8 text-sm w-[180px]"
+              />
+            </div>
+          </>
+        )}
+
+        {dateFilter === 'range' && (
+          <>
+            <div className="hidden lg:block self-stretch w-px bg-border my-1" />
+            <div className="flex-shrink-0">
+              <label className="text-xs font-medium text-muted-foreground mb-2 block">Date Range Filter</label>
+              <div className="flex items-end gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground font-medium">From Date</label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="h-8 text-sm w-[150px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground font-medium">To Date</label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    min={startDate}
+                    className="h-8 text-sm w-[150px]"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {(dateFilter === 'exact' || dateFilter === 'range') && (
+          <Button
+            size="sm"
+            className="h-8 px-3 text-xs font-semibold ml-auto"
+            onClick={() => setCurrentPage(1)}
+            disabled={
+              dateFilter === 'exact'
+                ? !exactDate
+                : !(startDate && endDate)
+            }
+          >
+            <Funnel size={14} weight="bold" className="mr-1.5" />
+            Apply Filter
+          </Button>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -523,28 +686,9 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl space-y-4">
-      {/* Header with Back Button and Title */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft size={20} />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Job Work Tailors</h1>
-            <p className="text-sm text-muted-foreground">{vendors.length} total tailors</p>
-          </div>
-        </div>
-{vendors.length > 0 && (
-          <Button onClick={handleAddNew} className="bg-[#6A64F2] hover:bg-[#5b55e0]">
-            <Plus size={18} className="mr-1" />
-            Add Tailor
-          </Button>
-        )}
-      </div>
-
-      {/* Search and Filter Row */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
+      {/* Search + Add Tailor on same line */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+        <div className="relative flex-1">
           <MagnifyingGlass
             size={18}
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
@@ -560,15 +704,23 @@ export function VendorManagementFirestore({ onBack }: VendorManagementProps) {
             className="pl-9 pr-4 h-10 border-purple-300 focus:border-purple-500 focus:ring-purple-500"
           />
         </div>
-        {/* Mobile filter button */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="sm:hidden border-purple-300"
-          onClick={() => setShowFilterModal(true)}
-        >
-          <Funnel size={18} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="sm:hidden border-purple-300 h-10 w-10"
+            onClick={() => setShowFilterModal(true)}
+          >
+            <Funnel size={18} />
+          </Button>
+          <Button
+            onClick={handleAddNew}
+            className="h-10 font-semibold touch-manipulation px-4 text-xs sm:text-sm whitespace-nowrap bg-[#6A64F2] hover:bg-[#5b55e0] flex-1 sm:flex-none min-w-[100px] sm:min-w-[120px]"
+          >
+            <Plus size={18} className="mr-1.5" weight="bold" />
+            Add Tailor
+          </Button>
+        </div>
       </div>
 
       {/* Desktop Filter Buttons */}
