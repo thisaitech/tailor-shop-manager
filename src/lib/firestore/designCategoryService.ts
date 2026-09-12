@@ -42,11 +42,21 @@ export interface DesignImage {
 }
 
 /** Stitching workflow step for a design category */
+export interface StitchingSubStep {
+  id: string;
+  name: string;
+  amount: number;
+  order: number;
+  status?: 'pending' | 'in_progress' | 'completed';
+}
+
 export interface StitchingStep {
   id: string;
   name: string;
   amount: number;
   order: number;
+  /** Optional nested sub-categories under this step (e.g. cutting 1, cutting 2) */
+  subSteps?: StitchingSubStep[];
 }
 
 // Design Category interface

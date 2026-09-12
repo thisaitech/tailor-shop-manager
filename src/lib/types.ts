@@ -207,6 +207,14 @@ export interface ServiceOrder {
     status?: 'pending' | 'in_progress' | 'completed';
     startedAt?: number;
     completedAt?: number;
+    /** Nested sub-categories under this step (e.g. cutting 1, cutting 2) */
+    subSteps?: Array<{
+      id: string;
+      name: string;
+      amount: number;
+      order: number;
+      status?: 'pending' | 'in_progress' | 'completed';
+    }>;
   }>;
   /** Fixed closing steps shown after stitching process on order details */
   orderFinalSteps?: Array<{

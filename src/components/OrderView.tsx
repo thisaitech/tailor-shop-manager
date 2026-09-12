@@ -73,6 +73,57 @@ interface TimelineStage {
 
 type ProcessStep = NonNullable<ServiceOrder['orderStitchingSteps']>[number];
 
+type ProcessStatus = 'pending' | 'in_progress' | 'completed';
+
+const PROCESS_STATUS_STYLES: Record<
+  ProcessStatus,
+  {
+    badge: string;
+    trigger: string;
+    item: string;
+    dot: string;
+    circle: string;
+    label: string;
+  }
+> = {
+  pending: {
+    badge: 'bg-rose-50 text-rose-700 border-rose-200',
+    trigger:
+      'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-50 focus:ring-rose-200/60',
+    item: 'text-[11px] text-rose-700 focus:bg-rose-50 focus:text-rose-800',
+    dot: 'bg-rose-400',
+    circle: 'bg-rose-400',
+    label: 'PENDING',
+  },
+  in_progress: {
+    badge: 'bg-sky-50 text-sky-700 border-sky-200',
+    trigger:
+      'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-50 focus:ring-sky-200/60',
+    item: 'text-[11px] text-sky-700 focus:bg-sky-50 focus:text-sky-800',
+    dot: 'bg-sky-500',
+    circle: 'bg-sky-500',
+    label: 'IN PROGRESS',
+  },
+  completed: {
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    trigger:
+      'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-50 focus:ring-emerald-200/60',
+    item: 'text-[11px] text-emerald-700 focus:bg-emerald-50 focus:text-emerald-800',
+    dot: 'bg-emerald-500',
+    circle: 'bg-emerald-500',
+    label: 'COMPLETED',
+  },
+};
+
+const resolveProcessStatus = (
+  status: ProcessStep['status'] | undefined,
+  forceCompleted = false
+): ProcessStatus => {
+  if (forceCompleted || status === 'completed') return 'completed';
+  if (status === 'in_progress') return 'in_progress';
+  return 'pending';
+};
+
 const DEFAULT_FINAL_STEPS: ProcessStep[] = [
   { id: 'final_work_completed', name: 'Work Completed', amount: 0, order: 1, status: 'pending' },
   { id: 'final_finished', name: 'Finished', amount: 0, order: 2, status: 'pending' },
@@ -261,6 +312,42 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
     } catch (error) {
       console.error('Failed to update process status:', error);
       toast.error('Failed to update process status');
+    } finally {
+      setUpdatingStepId(null);
+    }
+  };
+
+  const handleSubStepStatusChange = async (
+    parentStepId: string,
+    subStepId: string,
+    status: 'pending' | 'in_progress' | 'completed'
+  ) => {
+    const updatedSteps = processSteps.map(step => {
+      if (step.id !== parentStepId) return step;
+      return {
+        ...step,
+        subSteps: (step.subSteps || []).map(sub => {
+          if (sub.id !== subStepId) return sub;
+          return {
+            ...sub,
+            status,
+          };
+        }),
+      };
+    });
+
+    try {
+      setUpdatingStepId(subStepId);
+      const updates: Partial<ServiceOrder> = {
+        orderStitchingSteps: updatedSteps,
+      };
+      await updateServiceOrder(serviceOrder.id, updates);
+      setProcessSteps(updatedSteps);
+      onOrderUpdated?.(updates);
+      toast.success('Sub-step status updated');
+    } catch (error) {
+      console.error('Failed to update sub-step status:', error);
+      toast.error('Failed to update sub-step status');
     } finally {
       setUpdatingStepId(null);
     }
@@ -1400,26 +1487,28 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
           {(() => {
             const allCompleted = ['ready', 'finished', 'job-completed', 'received-note', 'delivered'].includes(orderStatus);
             const workStarted = orderStatus === 'inprogress';
-            const resolvedStatuses = processSteps.map((step, index) =>
-              step.status === 'completed' || (allCompleted && !step.status)
-                ? 'completed'
-                : 'pending'
+            const resolvedStatuses = processSteps.map(step =>
+              resolveProcessStatus(step.status, allCompleted && !step.status)
             );
             const completedCount = resolvedStatuses.filter(status => status === 'completed').length;
+            const hasInProgress = resolvedStatuses.some(status => status === 'in_progress');
             const hasPartialProgress =
               completedCount > 0 && completedCount < processSteps.length;
+            const sectionTone = PROCESS_STATUS_STYLES[
+              completedCount === processSteps.length && processSteps.length > 0
+                ? 'completed'
+                : hasInProgress || hasPartialProgress || workStarted
+                  ? 'in_progress'
+                  : 'pending'
+            ];
 
             return (
               <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-4">
                 <div className="flex items-center justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-bold text-[#6A64F2]">Order Process</p>
-                    <Badge className="bg-violet-100 text-violet-700 border border-violet-200 text-[10px]">
-                      {completedCount === processSteps.length
-                        ? 'COMPLETED'
-                        : hasPartialProgress || workStarted
-                          ? 'IN PROGRESS'
-                          : 'PENDING'}
+                    <Badge className={`border text-[10px] font-semibold ${sectionTone.badge}`}>
+                      {sectionTone.label}
                     </Badge>
                   </div>
                   <p className="text-xs font-semibold text-gray-700">
@@ -1430,73 +1519,150 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
                 <div className="space-y-2">
                   {processSteps.map((step, index) => {
                     const resolvedStatus = resolvedStatuses[index];
-                    const active = false;
-                    const completed = resolvedStatus === 'completed';
+                    const tone = PROCESS_STATUS_STYLES[resolvedStatus];
+                    const subSteps = step.subSteps || [];
                     return (
-                      <div
-                        key={step.id}
-                        className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-xl border bg-white p-3"
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                            completed ? 'bg-emerald-500' : active ? 'bg-orange-500' : 'bg-slate-400'
-                          }`}
-                        >
-                          {index + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{step.name}</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            {completed ? 'Cost' : 'Estimated Cost'}
-                          </p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
-                          <Input
-                            type="number"
-                            min={0}
-                            value={Number(step.amount) || 0}
-                            disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
-                            onChange={(e) => {
-                              const nextAmount = Number(e.target.value);
-                              setProcessSteps(prev =>
-                                prev.map(s =>
-                                  s.id === step.id
-                                    ? {
-                                        ...s,
-                                        amount: Number.isFinite(nextAmount) ? nextAmount : 0,
-                                      }
-                                    : s
-                                )
-                              );
-                            }}
-                            onBlur={(e) => {
-                              const nextAmount = Number(e.target.value);
-                              handleProcessAmountChange(
-                                step.id,
-                                Number.isFinite(nextAmount) ? nextAmount : 0
-                              );
-                            }}
-                            className="h-7 w-[88px] text-right text-sm font-bold"
-                          />
-                          <Select
-                            value={resolvedStatus === 'completed' ? 'completed' : 'pending'}
-                            onValueChange={(value) =>
-                              handleProcessStatusChange(
-                                step.id,
-                                value as 'pending' | 'completed'
-                              )
-                            }
-                            disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                      <div key={step.id} className="rounded-xl border border-violet-100 bg-white overflow-hidden shadow-sm">
+                        <div className="grid grid-cols-[32px_1fr_auto] items-center gap-3 p-3">
+                          <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${tone.circle}`}
                           >
-                            <SelectTrigger className="h-7 w-[120px] text-[10px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pending</SelectItem>
-                              <SelectItem value="completed">Completed</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{step.name}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {resolvedStatus === 'completed' ? 'Cost' : 'Estimated Cost'}
+                              {subSteps.length > 0 ? ` · ${subSteps.length} sub-steps` : ''}
+                            </p>
+                          </div>
+                          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={Number(step.amount) || 0}
+                              disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                              onChange={(e) => {
+                                const nextAmount = Number(e.target.value);
+                                setProcessSteps(prev =>
+                                  prev.map(s =>
+                                    s.id === step.id
+                                      ? {
+                                          ...s,
+                                          amount: Number.isFinite(nextAmount) ? nextAmount : 0,
+                                        }
+                                      : s
+                                  )
+                                );
+                              }}
+                              onBlur={(e) => {
+                                const nextAmount = Number(e.target.value);
+                                handleProcessAmountChange(
+                                  step.id,
+                                  Number.isFinite(nextAmount) ? nextAmount : 0
+                                );
+                              }}
+                              className="h-7 w-[88px] text-right text-sm font-bold"
+                            />
+                            <Select
+                              value={resolvedStatus}
+                              onValueChange={(value) =>
+                                handleProcessStatusChange(
+                                  step.id,
+                                  value as ProcessStatus
+                                )
+                              }
+                              disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
+                            >
+                              <SelectTrigger
+                                className={`h-7 w-[132px] text-[10px] font-semibold shadow-none ${tone.trigger}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending" className={PROCESS_STATUS_STYLES.pending.item}>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.pending.dot}`} />
+                                    Pending
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="in_progress" className={PROCESS_STATUS_STYLES.in_progress.item}>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.in_progress.dot}`} />
+                                    In Progress
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="completed" className={PROCESS_STATUS_STYLES.completed.item}>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.completed.dot}`} />
+                                    Completed
+                                  </span>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
+
+                        {subSteps.length > 0 && (
+                          <div className="border-t border-violet-100 bg-slate-50/80 px-3 py-2 space-y-2">
+                            {subSteps.map((sub, subIndex) => {
+                              const subStatus = resolveProcessStatus(sub.status);
+                              const subTone = PROCESS_STATUS_STYLES[subStatus];
+                              return (
+                                <div
+                                  key={sub.id}
+                                  className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-lg border border-slate-100 bg-white px-2 py-2"
+                                >
+                                  <span className="text-[10px] font-bold text-slate-500 text-center">
+                                    {index + 1}.{subIndex + 1}
+                                  </span>
+                                  <p className="text-xs font-medium text-gray-800 truncate min-w-0">
+                                    {sub.name}
+                                  </p>
+                                  <Select
+                                    value={subStatus}
+                                    onValueChange={(value) =>
+                                      handleSubStepStatusChange(
+                                        step.id,
+                                        sub.id,
+                                        value as ProcessStatus
+                                      )
+                                    }
+                                    disabled={
+                                      updatingStepId === sub.id || orderStatus === 'cancelled'
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      className={`h-7 w-[132px] text-[10px] font-semibold shadow-none ${subTone.trigger}`}
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending" className={PROCESS_STATUS_STYLES.pending.item}>
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.pending.dot}`} />
+                                          Pending
+                                        </span>
+                                      </SelectItem>
+                                      <SelectItem value="in_progress" className={PROCESS_STATUS_STYLES.in_progress.item}>
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.in_progress.dot}`} />
+                                          In Progress
+                                        </span>
+                                      </SelectItem>
+                                      <SelectItem value="completed" className={PROCESS_STATUS_STYLES.completed.item}>
+                                        <span className="inline-flex items-center gap-1.5">
+                                          <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.completed.dot}`} />
+                                          Completed
+                                        </span>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1507,34 +1673,21 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
 
           {/* Fixed closing steps — colored cards, no numbers */}
           {finalSteps.map(step => {
-            const theme =
+            const resolvedStatus = resolveProcessStatus(step.status);
+            const tone = PROCESS_STATUS_STYLES[resolvedStatus];
+            const cardTone =
               step.id === 'final_work_completed'
-                ? {
-                    card: 'border-sky-200 bg-sky-50/40',
-                    label: 'text-sky-600',
-                    badgeDone: 'bg-sky-100 text-sky-700 border-sky-200',
-                    badgePending: 'bg-amber-100 text-amber-700 border-amber-200',
-                    badgeActive: 'bg-orange-100 text-orange-700 border-orange-200',
-                  }
-                  : {
-                      card: 'border-indigo-200 bg-indigo-50/40',
-                      label: 'text-indigo-600',
-                      badgeDone: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-                      badgePending: 'bg-amber-100 text-amber-700 border-amber-200',
-                      badgeActive: 'bg-orange-100 text-orange-700 border-orange-200',
-                    };
-
-            const resolvedStatus = step.status === 'completed' ? 'completed' : 'pending';
-            const statusLabel = resolvedStatus === 'completed' ? 'COMPLETED' : 'PENDING';
-            const badgeClass =
-              resolvedStatus === 'completed' ? theme.badgeDone : theme.badgePending;
+                ? 'border-sky-200/80 bg-sky-50/50'
+                : 'border-indigo-200/80 bg-indigo-50/50';
 
             return (
-              <div key={step.id} className={`rounded-xl border p-3 ${theme.card}`}>
+              <div key={step.id} className={`rounded-xl border p-3 ${cardTone}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     <p className="text-sm font-bold text-gray-900 truncate">{step.name}</p>
-                    <Badge className={`text-[10px] border shrink-0 ${badgeClass}`}>{statusLabel}</Badge>
+                    <Badge className={`text-[10px] border shrink-0 font-semibold ${tone.badge}`}>
+                      {tone.label}
+                    </Badge>
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
@@ -1572,12 +1725,28 @@ export function OrderView({ serviceOrder, orderAllotments = [], customer, onBack
                       }
                       disabled={updatingStepId === step.id || orderStatus === 'cancelled'}
                     >
-                      <SelectTrigger className="h-7 w-[120px] text-[10px] bg-white">
+                      <SelectTrigger
+                        className={`h-7 w-[132px] text-[10px] font-semibold shadow-none ${
+                          resolvedStatus === 'completed'
+                            ? PROCESS_STATUS_STYLES.completed.trigger
+                            : PROCESS_STATUS_STYLES.pending.trigger
+                        }`}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="pending" className={PROCESS_STATUS_STYLES.pending.item}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.pending.dot}`} />
+                            Pending
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="completed" className={PROCESS_STATUS_STYLES.completed.item}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full ${PROCESS_STATUS_STYLES.completed.dot}`} />
+                            Completed
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

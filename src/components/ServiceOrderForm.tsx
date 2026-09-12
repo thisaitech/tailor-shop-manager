@@ -1126,6 +1126,58 @@ export function ServiceOrderForm({
     );
   };
 
+  const handleAddSubStep = (parentIndex: number) => {
+    setOrderStitchingSteps(prev =>
+      prev.map((step, i) => {
+        if (i !== parentIndex) return step;
+        const existing = step.subSteps || [];
+        const nextNumber = existing.length + 1;
+        return {
+          ...step,
+          subSteps: [
+            ...existing,
+            {
+              id: `order_sub_${Date.now()}_${nextNumber}`,
+              name: `${step.name} ${nextNumber}`,
+              amount: 0,
+              order: nextNumber,
+              status: 'pending' as const,
+            },
+          ],
+        };
+      })
+    );
+    setHasLoadedStitchingProcess(true);
+  };
+
+  const handleSubStepNameChange = (parentIndex: number, subIndex: number, name: string) => {
+    setOrderStitchingSteps(prev =>
+      prev.map((step, i) => {
+        if (i !== parentIndex) return step;
+        return {
+          ...step,
+          subSteps: (step.subSteps || []).map((sub, si) =>
+            si === subIndex ? { ...sub, name } : sub
+          ),
+        };
+      })
+    );
+  };
+
+  const handleDeleteSubStep = (parentIndex: number, subIndex: number) => {
+    setOrderStitchingSteps(prev =>
+      prev.map((step, i) => {
+        if (i !== parentIndex) return step;
+        return {
+          ...step,
+          subSteps: (step.subSteps || [])
+            .filter((_, si) => si !== subIndex)
+            .map((sub, si) => ({ ...sub, order: si + 1 })),
+        };
+      })
+    );
+  };
+
   const openAddOrderStepDialog = () => {
     setEditingOrderStepIndex(null);
     setNewOrderStepName('');
@@ -1438,6 +1490,17 @@ export function ServiceOrderForm({
               name: step.name,
               amount: Number(step.amount) || 0,
               order: index + 1,
+              ...(step.subSteps && step.subSteps.length > 0
+                ? {
+                    subSteps: step.subSteps.map((sub, subIndex) => ({
+                      id: sub.id,
+                      name: sub.name,
+                      amount: Number(sub.amount) || 0,
+                      order: subIndex + 1,
+                      status: sub.status || 'pending',
+                    })),
+                  }
+                : {}),
             }))
           : undefined,
       expectedDeliveryDate: new Date(expectedDeliveryDate).getTime(),
@@ -3076,74 +3139,126 @@ export function ServiceOrderForm({
                 ) : (
                   <>
                     <div className="rounded-lg border bg-white overflow-hidden">
-                      <div className="grid grid-cols-[28px_28px_1fr_90px_68px] gap-2 px-2 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/40">
+                      <div className="grid grid-cols-[28px_28px_1fr_36px_90px_68px] gap-2 px-2 py-2 text-xs font-semibold text-muted-foreground border-b bg-muted/40">
                         <span />
                         <span className="text-center">#</span>
                         <span>Step Name</span>
+                        <span className="text-center">+</span>
                         <span>Amount (₹)</span>
                         <span />
                       </div>
                       <div className="divide-y">
                         {orderStitchingSteps.map((step, index) => (
-                          <div
-                            key={step.id}
-                            draggable
-                            onDragStart={() => setOrderStepDragIndex(index)}
-                            onDragOver={(event) => handleOrderStepDragOver(event, index)}
-                            onDragEnd={() => setOrderStepDragIndex(null)}
-                            className={`grid grid-cols-[28px_28px_1fr_90px_68px] gap-2 px-2 py-2 items-center ${
-                              orderStepDragIndex === index ? 'opacity-70 bg-violet-50' : ''
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              className="flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing"
-                              aria-label="Drag to reorder"
+                          <div key={step.id} className="bg-white">
+                            <div
+                              draggable
+                              onDragStart={() => setOrderStepDragIndex(index)}
+                              onDragOver={(event) => handleOrderStepDragOver(event, index)}
+                              onDragEnd={() => setOrderStepDragIndex(null)}
+                              className={`grid grid-cols-[28px_28px_1fr_36px_90px_68px] gap-2 px-2 py-2 items-center ${
+                                orderStepDragIndex === index ? 'opacity-70 bg-violet-50' : ''
+                              }`}
                             >
-                              <DotsSixVertical size={18} weight="bold" />
-                            </button>
-                            <span className="text-center text-xs font-bold text-violet-700">
-                              {index + 1}
-                            </span>
-                            <span className="text-sm font-medium text-gray-900 truncate">
-                              {step.name}
-                            </span>
-                            <Input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={step.amount}
-                              onChange={(e) =>
-                                handleOrderStepAmountChange(
-                                  index,
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              onFocus={(e) => e.target.select()}
-                              className="h-8 text-sm bg-background"
-                            />
-                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                className="flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing"
+                                aria-label="Drag to reorder"
+                              >
+                                <DotsSixVertical size={18} weight="bold" />
+                              </button>
+                              <span className="text-center text-xs font-bold text-violet-700">
+                                {index + 1}
+                              </span>
+                              <span className="text-sm font-medium text-gray-900 truncate">
+                                {step.name}
+                              </span>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-[#6A64F2]"
-                                onClick={() => openEditOrderStepDialog(index)}
-                                aria-label={`Edit ${step.name}`}
+                                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => handleAddSubStep(index)}
+                                aria-label={`Add sub-category under ${step.name}`}
+                                title="Add sub-category"
                               >
-                                <PencilSimple size={16} />
+                                <Plus size={16} weight="bold" />
                               </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-500 hover:text-red-600"
-                                onClick={() => handleDeleteOrderStep(index)}
-                                aria-label={`Delete ${step.name}`}
-                              >
-                                <Trash size={16} />
-                              </Button>
+                              <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={step.amount}
+                                onChange={(e) =>
+                                  handleOrderStepAmountChange(
+                                    index,
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                onFocus={(e) => e.target.select()}
+                                className="h-8 text-sm bg-background"
+                              />
+                              <div className="flex items-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-[#6A64F2]"
+                                  onClick={() => openEditOrderStepDialog(index)}
+                                  aria-label={`Edit ${step.name}`}
+                                >
+                                  <PencilSimple size={16} />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-red-500 hover:text-red-600"
+                                  onClick={() => handleDeleteOrderStep(index)}
+                                  aria-label={`Delete ${step.name}`}
+                                >
+                                  <Trash size={16} />
+                                </Button>
+                              </div>
                             </div>
+
+                            {(step.subSteps || []).length > 0 && (
+                              <div className="border-t border-violet-100 bg-violet-50/40">
+                                {(step.subSteps || []).map((sub, subIndex) => (
+                                  <div
+                                    key={sub.id}
+                                    className="grid grid-cols-[28px_28px_1fr_36px_90px_68px] gap-2 px-2 py-2 items-center border-b border-violet-100/80 last:border-b-0"
+                                  >
+                                    <span />
+                                    <span className="text-center text-[10px] font-semibold text-violet-500">
+                                      {index + 1}.{subIndex + 1}
+                                    </span>
+                                    <Input
+                                      type="text"
+                                      value={sub.name}
+                                      onChange={(e) =>
+                                        handleSubStepNameChange(index, subIndex, e.target.value)
+                                      }
+                                      className="h-8 text-sm bg-white ml-2"
+                                      placeholder={`${step.name} ${subIndex + 1}`}
+                                    />
+                                    <span />
+                                    <span />
+                                    <div className="flex items-center justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-red-500 hover:text-red-600"
+                                        onClick={() => handleDeleteSubStep(index, subIndex)}
+                                        aria-label={`Delete ${sub.name}`}
+                                      >
+                                        <Trash size={16} />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
