@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "thisai-tailor-shop",
+    "site": "tailorshops",
     "public": "dist",
     "ignore": [
       "firebase.json",

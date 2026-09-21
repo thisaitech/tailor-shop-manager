@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -20,7 +21,7 @@ import {
 // Removed Tabs components - using custom tab buttons for better keyboard handling
 import { Customer, Gender, Measurements } from '@/lib/types';
 import { toast } from 'sonner';
-import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle, ArrowLeft } from '@phosphor-icons/react';
+import { TShirt, Pants, Hoodie, Dress, User, Ruler, MapPin, Check, UserCircle, ArrowLeft, Plus } from '@phosphor-icons/react';
 import { generateCustomerId, findCustomerByPhone, findCustomerByEmail } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
@@ -132,6 +133,52 @@ const MEASUREMENT_FIELDS = {
 
 type MeasurementCategory = keyof typeof MEASUREMENT_FIELDS;
 
+type CustomMeasurementField = { key: string; label: string };
+type CustomMeasurementFieldsMap = Record<string, CustomMeasurementField[]>;
+
+// Shared with ServiceOrderForm so custom fields appear in both places
+const CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY = 'custom_measurement_fields';
+
+function loadCustomMeasurementFields(): CustomMeasurementFieldsMap {
+  try {
+    const raw = localStorage.getItem(CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCustomMeasurementFields(fields: CustomMeasurementFieldsMap) {
+  try {
+    localStorage.setItem(CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY, JSON.stringify(fields));
+  } catch {
+    // ignore
+  }
+}
+
+function slugifyKey(label: string): string {
+  const base = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  return base || ('custom_' + Date.now());
+}
+
+function getCategoryFields(
+  category: MeasurementCategory,
+  customMeasurementFields: CustomMeasurementFieldsMap
+): CustomMeasurementField[] {
+  const base = MEASUREMENT_FIELDS[category].fields;
+  const extraFields = customMeasurementFields[category] || [];
+  if (extraFields.length === 0) return [...base];
+  const existingKeys = new Set(base.map((f) => f.key));
+  const mergedExtras = extraFields.filter((f) => !existingKeys.has(f.key));
+  return [...base, ...mergedExtras];
+}
+
 interface CustomerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -167,6 +214,18 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   const [activeCategory, setActiveCategory] = useState<MeasurementCategory>('shirt');
   const [measurementUnit, setMeasurementUnit] = useState<'Inches' | 'Cms'>('Inches');
   const [isSaving, setIsSaving] = useState(false);
+  const [customMeasurementFields, setCustomMeasurementFields] = useState<CustomMeasurementFieldsMap>(() =>
+    loadCustomMeasurementFields()
+  );
+  const [showAddMeasurementFieldDialog, setShowAddMeasurementFieldDialog] = useState(false);
+  const [newMeasurementFieldName, setNewMeasurementFieldName] = useState('');
+
+  // Keep custom fields in sync when form opens (e.g. after adding in Service Order)
+  useEffect(() => {
+    if (open) {
+      setCustomMeasurementFields(loadCustomMeasurementFields());
+    }
+  }, [open]);
 
   // Fetch next customer ID
   useEffect(() => {
@@ -399,12 +458,39 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       .reduce((sum, cat) => sum + getCategoryMeasurementCount(cat), 0);
   };
 
+  const handleAddMeasurementField = () => {
+    const label = newMeasurementFieldName.trim();
+    if (!label) {
+      toast.error('Please enter a measurement name');
+      return;
+    }
+
+    const fields = getCategoryFields(activeCategory, customMeasurementFields);
+    let key = slugifyKey(label);
+    const existingKeys = new Set(fields.map((f) => f.key));
+    if (existingKeys.has(key)) {
+      key = key + '_' + Date.now().toString().slice(-4);
+    }
+
+    const newField = { key, label };
+    const next = {
+      ...customMeasurementFields,
+      [activeCategory]: [...(customMeasurementFields[activeCategory] || []), newField],
+    };
+    setCustomMeasurementFields(next);
+    saveCustomMeasurementFields(next);
+    setNewMeasurementFieldName('');
+    setShowAddMeasurementFieldDialog(false);
+    toast.success(label + ' added to size sheet');
+  };
+
   // Tab completion indicators
   const isBasicComplete = name.trim() && phone.length === 10 && gender;
   const hasMeasurements = getTotalMeasurements() > 0;
   const hasAddress = state || place || address1;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-2xl w-full !h-[100dvh] sm:!h-[95vh] !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 sm:!top-[50%] sm:!left-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!bottom-auto sm:!right-auto flex flex-col p-0 overflow-hidden rounded-none sm:rounded-lg keyboard-aware-container"
@@ -695,17 +781,32 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
 
                   {/* Measurement inputs */}
                   <div className="bg-muted/30 rounded-xl p-5 border">
-                    <div className="flex items-center gap-2 mb-4">
-                      {(() => {
-                        const Icon = MEASUREMENT_FIELDS[activeCategory].icon;
-                        return <Icon size={20} weight="bold" className="text-primary" />;
-                      })()}
-                      <h4 className="font-semibold text-sm">
-                        {MEASUREMENT_FIELDS[activeCategory].label} Measurements
-                      </h4>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const Icon = MEASUREMENT_FIELDS[activeCategory].icon;
+                          return <Icon size={20} weight="bold" className="text-primary" />;
+                        })()}
+                        <h4 className="font-semibold text-sm">
+                          {MEASUREMENT_FIELDS[activeCategory].label} Measurements
+                        </h4>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setNewMeasurementFieldName('');
+                          setShowAddMeasurementFieldDialog(true);
+                        }}
+                        className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50"
+                      >
+                        <Plus size={14} weight="bold" />
+                        Add
+                      </Button>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {MEASUREMENT_FIELDS[activeCategory].fields.map((field) => (
+                      {getCategoryFields(activeCategory, customMeasurementFields).map((field) => (
                         <div key={field.key} className="space-y-1.5">
                           <Label className="text-xs font-medium text-muted-foreground">
                             {field.label}
@@ -875,5 +976,46 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* Add Measurement Field Dialog */}
+    <Dialog open={showAddMeasurementFieldDialog} onOpenChange={setShowAddMeasurementFieldDialog}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Add Size Sheet Field</DialogTitle>
+          <DialogDescription>
+            Add a measurement field for {MEASUREMENT_FIELDS[activeCategory].label}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="customer-new-measurement-field">Measurement Name *</Label>
+            <Input
+              id="customer-new-measurement-field"
+              value={newMeasurementFieldName}
+              onChange={(e) => setNewMeasurementFieldName(e.target.value)}
+              placeholder="e.g., Sleeve Length, Waist Length"
+              className="h-11"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddMeasurementField();
+                }
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setShowAddMeasurementFieldDialog(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleAddMeasurementField} className="gap-2">
+            <Plus size={16} weight="bold" />
+            Add Field
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
