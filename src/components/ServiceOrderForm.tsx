@@ -53,10 +53,11 @@ import {
   CHUDITHAR_FIELDS,
   CUSTOMER_BUILTIN_CATEGORIES,
   DEFAULT_CUSTOM_MEASUREMENT_FIELDS,
+  GARMENT_ICON_OPTIONS,
   type CustomGarmentType,
   type CustomMeasurementFieldsMap,
   type GarmentFieldConfig,
-  getCustomFieldKeys,
+  type GarmentIconKey,
   isBuiltInCategory,
   loadCustomGarmentTypes,
   loadCustomMeasurementFields,
@@ -64,10 +65,15 @@ import {
   mergeFieldsWithCustom,
   saveCustomGarmentTypes,
   saveCustomMeasurementFields,
+  saveSheetOverrides,
   slugifyKey,
   applyCategoryLabel,
   applyFieldLabels,
   isCategoryHidden,
+  getGarmentIcon,
+  guessGarmentIconKey,
+  resolveGarmentIconKey,
+  type SheetOverrides,
 } from '@/lib/measurementSheets';
 import { 
   WhatsAppConfirmationDialog, 
@@ -664,6 +670,7 @@ type GarmentTypeOption = {
   key: string;
   label: string;
   icon: typeof TShirt;
+  iconKey: GarmentIconKey;
 };
 
 function getMeasurementConfig(
@@ -677,17 +684,20 @@ function getMeasurementConfig(
   let base:
     | { label: string; icon: typeof TShirt; fields: readonly GarmentFieldConfig[] | GarmentFieldConfig[] }
     | undefined;
+  let storedIconKey: GarmentIconKey | string | null | undefined;
 
   if (key in MEASUREMENT_CATEGORIES) {
     base = MEASUREMENT_CATEGORIES[key as keyof typeof MEASUREMENT_CATEGORIES];
   } else if (CUSTOMER_BUILTIN_CATEGORIES[key]) {
     base = CUSTOMER_BUILTIN_CATEGORIES[key];
+    storedIconKey = CUSTOMER_BUILTIN_CATEGORIES[key].iconKey;
   } else {
     const custom = customGarmentTypes.find((g) => g.key === key);
     if (custom) {
+      storedIconKey = custom.iconKey;
       base = {
         label: custom.label,
-        icon: Dress,
+        icon: getGarmentIcon(custom.iconKey),
         fields: DEFAULT_CUSTOM_MEASUREMENT_FIELDS,
       };
     }
@@ -695,10 +705,19 @@ function getMeasurementConfig(
 
   if (!base) return undefined;
 
+  const label = applyCategoryLabel(key, base.label, overrides);
+  const iconKey = resolveGarmentIconKey({
+    key,
+    label,
+    storedIconKey,
+    overrideIconKey: overrides.categoryIcons?.[key],
+  });
   const merged = mergeFieldsWithCustom(base.fields, key, customMeasurementFields);
   return {
     ...base,
-    label: applyCategoryLabel(key, base.label, overrides),
+    label,
+    icon: getGarmentIcon(iconKey),
+    iconKey,
     fields: applyFieldLabels(key, merged, overrides),
   };
 }
@@ -789,15 +808,23 @@ export function ServiceOrderForm({
   const [customGarmentTypes, setCustomGarmentTypes] = useState<CustomGarmentType[]>(() => loadCustomGarmentTypes());
   const [showAddGarmentDialog, setShowAddGarmentDialog] = useState(false);
   const [newGarmentName, setNewGarmentName] = useState('');
+  const [newGarmentIcon, setNewGarmentIcon] = useState<GarmentIconKey>('hanger');
   const [customMeasurementFields, setCustomMeasurementFields] = useState<CustomMeasurementFieldsMap>(() => loadCustomMeasurementFields());
+  const [sheetOverrides, setSheetOverrides] = useState<SheetOverrides>(() => loadSheetOverrides());
   const [showAddMeasurementFieldDialog, setShowAddMeasurementFieldDialog] = useState(false);
   const [newMeasurementFieldName, setNewMeasurementFieldName] = useState('');
+  const [renameFieldKey, setRenameFieldKey] = useState<string | null>(null);
+  const [renameFieldLabel, setRenameFieldLabel] = useState('');
+  const [renameGarmentKey, setRenameGarmentKey] = useState<string | null>(null);
+  const [renameGarmentLabel, setRenameGarmentLabel] = useState('');
+  const [renameGarmentIcon, setRenameGarmentIcon] = useState<GarmentIconKey>('hanger');
 
   // Keep shared dress types / size-sheet fields in sync with CustomerForm
   useEffect(() => {
     if (open) {
       setCustomGarmentTypes(loadCustomGarmentTypes());
       setCustomMeasurementFields(loadCustomMeasurementFields());
+      setSheetOverrides(loadSheetOverrides());
     }
   }, [open]);
 
@@ -2033,23 +2060,42 @@ export function ServiceOrderForm({
   // Get garment types available for the selected category (built-in + custom)
   const availableGarmentTypes = useMemo((): GarmentTypeOption[] => {
     if (!orderCategory) return [];
-    const overrides = loadSheetOverrides();
+    const overrides = sheetOverrides;
     const base = (GARMENT_TYPES_BY_CATEGORY[orderCategory] || [])
       .filter((garment) => !isCategoryHidden(garment.key, overrides))
-      .map((garment) => ({
-        key: garment.key,
-        label: applyCategoryLabel(garment.key, garment.label, overrides),
-        icon: garment.icon,
-      }));
+      .map((garment) => {
+        const label = applyCategoryLabel(garment.key, garment.label, overrides);
+        const iconKey = resolveGarmentIconKey({
+          key: garment.key,
+          label,
+          overrideIconKey: overrides.categoryIcons?.[garment.key],
+        });
+        return {
+          key: garment.key,
+          label,
+          iconKey,
+          icon: getGarmentIcon(iconKey),
+        };
+      });
     const custom = customGarmentTypes
       .filter((g) => g.category === orderCategory && !isCategoryHidden(g.key, overrides))
-      .map((g) => ({
-        key: g.key,
-        label: applyCategoryLabel(g.key, g.label, overrides),
-        icon: Dress,
-      }));
+      .map((g) => {
+        const label = applyCategoryLabel(g.key, g.label, overrides);
+        const iconKey = resolveGarmentIconKey({
+          key: g.key,
+          label,
+          storedIconKey: g.iconKey,
+          overrideIconKey: overrides.categoryIcons?.[g.key],
+        });
+        return {
+          key: g.key,
+          label,
+          iconKey,
+          icon: getGarmentIcon(iconKey),
+        };
+      });
     return [...base, ...custom];
-  }, [orderCategory, customGarmentTypes]);
+  }, [orderCategory, customGarmentTypes, sheetOverrides]);
 
   const handleAddCustomGarment = () => {
     const label = newGarmentName.trim();
@@ -2071,14 +2117,22 @@ export function ServiceOrderForm({
       key = key + '_' + Date.now().toString().slice(-4);
     }
 
-    const next = [...customGarmentTypes, { key, label, category: orderCategory }];
+    const iconKey = newGarmentIcon || guessGarmentIconKey(label, key);
+    const next = [...customGarmentTypes, { key, label, category: orderCategory, iconKey }];
     setCustomGarmentTypes(next);
     saveCustomGarmentTypes(next);
+    const nextOverrides: SheetOverrides = {
+      ...sheetOverrides,
+      categoryIcons: { ...sheetOverrides.categoryIcons, [key]: iconKey },
+    };
+    setSheetOverrides(nextOverrides);
+    saveSheetOverrides(nextOverrides);
     setSelectedGarmentTypes((prev) => [...prev, key]);
     setActiveDressType(key);
     setNewGarmentName('');
+    setNewGarmentIcon('hanger');
     setShowAddGarmentDialog(false);
-    toast.success(label + ' category added');
+    toast.success(label + ' dress type added');
   };
 
   const handleAddMeasurementField = () => {
@@ -2118,39 +2172,127 @@ export function ServiceOrderForm({
 
   const handleDeleteMeasurementField = (fieldKey: string, fieldLabel: string) => {
     if (!activeDressType) return;
-    const customKeys = getCustomFieldKeys(activeDressType, customMeasurementFields);
-    if (!customKeys.has(fieldKey)) {
-      toast.error('Built-in measurement fields cannot be deleted');
-      return;
-    }
     if (!window.confirm(`Permanently delete field "${fieldLabel}" from this dress type?`)) return;
-    const next = {
-      ...customMeasurementFields,
-      [activeDressType]: (customMeasurementFields[activeDressType] || []).filter((f) => f.key !== fieldKey),
-    };
-    setCustomMeasurementFields(next);
-    saveCustomMeasurementFields(next);
+
+    const customList = customMeasurementFields[activeDressType] || [];
+    const isCustomOnly = customList.some((f) => f.key === fieldKey);
+
+    if (isCustomOnly) {
+      const next = {
+        ...customMeasurementFields,
+        [activeDressType]: customList.filter((f) => f.key !== fieldKey),
+      };
+      setCustomMeasurementFields(next);
+      saveCustomMeasurementFields(next);
+    } else {
+      const nextOverrides: SheetOverrides = {
+        ...sheetOverrides,
+        hiddenFields: {
+          ...sheetOverrides.hiddenFields,
+          [activeDressType]: [
+            ...new Set([...(sheetOverrides.hiddenFields[activeDressType] || []), fieldKey]),
+          ],
+        },
+      };
+      setSheetOverrides(nextOverrides);
+      saveSheetOverrides(nextOverrides);
+    }
     toast.success(fieldLabel + ' removed from size sheet');
   };
 
-  const handleDeleteCustomGarment = (key: string, label: string) => {
-    if (isBuiltInCategory(key) || key in MEASUREMENT_CATEGORIES) {
-      toast.error('Built-in dress types cannot be deleted');
+  const handleSaveRenameField = () => {
+    if (!activeDressType || !renameFieldKey) return;
+    const label = renameFieldLabel.trim();
+    if (!label) {
+      toast.error('Please enter a name');
       return;
     }
+
+    const customList = customMeasurementFields[activeDressType] || [];
+    const isCustom = customList.some((f) => f.key === renameFieldKey);
+    if (isCustom) {
+      const next = {
+        ...customMeasurementFields,
+        [activeDressType]: customList.map((f) =>
+          f.key === renameFieldKey ? { ...f, label } : f
+        ),
+      };
+      setCustomMeasurementFields(next);
+      saveCustomMeasurementFields(next);
+    }
+
+    const nextOverrides: SheetOverrides = {
+      ...sheetOverrides,
+      fieldLabels: {
+        ...sheetOverrides.fieldLabels,
+        [activeDressType]: {
+          ...(sheetOverrides.fieldLabels[activeDressType] || {}),
+          [renameFieldKey]: label,
+        },
+      },
+    };
+    setSheetOverrides(nextOverrides);
+    saveSheetOverrides(nextOverrides);
+    setRenameFieldKey(null);
+    setRenameFieldLabel('');
+    toast.success('Field renamed');
+  };
+
+  const handleDeleteDressType = (key: string, label: string) => {
     if (!window.confirm(`Permanently delete dress type "${label}"?`)) return;
-    const next = customGarmentTypes.filter((g) => g.key !== key);
-    setCustomGarmentTypes(next);
-    saveCustomGarmentTypes(next);
-    const nextFields = { ...customMeasurementFields };
-    delete nextFields[key];
-    setCustomMeasurementFields(nextFields);
-    saveCustomMeasurementFields(nextFields);
+
+    if (isBuiltInCategory(key) || key in MEASUREMENT_CATEGORIES) {
+      const nextOverrides: SheetOverrides = {
+        ...sheetOverrides,
+        hiddenCategories: [...new Set([...sheetOverrides.hiddenCategories, key])],
+      };
+      setSheetOverrides(nextOverrides);
+      saveSheetOverrides(nextOverrides);
+    } else {
+      const next = customGarmentTypes.filter((g) => g.key !== key);
+      setCustomGarmentTypes(next);
+      saveCustomGarmentTypes(next);
+      const nextFields = { ...customMeasurementFields };
+      delete nextFields[key];
+      setCustomMeasurementFields(nextFields);
+      saveCustomMeasurementFields(nextFields);
+    }
+
     setSelectedGarmentTypes((prev) => prev.filter((k) => k !== key));
     if (activeDressType === key) {
       setActiveDressType(null);
     }
     toast.success(label + ' dress type deleted');
+  };
+
+  const handleSaveRenameDressType = () => {
+    const label = renameGarmentLabel.trim();
+    if (!label || !renameGarmentKey) {
+      toast.error('Please enter a name');
+      return;
+    }
+    const key = renameGarmentKey;
+    const iconKey = renameGarmentIcon;
+
+    if (!isBuiltInCategory(key) && !(key in MEASUREMENT_CATEGORIES)) {
+      const next = customGarmentTypes.map((g) =>
+        g.key === key ? { ...g, label, iconKey } : g
+      );
+      setCustomGarmentTypes(next);
+      saveCustomGarmentTypes(next);
+    }
+
+    const nextOverrides: SheetOverrides = {
+      ...sheetOverrides,
+      categoryLabels: { ...sheetOverrides.categoryLabels, [key]: label },
+      categoryIcons: { ...sheetOverrides.categoryIcons, [key]: iconKey },
+    };
+    setSheetOverrides(nextOverrides);
+    saveSheetOverrides(nextOverrides);
+    setRenameGarmentKey(null);
+    setRenameGarmentLabel('');
+    setRenameGarmentIcon('hanger');
+    toast.success('Dress type updated');
   };
 
   // Validate measurements are filled for selected garment types
@@ -2561,12 +2703,12 @@ export function ServiceOrderForm({
                 style={{ background: 'linear-gradient(to bottom right, rgb(250, 245, 255), rgb(238, 242, 255))' }}
               >
                 {/* Header with UOM Toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-2 min-w-0 flex-wrap">
+                  <div className="min-w-0">
                     <Label className="text-sm font-semibold text-purple-700">Select Garment Type *</Label>
                     <p className="text-xs text-gray-500 mt-0.5">Measurements are mandatory for order</p>
                   </div>
-                  <div className="flex rounded-md border-2 border-purple-500 overflow-hidden">
+                  <div className="flex rounded-md border-2 border-purple-500 overflow-hidden shrink-0">
                     <button
                       type="button"
                       onClick={() => setDisplayUom('Inches')}
@@ -2592,8 +2734,21 @@ export function ServiceOrderForm({
                   </div>
                 </div>
 
-                {/* Garment Type Selection - Based on Category */}
-                <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                {/* Garment Type Selection — same edit/delete UX as Add Customer */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewGarmentName('');
+                    setNewGarmentIcon('hanger');
+                    setShowAddGarmentDialog(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 border-dashed border-purple-500 bg-purple-50 text-purple-800 font-semibold text-sm hover:bg-purple-100 hover:border-purple-700"
+                >
+                  <Plus size={18} weight="bold" />
+                  Add New Dress Type
+                </button>
+
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 w-full">
                   {availableGarmentTypes.map((garment) => {
                     const isSelected = selectedGarmentTypes.includes(garment.key);
                     const isActive = activeDressType === garment.key;
@@ -2602,75 +2757,104 @@ export function ServiceOrderForm({
                       ? Object.values(garmentMeasurements).filter((v) => v !== undefined && v !== null && v !== 0 && v !== '').length
                       : 0;
                     const Icon = garment.icon;
-                    const isCustomType = customGarmentTypes.some((g) => g.key === garment.key) && !(garment.key in MEASUREMENT_CATEGORIES);
 
                     return (
-                      <div key={garment.key} className="relative flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // Toggle selection
-                          if (isSelected) {
-                            setSelectedGarmentTypes(selectedGarmentTypes.filter(g => g !== garment.key));
-                            if (activeDressType === garment.key) {
-                              setActiveDressType(null);
-                            }
-                          } else {
-                            setSelectedGarmentTypes([...selectedGarmentTypes, garment.key]);
-                          }
-                          setActiveDressType(garment.key as MeasurementCategoryKey);
-                        }}
-                        className={cn(
-                          'relative flex flex-col items-center gap-1 min-w-[70px] p-3 rounded-xl transition-all border-2',
-                          isActive
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
-                            : isSelected
-                            ? 'bg-purple-100 text-purple-700 border-purple-300'
-                            : 'bg-white text-gray-500 border-transparent hover:border-purple-200 hover:bg-purple-50'
-                        )}
-                      >
-                        {isSelected && (
-                          <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center">
-                            <Check size={14} weight="bold" className={isActive ? 'text-white' : 'text-purple-600'} />
-                          </span>
-                        )}
-                        {filledFieldsCount > 0 && (
-                          <span className="absolute -bottom-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold bg-green-500 text-white rounded-full border-2 border-background">
-                            {filledFieldsCount}
-                          </span>
-                        )}
-                        <Icon size={26} weight={isActive || isSelected ? 'fill' : 'regular'} />
-                        <span className="text-[11px] font-semibold">{garment.label}</span>
-                      </button>
-                      {isCustomType && (
+                      <div key={garment.key} className="relative min-w-0 group">
                         <button
                           type="button"
-                          title="Delete dress type"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteCustomGarment(garment.key, garment.label);
+                          title={garment.label}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedGarmentTypes(selectedGarmentTypes.filter((g) => g !== garment.key));
+                              if (activeDressType === garment.key) {
+                                setActiveDressType(null);
+                              }
+                            } else {
+                              setSelectedGarmentTypes([...selectedGarmentTypes, garment.key]);
+                            }
+                            setActiveDressType(garment.key as MeasurementCategoryKey);
                           }}
-                          className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 z-10"
+                          className={cn(
+                            'relative flex flex-col items-center gap-1 p-2 w-full rounded-xl transition-all border-2',
+                            isActive
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-lg'
+                              : isSelected
+                                ? 'bg-purple-100 text-purple-700 border-purple-300'
+                                : 'bg-white text-gray-500 border-transparent hover:border-purple-200 hover:bg-purple-50'
+                          )}
                         >
-                          <Trash size={10} weight="bold" />
+                          <div
+                            className={cn(
+                              'w-9 h-9 rounded-full flex items-center justify-center',
+                              isActive
+                                ? 'bg-white/20 text-white'
+                                : isSelected
+                                  ? 'bg-purple-200 text-purple-700'
+                                  : 'bg-purple-50 text-purple-600'
+                            )}
+                          >
+                            <Icon size={20} weight={isActive || isSelected ? 'fill' : 'bold'} />
+                          </div>
+                          <span className="text-[10px] font-semibold w-full text-center truncate leading-tight">
+                            {garment.label}
+                          </span>
+                          {filledFieldsCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 flex items-center justify-center bg-green-500 text-white text-[9px] font-bold rounded-full">
+                              {filledFieldsCount}
+                            </span>
+                          )}
+                          {isSelected && filledFieldsCount === 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 flex items-center justify-center bg-purple-600 text-white rounded-full">
+                              <Check size={10} weight="bold" />
+                            </span>
+                          )}
                         </button>
-                      )}
+                        <div className="absolute -top-1 -left-1 flex gap-0.5 z-10">
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            title="Edit name"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenameGarmentKey(garment.key);
+                              setRenameGarmentLabel(garment.label);
+                              setRenameGarmentIcon(garment.iconKey);
+                            }}
+                            className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 shadow"
+                          >
+                            <PencilSimple size={10} weight="bold" />
+                          </button>
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            title="Delete dress type"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteDressType(garment.key, garment.label);
+                            }}
+                            className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow"
+                          >
+                            <Trash size={10} weight="bold" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
 
                   <button
                     type="button"
+                    title="Add new dress type"
                     onClick={() => {
                       setNewGarmentName('');
+                      setNewGarmentIcon('hanger');
                       setShowAddGarmentDialog(true);
                     }}
-                    className="relative flex flex-col items-center gap-1 min-w-[70px] p-3 rounded-xl transition-all border-2 border-dashed border-purple-300 bg-white text-purple-600 hover:border-purple-500 hover:bg-purple-50"
+                    className="flex flex-col items-center gap-1 p-2 w-full rounded-xl transition-all border-2 border-dashed border-purple-400 bg-purple-50 text-purple-700 hover:border-purple-600 hover:bg-purple-100 min-w-0"
                   >
-                    <div className="w-[26px] h-[26px] flex items-center justify-center rounded-full bg-purple-100">
-                      <Plus size={16} weight="bold" />
+                    <div className="w-9 h-9 flex items-center justify-center rounded-full bg-purple-200">
+                      <Plus size={18} weight="bold" />
                     </div>
-                    <span className="text-[11px] font-semibold">Add</span>
+                    <span className="text-[10px] font-semibold leading-tight">Add</span>
                   </button>
                 </div>
 
@@ -2711,22 +2895,34 @@ export function ServiceOrderForm({
                       {getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields).fields.map((field) => {
                         const garmentData = measurements[activeDressType as keyof typeof measurements] as Record<string, unknown> | undefined;
                         const value = garmentData?.[field.key];
-                        const canDeleteField = getCustomFieldKeys(activeDressType, customMeasurementFields).has(field.key);
                         const fieldLabel = (
                           <div className="flex items-center justify-between gap-1">
-                            <label className="text-xs text-muted-foreground font-medium">
+                            <label className="text-xs text-muted-foreground font-medium truncate">
                               {field.label}
                             </label>
-                            {canDeleteField && (
+                            <div className="flex items-center gap-0.5 shrink-0">
                               <button
                                 type="button"
+                                tabIndex={-1}
+                                title="Edit field name"
+                                onClick={() => {
+                                  setRenameFieldKey(field.key);
+                                  setRenameFieldLabel(field.label);
+                                }}
+                                className="text-purple-600 hover:text-purple-800 p-0.5"
+                              >
+                                <PencilSimple size={12} weight="bold" />
+                              </button>
+                              <button
+                                type="button"
+                                tabIndex={-1}
                                 title="Delete field"
                                 onClick={() => handleDeleteMeasurementField(field.key, field.label)}
                                 className="text-red-500 hover:text-red-700 p-0.5"
                               >
                                 <Trash size={12} weight="bold" />
                               </button>
-                            )}
+                            </div>
                           </div>
                         );
 
@@ -2806,36 +3002,41 @@ export function ServiceOrderForm({
                           return (
                             <div key={field.key} className="space-y-1.5">
                               {fieldLabel}
-                              <Input
-                                type="text"
-                                value={typeof value === 'string' ? value : ''}
-                                onChange={(e) => {
-                                  setMeasurements({
-                                    ...measurements,
-                                    [activeDressType]: {
-                                      ...(measurements[activeDressType as keyof typeof measurements] || {}),
-                                      [field.key]: e.target.value,
-                                    },
-                                  });
-                                }}
-                                placeholder="Enter..."
-                                className="h-11 text-base bg-white"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="text"
+                                  value={value === undefined || value === null ? '' : String(value)}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value === '' ? undefined : e.target.value;
+                                    setMeasurements({
+                                      ...measurements,
+                                      [activeDressType]: {
+                                        ...(measurements[activeDressType as keyof typeof measurements] || {}),
+                                        [field.key]: newValue,
+                                      },
+                                    });
+                                  }}
+                                  placeholder="Enter value"
+                                  className="h-11 text-base pr-10 bg-white border-purple-200 focus:border-purple-500 focus:ring-purple-500"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                  {displayUom === 'Inches' ? 'in' : 'cm'}
+                                </span>
+                              </div>
                             </div>
                           );
                         }
 
-                        // Default: number input
+                        // Default: free-text measurement value (numbers, letters, special chars)
                         return (
                           <div key={field.key} className="space-y-1.5">
                             {fieldLabel}
                             <div className="relative">
                               <Input
-                                type="number"
-                                step="0.1"
-                                value={typeof value === 'number' ? value : ''}
+                                type="text"
+                                value={value === undefined || value === null ? '' : String(value)}
                                 onChange={(e) => {
-                                  const newValue = e.target.value === '' ? undefined : parseFloat(e.target.value) || 0;
+                                  const newValue = e.target.value === '' ? undefined : e.target.value;
                                   setMeasurements({
                                     ...measurements,
                                     [activeDressType]: {
@@ -2844,7 +3045,7 @@ export function ServiceOrderForm({
                                     },
                                   });
                                 }}
-                                placeholder="0"
+                                placeholder="Enter value"
                                 className="h-11 text-base pr-10 bg-white border-purple-200 focus:border-purple-500 focus:ring-purple-500"
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
@@ -3991,22 +4192,26 @@ export function ServiceOrderForm({
       </DialogContent>
     </Dialog>
 
-    {/* Add Garment Category Dialog */}
+    {/* Add Dress Type Dialog */}
     <Dialog open={showAddGarmentDialog} onOpenChange={setShowAddGarmentDialog}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>Add Garment Category</DialogTitle>
+          <DialogTitle>Add Dress Type</DialogTitle>
           <DialogDescription>
-            Create a new garment type for {orderCategory === 'female' ? 'Women' : orderCategory === 'male' ? 'Men' : orderCategory === 'kids' ? 'Kids' : 'this order'}.
+            Create a custom dress type for {orderCategory === 'female' ? 'Women' : orderCategory === 'male' ? 'Men' : orderCategory === 'kids' ? 'Kids' : 'this order'}. You can add or remove measurement fields after creating it.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="new-garment-name">Category Name *</Label>
+            <Label htmlFor="new-garment-name">Dress Type Name *</Label>
             <Input
               id="new-garment-name"
               value={newGarmentName}
-              onChange={(e) => setNewGarmentName(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNewGarmentName(value);
+                setNewGarmentIcon(guessGarmentIconKey(value));
+              }}
               placeholder="e.g., Lehenga, Kurti"
               className="h-11"
               autoFocus
@@ -4017,6 +4222,32 @@ export function ServiceOrderForm({
                 }
               }}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Icon</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {GARMENT_ICON_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const selected = newGarmentIcon === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    title={opt.label}
+                    onClick={() => setNewGarmentIcon(opt.key)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all',
+                      selected
+                        ? 'border-purple-600 bg-purple-50 text-purple-700'
+                        : 'border-transparent bg-muted/60 text-muted-foreground hover:border-purple-300'
+                    )}
+                  >
+                    <Icon size={22} weight={selected ? 'fill' : 'bold'} />
+                    <span className="text-[9px] font-medium truncate w-full text-center">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -4066,6 +4297,121 @@ export function ServiceOrderForm({
           <Button type="button" onClick={handleAddMeasurementField} className="gap-2">
             <Plus size={16} weight="bold" />
             Add Field
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Rename Measurement Field Dialog */}
+    <Dialog
+      open={!!renameFieldKey}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setRenameFieldKey(null);
+          setRenameFieldLabel('');
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Edit Measurement Field</DialogTitle>
+          <DialogDescription>Change the label for this measurement field.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="rename-order-field">Field Name *</Label>
+            <Input
+              id="rename-order-field"
+              value={renameFieldLabel}
+              onChange={(e) => setRenameFieldLabel(e.target.value)}
+              className="h-11"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveRenameField();
+                }
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setRenameFieldKey(null)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSaveRenameField}>
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Rename Dress Type Dialog */}
+    <Dialog
+      open={!!renameGarmentKey}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setRenameGarmentKey(null);
+          setRenameGarmentLabel('');
+          setRenameGarmentIcon('hanger');
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Edit Dress Type</DialogTitle>
+          <DialogDescription>Change the display name and icon for this dress type.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="rename-order-garment">Dress Type Name *</Label>
+            <Input
+              id="rename-order-garment"
+              value={renameGarmentLabel}
+              onChange={(e) => setRenameGarmentLabel(e.target.value)}
+              className="h-11"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveRenameDressType();
+                }
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Icon</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {GARMENT_ICON_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const selected = renameGarmentIcon === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    title={opt.label}
+                    onClick={() => setRenameGarmentIcon(opt.key)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all',
+                      selected
+                        ? 'border-purple-600 bg-purple-50 text-purple-700'
+                        : 'border-transparent bg-muted/60 text-muted-foreground hover:border-purple-300'
+                    )}
+                  >
+                    <Icon size={22} weight={selected ? 'fill' : 'bold'} />
+                    <span className="text-[9px] font-medium truncate w-full text-center">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setRenameGarmentKey(null)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSaveRenameDressType}>
+            Save
           </Button>
         </div>
       </DialogContent>

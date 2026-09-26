@@ -440,18 +440,12 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     }
   };
 
-  const updateMeasurement = (category: string, field: string, value: string, fieldType = 'number') => {
-    const parsedValue =
-      value === ''
-        ? undefined
-        : fieldType === 'number'
-          ? parseFloat(value)
-          : value;
+  const updateMeasurement = (category: string, field: string, value: string) => {
     setMeasurements((prev) => ({
       ...prev,
       [category]: {
         ...(prev[category] || {}),
-        [field]: parsedValue,
+        [field]: value === '' ? undefined : value,
       },
     }));
   };
@@ -1086,7 +1080,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                           {field.type === 'select' ? (
                             <Select
                               value={getMeasurementValue(activeCategory, field.key)}
-                              onValueChange={(val) => updateMeasurement(activeCategory, field.key, val, 'text')}
+                              onValueChange={(val) => updateMeasurement(activeCategory, field.key, val)}
                             >
                               <SelectTrigger className="h-11 bg-white">
                                 <SelectValue placeholder="Select..." />
@@ -1099,23 +1093,13 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                                 ))}
                               </SelectContent>
                             </Select>
-                          ) : field.type === 'text' ? (
-                            <Input
-                              type="text"
-                              value={getMeasurementValue(activeCategory, field.key)}
-                              onChange={(e) => updateMeasurement(activeCategory, field.key, e.target.value, 'text')}
-                              placeholder="—"
-                              className="h-11 text-base"
-                            />
                           ) : (
                             <div className="relative">
                               <Input
-                                type="number"
-                                step="0.1"
-                                min="0"
+                                type="text"
                                 value={getMeasurementValue(activeCategory, field.key)}
                                 onChange={(e) => updateMeasurement(activeCategory, field.key, e.target.value)}
-                                placeholder="0"
+                                placeholder="Enter value"
                                 className="h-11 pr-12 text-base"
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
