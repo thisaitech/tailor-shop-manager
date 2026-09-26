@@ -48,6 +48,27 @@ import {
 } from '@/lib/firestore/designCategoryService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { getRecentCustomers, searchCustomers, addCustomer } from '@/lib/firestore/customerService';
+import {
+  BLOUSE_STYLE_FIELDS,
+  CHUDITHAR_FIELDS,
+  CUSTOMER_BUILTIN_CATEGORIES,
+  DEFAULT_CUSTOM_MEASUREMENT_FIELDS,
+  type CustomGarmentType,
+  type CustomMeasurementFieldsMap,
+  type GarmentFieldConfig,
+  getCustomFieldKeys,
+  isBuiltInCategory,
+  loadCustomGarmentTypes,
+  loadCustomMeasurementFields,
+  loadSheetOverrides,
+  mergeFieldsWithCustom,
+  saveCustomGarmentTypes,
+  saveCustomMeasurementFields,
+  slugifyKey,
+  applyCategoryLabel,
+  applyFieldLabels,
+  isCategoryHidden,
+} from '@/lib/measurementSheets';
 import { 
   WhatsAppConfirmationDialog, 
   generateOrderConfirmationMessage,
@@ -65,6 +86,8 @@ const GARMENT_TYPES_BY_CATEGORY = {
   female: [
     { key: 'blouse', label: 'Blouse', icon: TShirt },
     { key: 'churidar', label: 'Churidar', icon: Dress },
+    { key: 'chudithar', label: 'Chudithar', icon: Dress },
+    { key: 'customDress', label: 'Custom Dress', icon: Dress },
   ],
   kids: [
     { key: 'shirt', label: 'Shirt', icon: TShirt },
@@ -571,29 +594,22 @@ const MEASUREMENT_CATEGORIES = {
   blouse: {
     label: 'Blouse',
     icon: TShirt,
-    fields: [
-      { key: 'shoulder', label: 'Shoulder', type: 'number' },
-      { key: 'chest', label: 'Chest', type: 'number' },
-      { key: 'waist', label: 'Waist', type: 'number' },
-      { key: 'length', label: 'Length', type: 'number' },
-      { key: 'neckDepthFront', label: 'Neck Depth Front', type: 'number' },
-      { key: 'neckDepthBack', label: 'Neck Depth Back', type: 'number' },
-      { key: 'armhole', label: 'Armhole', type: 'number' },
-      { key: 'halfSleeve', label: 'Half Sleeve', type: 'number' },
-      { key: 'fullSleeve', label: 'Full Sleeve', type: 'number' },
-    ],
+    fields: BLOUSE_STYLE_FIELDS,
   },
   churidar: {
     label: 'Churidar',
     icon: Dress,
-    fields: [
-      { key: 'shoulder', label: 'Shoulder', type: 'number' },
-      { key: 'bust', label: 'Bust', type: 'number' },
-      { key: 'waist', label: 'Waist', type: 'number' },
-      { key: 'hip', label: 'Hip', type: 'number' },
-      { key: 'length', label: 'Length', type: 'number' },
-      { key: 'sleeveLength', label: 'Sleeve Length', type: 'number' },
-    ],
+    fields: CHUDITHAR_FIELDS,
+  },
+  chudithar: {
+    label: 'Chudithar',
+    icon: Dress,
+    fields: CHUDITHAR_FIELDS,
+  },
+  customDress: {
+    label: 'Custom Dress',
+    icon: Dress,
+    fields: BLOUSE_STYLE_FIELDS,
   },
   halfTrousers: {
     label: 'Half Trousers',
@@ -644,96 +660,28 @@ const MEASUREMENT_CATEGORIES = {
 
 type MeasurementCategoryKey = string;
 
-type GarmentFieldConfig = {
-  key: string;
-  label: string;
-  type: string;
-  options?: string[];
-};
-
 type GarmentTypeOption = {
   key: string;
   label: string;
   icon: typeof TShirt;
 };
 
-interface CustomGarmentType {
-  key: string;
-  label: string;
-  category: OrderCategory;
-}
-
-const CUSTOM_GARMENTS_STORAGE_KEY = 'custom_garment_types';
-const CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY = 'custom_measurement_fields';
-
-const DEFAULT_CUSTOM_MEASUREMENT_FIELDS: GarmentFieldConfig[] = [
-  { key: 'chest', label: 'Chest', type: 'number' },
-  { key: 'waist', label: 'Waist', type: 'number' },
-  { key: 'length', label: 'Length', type: 'number' },
-  { key: 'shoulder', label: 'Shoulder', type: 'number' },
-  { key: 'hip', label: 'Hip', type: 'number' },
-];
-
-type CustomMeasurementFieldsMap = Record<string, GarmentFieldConfig[]>;
-
-function loadCustomGarmentTypes(): CustomGarmentType[] {
-  try {
-    const raw = localStorage.getItem(CUSTOM_GARMENTS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCustomGarmentTypes(garments: CustomGarmentType[]) {
-  try {
-    localStorage.setItem(CUSTOM_GARMENTS_STORAGE_KEY, JSON.stringify(garments));
-  } catch {
-    // ignore
-  }
-}
-
-function loadCustomMeasurementFields(): CustomMeasurementFieldsMap {
-  try {
-    const raw = localStorage.getItem(CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveCustomMeasurementFields(fields: CustomMeasurementFieldsMap) {
-  try {
-    localStorage.setItem(CUSTOM_MEASUREMENT_FIELDS_STORAGE_KEY, JSON.stringify(fields));
-  } catch {
-    // ignore
-  }
-}
-
-function slugifyKey(label: string): string {
-  const base = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '');
-  return base || ('custom_' + Date.now());
-}
-
 function getMeasurementConfig(
   key: string,
   customGarmentTypes: CustomGarmentType[] = [],
   customMeasurementFields: CustomMeasurementFieldsMap = {}
 ) {
+  const overrides = loadSheetOverrides();
+  if (isCategoryHidden(key, overrides)) return undefined;
+
   let base:
     | { label: string; icon: typeof TShirt; fields: readonly GarmentFieldConfig[] | GarmentFieldConfig[] }
     | undefined;
 
   if (key in MEASUREMENT_CATEGORIES) {
     base = MEASUREMENT_CATEGORIES[key as keyof typeof MEASUREMENT_CATEGORIES];
+  } else if (CUSTOMER_BUILTIN_CATEGORIES[key]) {
+    base = CUSTOMER_BUILTIN_CATEGORIES[key];
   } else {
     const custom = customGarmentTypes.find((g) => g.key === key);
     if (custom) {
@@ -747,16 +695,11 @@ function getMeasurementConfig(
 
   if (!base) return undefined;
 
-  const extraFields = customMeasurementFields[key] || [];
-  if (extraFields.length === 0) {
-    return { ...base, fields: [...base.fields] };
-  }
-
-  const existingKeys = new Set(base.fields.map((f) => f.key));
-  const mergedExtras = extraFields.filter((f) => !existingKeys.has(f.key));
+  const merged = mergeFieldsWithCustom(base.fields, key, customMeasurementFields);
   return {
     ...base,
-    fields: [...base.fields, ...mergedExtras],
+    label: applyCategoryLabel(key, base.label, overrides),
+    fields: applyFieldLabels(key, merged, overrides),
   };
 }
 
@@ -849,6 +792,14 @@ export function ServiceOrderForm({
   const [customMeasurementFields, setCustomMeasurementFields] = useState<CustomMeasurementFieldsMap>(() => loadCustomMeasurementFields());
   const [showAddMeasurementFieldDialog, setShowAddMeasurementFieldDialog] = useState(false);
   const [newMeasurementFieldName, setNewMeasurementFieldName] = useState('');
+
+  // Keep shared dress types / size-sheet fields in sync with CustomerForm
+  useEffect(() => {
+    if (open) {
+      setCustomGarmentTypes(loadCustomGarmentTypes());
+      setCustomMeasurementFields(loadCustomMeasurementFields());
+    }
+  }, [open]);
 
   // Dress Items (multiple dresses per order)
   const [dressItems, setDressItems] = useState<DressItem[]>([]);
@@ -2082,16 +2033,19 @@ export function ServiceOrderForm({
   // Get garment types available for the selected category (built-in + custom)
   const availableGarmentTypes = useMemo((): GarmentTypeOption[] => {
     if (!orderCategory) return [];
-    const base = (GARMENT_TYPES_BY_CATEGORY[orderCategory] || []).map((garment) => ({
-      key: garment.key,
-      label: garment.label,
-      icon: garment.icon,
-    }));
+    const overrides = loadSheetOverrides();
+    const base = (GARMENT_TYPES_BY_CATEGORY[orderCategory] || [])
+      .filter((garment) => !isCategoryHidden(garment.key, overrides))
+      .map((garment) => ({
+        key: garment.key,
+        label: applyCategoryLabel(garment.key, garment.label, overrides),
+        icon: garment.icon,
+      }));
     const custom = customGarmentTypes
-      .filter((g) => g.category === orderCategory)
+      .filter((g) => g.category === orderCategory && !isCategoryHidden(g.key, overrides))
       .map((g) => ({
         key: g.key,
-        label: g.label,
+        label: applyCategoryLabel(g.key, g.label, overrides),
         icon: Dress,
       }));
     return [...base, ...custom];
@@ -2160,6 +2114,43 @@ export function ServiceOrderForm({
     setNewMeasurementFieldName('');
     setShowAddMeasurementFieldDialog(false);
     toast.success(label + ' added to size sheet');
+  };
+
+  const handleDeleteMeasurementField = (fieldKey: string, fieldLabel: string) => {
+    if (!activeDressType) return;
+    const customKeys = getCustomFieldKeys(activeDressType, customMeasurementFields);
+    if (!customKeys.has(fieldKey)) {
+      toast.error('Built-in measurement fields cannot be deleted');
+      return;
+    }
+    if (!window.confirm(`Permanently delete field "${fieldLabel}" from this dress type?`)) return;
+    const next = {
+      ...customMeasurementFields,
+      [activeDressType]: (customMeasurementFields[activeDressType] || []).filter((f) => f.key !== fieldKey),
+    };
+    setCustomMeasurementFields(next);
+    saveCustomMeasurementFields(next);
+    toast.success(fieldLabel + ' removed from size sheet');
+  };
+
+  const handleDeleteCustomGarment = (key: string, label: string) => {
+    if (isBuiltInCategory(key) || key in MEASUREMENT_CATEGORIES) {
+      toast.error('Built-in dress types cannot be deleted');
+      return;
+    }
+    if (!window.confirm(`Permanently delete dress type "${label}"?`)) return;
+    const next = customGarmentTypes.filter((g) => g.key !== key);
+    setCustomGarmentTypes(next);
+    saveCustomGarmentTypes(next);
+    const nextFields = { ...customMeasurementFields };
+    delete nextFields[key];
+    setCustomMeasurementFields(nextFields);
+    saveCustomMeasurementFields(nextFields);
+    setSelectedGarmentTypes((prev) => prev.filter((k) => k !== key));
+    if (activeDressType === key) {
+      setActiveDressType(null);
+    }
+    toast.success(label + ' dress type deleted');
   };
 
   // Validate measurements are filled for selected garment types
@@ -2611,10 +2602,11 @@ export function ServiceOrderForm({
                       ? Object.values(garmentMeasurements).filter((v) => v !== undefined && v !== null && v !== 0 && v !== '').length
                       : 0;
                     const Icon = garment.icon;
+                    const isCustomType = customGarmentTypes.some((g) => g.key === garment.key) && !(garment.key in MEASUREMENT_CATEGORIES);
 
                     return (
+                      <div key={garment.key} className="relative flex-shrink-0">
                       <button
-                        key={garment.key}
                         type="button"
                         onClick={() => {
                           // Toggle selection
@@ -2650,6 +2642,20 @@ export function ServiceOrderForm({
                         <Icon size={26} weight={isActive || isSelected ? 'fill' : 'regular'} />
                         <span className="text-[11px] font-semibold">{garment.label}</span>
                       </button>
+                      {isCustomType && (
+                        <button
+                          type="button"
+                          title="Delete dress type"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCustomGarment(garment.key, garment.label);
+                          }}
+                          className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 z-10"
+                        >
+                          <Trash size={10} weight="bold" />
+                        </button>
+                      )}
+                      </div>
                     );
                   })}
 
@@ -2705,14 +2711,30 @@ export function ServiceOrderForm({
                       {getMeasurementConfig(activeDressType, customGarmentTypes, customMeasurementFields).fields.map((field) => {
                         const garmentData = measurements[activeDressType as keyof typeof measurements] as Record<string, unknown> | undefined;
                         const value = garmentData?.[field.key];
+                        const canDeleteField = getCustomFieldKeys(activeDressType, customMeasurementFields).has(field.key);
+                        const fieldLabel = (
+                          <div className="flex items-center justify-between gap-1">
+                            <label className="text-xs text-muted-foreground font-medium">
+                              {field.label}
+                            </label>
+                            {canDeleteField && (
+                              <button
+                                type="button"
+                                title="Delete field"
+                                onClick={() => handleDeleteMeasurementField(field.key, field.label)}
+                                className="text-red-500 hover:text-red-700 p-0.5"
+                              >
+                                <Trash size={12} weight="bold" />
+                              </button>
+                            )}
+                          </div>
+                        );
 
                         // Handle different field types
                         if (field.type === 'select') {
                           return (
                             <div key={field.key} className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground font-medium">
-                                {field.label}
-                              </label>
+                              {fieldLabel}
                               <Select
                                 value={typeof value === 'string' ? value : ''}
                                 onValueChange={(newValue) => {
@@ -2744,9 +2766,7 @@ export function ServiceOrderForm({
                           const selectedOptions = (Array.isArray(value) ? value : []) as string[];
                           return (
                             <div key={field.key} className="space-y-1.5 col-span-2">
-                              <label className="text-xs text-muted-foreground font-medium">
-                                {field.label}
-                              </label>
+                              {fieldLabel}
                               <div className="flex flex-wrap gap-2">
                                 {field.options?.map((option) => {
                                   const isSelected = selectedOptions.includes(option);
@@ -2785,9 +2805,7 @@ export function ServiceOrderForm({
                         if (field.type === 'text') {
                           return (
                             <div key={field.key} className="space-y-1.5">
-                              <label className="text-xs text-muted-foreground font-medium">
-                                {field.label}
-                              </label>
+                              {fieldLabel}
                               <Input
                                 type="text"
                                 value={typeof value === 'string' ? value : ''}
@@ -2810,9 +2828,7 @@ export function ServiceOrderForm({
                         // Default: number input
                         return (
                           <div key={field.key} className="space-y-1.5">
-                            <label className="text-xs text-muted-foreground font-medium">
-                              {field.label}
-                            </label>
+                            {fieldLabel}
                             <div className="relative">
                               <Input
                                 type="number"

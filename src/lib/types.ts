@@ -9,6 +9,7 @@ export interface Measurements {
     waist?: number;
     length?: number;
     shoulder?: number;
+    [key: string]: string | number | undefined;
   };
   // Pant measurements (inches)
   pant?: {
@@ -19,6 +20,7 @@ export interface Measurements {
     thigh?: number;
     hips?: number;
     legOpening?: number;
+    [key: string]: string | number | undefined;
   };
   // Coat measurements (inches)
   coat?: {
@@ -27,6 +29,7 @@ export interface Measurements {
     waist?: number;
     length?: number;
     shoulder?: number;
+    [key: string]: string | number | undefined;
   };
   // Chudithar Top measurements (inches)
   chuditharTop?: {
@@ -35,6 +38,7 @@ export interface Measurements {
     waist?: number;
     hip?: number;
     length?: number;
+    [key: string]: string | number | undefined;
   };
   // Chudithar Pant measurements (inches)
   chuditharPant?: {
@@ -42,6 +46,7 @@ export interface Measurements {
     hip?: number;
     inseam?: number;
     fullLength?: number;
+    [key: string]: string | number | undefined;
   };
   // Blouse measurements (inches)
   blouse?: {
@@ -52,6 +57,7 @@ export interface Measurements {
     armhole?: number;
     halfSleeve?: number;
     fullSleeve?: number;
+    [key: string]: string | number | undefined;
   };
   // Trouser measurements (inches)
   trouser?: {
@@ -62,6 +68,7 @@ export interface Measurements {
     thigh?: number;
     hips?: number;
     legOpening?: number;
+    [key: string]: string | number | undefined;
   };
   // Legacy fields for backward compatibility
   blazer?: {
@@ -70,12 +77,14 @@ export interface Measurements {
     chest?: number;
     waist?: number;
     sleeve?: number;
+    [key: string]: string | number | undefined;
   };
   jocket?: {
     length?: number;
     shoulder?: number;
     chest?: number;
     sleeve?: number;
+    [key: string]: string | number | undefined;
   };
   sudhar?: {
     length?: number;
@@ -84,13 +93,17 @@ export interface Measurements {
     waist?: number;
     hip?: number;
     sleeve?: number;
+    [key: string]: string | number | undefined;
   };
   kurta?: {
     length?: number;
     shoulder?: number;
     chest?: number;
     sleeve?: number;
+    [key: string]: string | number | undefined;
   };
+  // Custom / dynamic garment sheets (Custom Dress, user-added types, etc.)
+  [key: string]: Record<string, string | number | undefined> | undefined;
 }
 
 export interface Customer {
