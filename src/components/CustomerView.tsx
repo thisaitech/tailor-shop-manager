@@ -25,8 +25,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { sendWhatsAppMessage } from '@/lib/utils';
 
@@ -35,11 +35,27 @@ interface CustomerViewProps {
   serviceOrders?: ServiceOrder[];
   onBack: () => void;
   onEdit?: (customer: Customer) => void;
-  onDelete?: (customerId: string) => void;
+  onDelete?: (customerId: string) => void | Promise<void>;
 }
 
 export function CustomerView({ customer, serviceOrders = [], onBack, onEdit, onDelete }: CustomerViewProps) {
   const { t } = useLanguage();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const confirmDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!onDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(customer.id);
+      setShowDeleteConfirm(false);
+    } catch {
+      // Parent already reported the error; keep the dialog open so the user can retry.
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -99,36 +115,17 @@ export function CustomerView({ customer, serviceOrders = [], onBack, onEdit, onD
               </Button>
             )}
             {onDelete && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    style={{ backgroundColor: 'white' }}
-                  >
-                    <Trash size={16} weight="bold" />
-                    Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Customer</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete <strong>{customer.name}</strong>? This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => onDelete(customer.id)}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDeleting}
+                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                style={{ backgroundColor: 'white' }}
+              >
+                <Trash size={16} weight="bold" />
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
             )}
           </div>
         )}
@@ -182,36 +179,17 @@ export function CustomerView({ customer, serviceOrders = [], onBack, onEdit, onD
                 </Button>
               )}
               {onDelete && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      style={{ backgroundColor: 'white' }}
-                    >
-                      <Trash size={16} weight="bold" />
-                      Delete
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Customer</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete <strong>{customer.name}</strong>? This action cannot be undone and will remove all customer data.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => onDelete(customer.id)}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isDeleting}
+                  className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  style={{ backgroundColor: 'white' }}
+                >
+                  <Trash size={16} weight="bold" />
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
               )}
             </div>
           )}
@@ -420,6 +398,34 @@ export function CustomerView({ customer, serviceOrders = [], onBack, onEdit, onD
           </p>
         )}
       </Card>
+
+      {onDelete && (
+        <AlertDialog
+          open={showDeleteConfirm}
+          onOpenChange={(isOpen) => {
+            if (!isDeleting) setShowDeleteConfirm(isOpen);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete <strong>{customer.name}</strong>? This action cannot be undone and will remove all customer data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

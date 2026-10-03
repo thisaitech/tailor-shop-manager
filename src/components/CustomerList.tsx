@@ -38,7 +38,7 @@ interface CustomerListProps {
   customers: Customer[];
   onAddCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void | Promise<void>;
   onUpdateCustomer?: (id: string, customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>) => void | Promise<void>;
-  onDeleteCustomer?: (id: string) => void;
+  onDeleteCustomer?: (id: string) => void | Promise<void>;
   onSelectCustomer?: (customer: Customer) => void;
   hideAddButton?: boolean;
 }
@@ -58,6 +58,7 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | undefined>();
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [recentCustomersPage, setRecentCustomersPage] = useState(1);
@@ -131,10 +132,17 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
     setDeleteCustomerId(customerId);
   };
 
-  const confirmDelete = () => {
-    if (deleteCustomerId && onDeleteCustomer) {
-      onDeleteCustomer(deleteCustomerId);
+  const confirmDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!deleteCustomerId || !onDeleteCustomer || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteCustomer(deleteCustomerId);
       setDeleteCustomerId(null);
+    } catch {
+      // Parent already reported the error; keep the dialog open so the user can retry.
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -602,7 +610,12 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
         customer={editingCustomer}
       />
 
-      <AlertDialog open={deleteCustomerId !== null} onOpenChange={() => setDeleteCustomerId(null)}>
+      <AlertDialog
+        open={deleteCustomerId !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen && !isDeleting) setDeleteCustomerId(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('deleteCustomer')}</AlertDialogTitle>
@@ -611,9 +624,13 @@ export function CustomerList({ customers, onAddCustomer, onUpdateCustomer, onDel
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {t('delete')}
+            <AlertDialogCancel disabled={isDeleting}>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : t('delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

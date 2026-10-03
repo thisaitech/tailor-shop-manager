@@ -33,7 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { ServiceOrder, OrderCategory, Customer, Measurements, UOM, ModeOfPayment, AdvancePayment, DressItem, DressType } from '@/lib/types';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { Plus, X, Image as ImageIcon, MagnifyingGlass, TShirt, Pants, Hoodie, Dress, Check, FilePdf, Printer, CaretDown, Camera, Upload, UserCircle, Baby, CalendarBlank, Microphone, Stop, Play, Trash, ArrowLeft, DotsSixVertical, PencilSimple } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';
 import { uploadPhoto } from '@/lib/storage';
@@ -800,6 +800,8 @@ export function ServiceOrderForm({
   const [stitchingCost, setStitchingCost] = useState(0);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [showCalendar, setShowCalendar] = useState(false);
+  const [orderDate, setOrderDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [showOrderDateCalendar, setShowOrderDateCalendar] = useState(false);
   const [reference, setReference] = useState('');
   const [fabricDetails, setFabricDetails] = useState('');
   const [designNotes, setDesignNotes] = useState('');
@@ -1291,6 +1293,9 @@ export function ServiceOrderForm({
       setExpectedDeliveryDate(
         format(new Date(order.expectedDeliveryDate), 'yyyy-MM-dd')
       );
+      setOrderDate(
+        format(new Date(order.serviceOrderDate || order.createdAt || Date.now()), 'yyyy-MM-dd')
+      );
       setReference(order.reference || '');
       setFabricDetails(order.fabricDetails || '');
       setDesignNotes(order.designNotes || '');
@@ -1320,6 +1325,8 @@ export function ServiceOrderForm({
     setStitchingCost(0);
     setExpectedDeliveryDate('');
     setShowCalendar(false);
+    setOrderDate(format(new Date(), 'yyyy-MM-dd'));
+    setShowOrderDateCalendar(false);
     setReference('');
     setFabricDetails('');
     setDesignNotes('');
@@ -1405,6 +1412,12 @@ export function ServiceOrderForm({
       return;
     }
 
+    const serviceOrderTimestamp = resolveServiceOrderTimestamp();
+    if (!serviceOrderTimestamp) {
+      toast.error('Please select order date');
+      return;
+    }
+
     if (orderQty <= 0) {
       toast.error('Order quantity must be greater than 0');
       return;
@@ -1446,7 +1459,7 @@ export function ServiceOrderForm({
     const finalStitchingCost = dressItems.length > 0 ? totalDressCost : stitchingCost;
 
     const orderData: Omit<ServiceOrder, 'id' | 'createdAt' | 'updatedAt'> = {
-      serviceOrderDate: Date.now(),
+      serviceOrderDate: serviceOrderTimestamp,
       orderNumber: (nextServiceOrderId || serviceOrderNo).trim().toUpperCase(),
       customerId,
       customerName: customer.name,
@@ -1844,6 +1857,25 @@ export function ServiceOrderForm({
 
   const getTodayDate = () => {
     return format(new Date(), 'yyyy-MM-dd');
+  };
+
+  // 'yyyy-MM-dd' strings must be parsed as local dates; new Date('yyyy-MM-dd') is UTC and can shift the day.
+  const parseLocalDate = (value: string): Date | null => {
+    if (!value) return null;
+    const parsed = parse(value, 'yyyy-MM-dd', new Date());
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const resolveServiceOrderTimestamp = (): number | null => {
+    if (order?.serviceOrderDate && format(new Date(order.serviceOrderDate), 'yyyy-MM-dd') === orderDate) {
+      return order.serviceOrderDate;
+    }
+    const selected = parseLocalDate(orderDate);
+    if (!selected) return null;
+    // Keep the current time-of-day so same-day orders still sort by creation order.
+    const now = new Date();
+    selected.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    return selected.getTime();
   };
 
   const [isUploading, setIsUploading] = useState(false);
@@ -2688,10 +2720,20 @@ export function ServiceOrderForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Order Date</Label>
-                  <div className="h-12 px-4 flex items-center bg-background rounded-md border text-base font-medium">
-                    {format(new Date(), 'dd MMM yyyy')}
-                  </div>
+                  <Label htmlFor="orderDate" className="text-sm font-medium">Order Date</Label>
+                  <Button
+                    id="orderDate"
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowOrderDateCalendar(true)}
+                    className={cn(
+                      "w-full h-12 justify-start text-left font-normal text-base bg-background",
+                      !orderDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarBlank size={18} className="mr-2 flex-shrink-0" />
+                    {parseLocalDate(orderDate) ? format(parseLocalDate(orderDate) as Date, 'dd MMM yyyy') : 'Select date'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -4186,6 +4228,29 @@ export function ServiceOrderForm({
             }}
             disabled={(date) => date < new Date(getTodayDate())}
             defaultMonth={expectedDeliveryDate ? new Date(expectedDeliveryDate) : new Date()}
+            className="rounded-md"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Order Date Picker Dialog */}
+    <Dialog open={showOrderDateCalendar} onOpenChange={setShowOrderDateCalendar}>
+      <DialogContent className="sm:max-w-[400px] p-0">
+        <DialogHeader className="px-5 pt-5 pb-3">
+          <DialogTitle className="text-center text-lg">Select Order Date</DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-center px-2 pb-5">
+          <Calendar
+            mode="single"
+            selected={parseLocalDate(orderDate) || undefined}
+            onSelect={(date) => {
+              if (date) {
+                setOrderDate(format(date, 'yyyy-MM-dd'));
+                setShowOrderDateCalendar(false);
+              }
+            }}
+            defaultMonth={parseLocalDate(orderDate) || new Date()}
             className="rounded-md"
           />
         </div>

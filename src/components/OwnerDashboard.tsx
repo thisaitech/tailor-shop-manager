@@ -239,16 +239,20 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
     }
   };
 
+  // Throws on failure so callers can keep their confirmation dialog open.
   const handleDeleteCustomer = async (id: string) => {
     try {
       console.log('[OwnerDashboard] Deleting customer from Firestore:', id);
 
       await deleteCustomer(id);
-      setCustomers((customers || []).filter((customer) => customer.id !== id));
-      toast.success('Account deleted successfully');
+      setCustomers((prev) => (prev || []).filter((customer) => customer.id !== id));
+      setSelectedCustomer((prev) => (prev?.id === id ? null : prev));
+      setEditingCustomer((prev) => (prev?.id === id ? null : prev));
+      toast.success('Customer deleted successfully');
     } catch (error) {
       console.error('[OwnerDashboard] Error deleting customer:', error);
-      toast.error('Failed to delete account');
+      toast.error('Failed to delete customer');
+      throw error;
     }
   };
 
@@ -834,16 +838,7 @@ export function OwnerDashboard({ initialTab = 'dashboard', onEmployeeClick, onNa
                 setEditingCustomer(customer);
                 setShowCustomerForm(true);
               }}
-              onDelete={async (customerId) => {
-                try {
-                  await deleteCustomer(customerId);
-                  setSelectedCustomer(null);
-                  toast.success('Customer deleted successfully');
-                } catch (error) {
-                  console.error('Error deleting customer:', error);
-                  toast.error('Failed to delete customer');
-                }
-              }}
+              onDelete={handleDeleteCustomer}
             />
           ) : (
             <CustomerList

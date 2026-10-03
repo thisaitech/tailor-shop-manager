@@ -22,7 +22,7 @@ import {
 import { Customer, Gender, Measurements } from '@/lib/types';
 import { toast } from 'sonner';
 import { User, Ruler, MapPin, Check, UserCircle, ArrowLeft, Plus, Trash, PencilSimple } from '@phosphor-icons/react';
-import { generateCustomerId, findCustomerByPhone, findCustomerByEmail } from '@/lib/firestore/customerService';
+import { generateCustomerId } from '@/lib/firestore/customerService';
 import { getCompanyProfile } from '@/lib/firestore/companyService';
 import { NumberSeriesSelect } from '@/components/NumberSeriesSelect';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -78,7 +78,7 @@ const STATE_CITIES: Record<string, string[]> = {
   'Punjab': ['Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda', 'Mohali', 'Pathankot', 'Hoshiarpur', 'Batala', 'Moga', 'Abohar', 'Malerkotla', 'Khanna', 'Phagwara', 'Muktsar', 'Barnala', 'Rajpura', 'Firozpur', 'Kapurthala'],
   'Rajasthan': ['Jaipur', 'Jodhpur', 'Kota', 'Bikaner', 'Ajmer', 'Udaipur', 'Bhilwara', 'Alwar', 'Bharatpur', 'Sikar', 'Pali', 'Sri Ganganagar', 'Kishangarh', 'Beawar', 'Hanumangarh', 'Dhaulpur', 'Gangapur City', 'Sawai Madhopur', 'Churu', 'Jhunjhunu', 'Banswara', 'Chittorgarh', 'Tonk', 'Baran', 'Nagaur', 'Bundi'],
   'Sikkim': ['Gangtok', 'Namchi', 'Gyalshing', 'Mangan', 'Rangpo', 'Singtam', 'Jorethang'],
-  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tirunelveli', 'Tiruppur', 'Erode', 'Vellore', 'Thoothukudi', 'Dindigul', 'Thanjavur', 'Ranipet', 'Sivakasi', 'Karur', 'Udhagamandalam', 'Hosur', 'Nagercoil', 'Kanchipuram', 'Kumarapalayam', 'Karaikkudi', 'Neyveli', 'Cuddalore', 'Kumbakonam', 'Tiruvannamalai', 'Pollachi', 'Rajapalayam', 'Gudiyatham', 'Pudukkottai', 'Vaniyambadi', 'Ambur', 'Nagapattinam'],
+  'Tamil Nadu': ['Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore', 'Dharmapuri', 'Dindigul', 'Erode', 'Kallakurichi', 'Kancheepuram', 'Kanniyakumari', 'Karur', 'Krishnagiri', 'Madurai', 'Mayiladuthurai', 'Nagapattinam', 'Namakkal', 'Nilgiris', 'Perambalur', 'Pudukkottai', 'Ramanathapuram', 'Ranipet', 'Salem', 'Sivaganga', 'Tenkasi', 'Thanjavur', 'Theni', 'Thoothukudi', 'Tiruchirappalli', 'Tirunelveli', 'Tirupathur', 'Tiruppur', 'Tiruvallur', 'Tiruvannamalai', 'Tiruvarur', 'Vellore', 'Viluppuram', 'Virudhunagar'],
   'Telangana': ['Hyderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Ramagundam', 'Khammam', 'Mahbubnagar', 'Nalgonda', 'Adilabad', 'Suryapet', 'Miryalaguda', 'Siddipet', 'Jagtial', 'Mancherial'],
   'Tripura': ['Agartala', 'Udaipur', 'Dharmanagar', 'Kailashahar', 'Belonia', 'Kamalpur', 'Ambassa', 'Khowai', 'Teliamura', 'Sabroom'],
   'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Varanasi', 'Meerut', 'Allahabad', 'Bareilly', 'Aligarh', 'Moradabad', 'Saharanpur', 'Gorakhpur', 'Noida', 'Firozabad', 'Jhansi', 'Muzaffarnagar', 'Mathura', 'Budaun', 'Rampur', 'Shahjahanpur', 'Farrukhabad', 'Mau', 'Hapur', 'Etawah', 'Mirzapur', 'Bulandshahr', 'Sambhal', 'Amroha', 'Hardoi', 'Fatehpur', 'Raebareli', 'Orai', 'Sitapur', 'Bahraich', 'Modinagar', 'Unnao', 'Jaunpur', 'Lakhimpur', 'Hathras', 'Banda', 'Pilibhit', 'Barabanki', 'Khurja', 'Gonda', 'Mainpuri', 'Lalitpur', 'Etah', 'Deoria', 'Ghazipur'],
@@ -277,22 +277,6 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
     return digits.length === 10 ? `+91${digits}` : '';
   };
 
-  // Check if phone number exists
-  const checkPhoneExists = async (normalizedPhone: string, currentCustomerId?: string): Promise<boolean> => {
-    try {
-      const customersRef = collection(db, 'newcustomers');
-      const q = query(customersRef, where('phoneNormalized', '==', normalizedPhone));
-      const snapshot = await getDocs(q);
-      if (currentCustomerId) {
-        return snapshot.docs.some(doc => doc.id !== currentCustomerId);
-      }
-      return !snapshot.empty;
-    } catch (error) {
-      console.error('[CustomerForm] Error checking phone:', error);
-      return false;
-    }
-  };
-
   // Check if email exists
   const checkEmailExists = async (emailToCheck: string, currentCustomerId?: string): Promise<{ exists: boolean; customerName?: string }> => {
     try {
@@ -385,15 +369,8 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
       return;
     }
 
-    // Check phone uniqueness
+    // Phone numbers are intentionally not unique (family members can share one number)
     const phoneNorm = normalize(phoneRaw);
-    const phoneExists = await checkPhoneExists(phoneNorm, customer?.id);
-    if (phoneExists) {
-      setPhoneError('This number is already registered');
-      toast.error('This phone number is already registered');
-      setActiveTab('basic');
-      return;
-    }
 
     // Validate email uniqueness if provided
     if (email.trim()) {
@@ -649,6 +626,13 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
   const isBasicComplete = name.trim() && phone.length === 10 && gender;
   const hasMeasurements = getTotalMeasurements() > 0;
   const hasAddress = state || place || address1;
+
+  // Keep a customer's previously saved city selectable even if it is not in the current list.
+  const baseCities = STATE_CITIES[state] || [];
+  const cityOptions =
+    place && place !== 'Not specified' && !baseCities.includes(place)
+      ? [place, ...baseCities]
+      : baseCities;
 
   return (
     <>
@@ -1209,7 +1193,7 @@ export function CustomerForm({ open, onOpenChange, onSave, customer }: CustomerF
                           <SelectValue placeholder={state ? "Select city" : "Select state first"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {(STATE_CITIES[state] || []).map((city) => (
+                          {cityOptions.map((city) => (
                             <SelectItem key={city} value={city}>{city}</SelectItem>
                           ))}
                         </SelectContent>
